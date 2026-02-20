@@ -46,6 +46,7 @@ import {
   Tooltip,
   TooltipProvider,
   TooltipTrigger,
+  TooltipContent
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import {
@@ -501,8 +502,8 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                                        <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select nature..." /></SelectTrigger></FormControl>
                                            <SelectContent>
                                                <SelectItem value="scrap">Sale of Scrap</SelectItem>
-                                               <SelectItem value="vehicle">Sale of Motor Vehicle (> 10L)</SelectItem>
-                                               <SelectItem value="goods">Sale of Goods (> 50L)</SelectItem>
+                                               <SelectItem value="vehicle">Sale of Motor Vehicle (&gt; 10L)</SelectItem>
+                                               <SelectItem value="goods">Sale of Goods (&gt; 50L)</SelectItem>
                                            </SelectContent>
                                        </Select>
                                    </FormItem>)} />
