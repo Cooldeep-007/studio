@@ -93,9 +93,9 @@ export default function ReportsPage() {
           <CardDescription>Select filters to generate your report.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 items-center">
+          <div className="flex flex-wrap gap-4 items-center">
             <Select value={reportType} onValueChange={setReportType}>
-              <SelectTrigger className="w-full md:w-[240px]">
+              <SelectTrigger className="w-full sm:w-[240px]">
                 <SelectValue placeholder="Select Report Type" />
               </SelectTrigger>
               <SelectContent>
@@ -105,7 +105,7 @@ export default function ReportsPage() {
               </SelectContent>
             </Select>
             <DateRangePicker date={date} setDate={setDate} />
-            <Button className="w-full md:w-auto" onClick={handleGenerateReport} disabled={!reportType || !date}>
+            <Button className="w-full sm:w-auto" onClick={handleGenerateReport} disabled={!reportType || !date}>
               <Filter className="mr-2 h-4 w-4" />
               View Report
             </Button>
