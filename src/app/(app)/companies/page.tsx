@@ -29,6 +29,7 @@ import type { Company } from '@/lib/types';
 import { AddCompanySheet } from '@/components/add-company-sheet';
 import { DeleteCompanyDialog } from '@/components/delete-company-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from "@/components/ui/badge";
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = React.useState<Company[]>(mockCompanies);
@@ -81,6 +82,12 @@ export default function CompaniesPage() {
     setIsAlertOpen(true);
   };
 
+  const getFinancialYearString = (start: Date, end: Date) => {
+    const startYear = start.getFullYear();
+    const endYear = end.getFullYear().toString().slice(-2);
+    return `${startYear}-${endYear}`;
+  }
+
   return (
     <>
       <div className="space-y-6">
@@ -110,8 +117,8 @@ export default function CompaniesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Company Name</TableHead>
-                  <TableHead>GSTIN</TableHead>
-                  <TableHead>Address</TableHead>
+                  <TableHead>Financial Year</TableHead>
+                  <TableHead>GST Status</TableHead>
                   <TableHead className="w-[50px] text-right">
                     Actions
                   </TableHead>
@@ -126,8 +133,16 @@ export default function CompaniesPage() {
                     <TableCell className="font-medium">
                       {company.companyName}
                     </TableCell>
-                    <TableCell>{company.gstin}</TableCell>
-                    <TableCell>{company.address}</TableCell>
+                    <TableCell>
+                      {getFinancialYearString(company.financialYearStart, company.financialYearEnd)}
+                    </TableCell>
+                    <TableCell>
+                      {company.gstin ? (
+                        <Badge variant="default" className="bg-green-100 text-green-800">Registered</Badge>
+                      ) : (
+                        <Badge variant="secondary">Unregistered</Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

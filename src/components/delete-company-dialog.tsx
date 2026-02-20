@@ -30,14 +30,13 @@ export function DeleteCompanyDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Are you sure you want to delete?</AlertDialogTitle>
+          <AlertDialogTitle>Are you sure you want to delete this company?</AlertDialogTitle>
           <AlertDialogDescription>
-            You are about to delete the company:{" "}
+            You are about to permanently delete the company{" "}
             <span className="font-semibold text-foreground">
-              {company?.companyName}
+              "{company?.companyName}"
             </span>
-            . This action cannot be undone. Companies with existing financial
-            transactions cannot be deleted.
+            . This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
