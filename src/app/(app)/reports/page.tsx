@@ -1,10 +1,13 @@
+"use client";
+
+import * as React from "react";
+import type { DateRange } from "react-day-picker";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter
 } from "@/components/ui/card";
 import {
   Table,
@@ -25,22 +28,62 @@ import {
 } from "@/components/ui/select";
 import { Filter } from 'lucide-react';
 import { DateRangePicker } from "@/components/date-range-picker";
-
 import { mockLedgers } from "@/lib/data";
 
-// This is a simplified calculation for demonstration
-const trialBalanceData = mockLedgers.map(ledger => ({
-  name: ledger.ledgerName,
-  group: ledger.group,
-  debit: ledger.balanceType === 'Dr' ? ledger.openingBalance : 0,
-  credit: ledger.balanceType === 'Cr' ? ledger.openingBalance : 0,
-}));
+type TrialBalanceRow = {
+  name: string;
+  group: string;
+  debit: number;
+  credit: number;
+};
 
-const totalDebit = trialBalanceData.reduce((sum, item) => sum + item.debit, 0);
-const totalCredit = trialBalanceData.reduce((sum, item) => sum + item.credit, 0);
-
+type ReportData = {
+  data: TrialBalanceRow[];
+  totalDebit: number;
+  totalCredit: number;
+  reportDate: Date;
+};
 
 export default function ReportsPage() {
+  const [reportType, setReportType] = React.useState<string>("");
+  const [date, setDate] = React.useState<DateRange | undefined>();
+  const [reportData, setReportData] = React.useState<ReportData | null>(null);
+
+  const handleGenerateReport = () => {
+    if (!date?.to) return;
+
+    if (reportType === 'trial-balance') {
+        // This is a simplified calculation for demonstration.
+        // A real implementation would process vouchers within the date range.
+        const trialBalanceData = mockLedgers.map(ledger => ({
+            name: ledger.ledgerName,
+            group: ledger.group,
+            // For simplicity, we use currentBalance. A real trial balance
+            // would calculate closing balance as of the report date.
+            debit: ledger.balanceType === 'Dr' ? ledger.currentBalance : 0,
+            credit: ledger.balanceType === 'Cr' ? ledger.currentBalance : 0,
+        }));
+
+        const totalDebit = trialBalanceData.reduce((sum, item) => sum + item.debit, 0);
+        const totalCredit = trialBalanceData.reduce((sum, item) => sum + item.credit, 0);
+
+        setReportData({
+            data: trialBalanceData,
+            totalDebit,
+            totalCredit,
+            reportDate: date.to,
+        });
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Reports</h1>
@@ -51,7 +94,7 @@ export default function ReportsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
-            <Select>
+            <Select value={reportType} onValueChange={setReportType}>
               <SelectTrigger>
                 <SelectValue placeholder="Select Report Type" />
               </SelectTrigger>
@@ -61,56 +104,58 @@ export default function ReportsPage() {
                 <SelectItem value="balance-sheet" disabled>Balance Sheet</SelectItem>
               </SelectContent>
             </Select>
-            <DateRangePicker />
-            <Button className="w-full lg:w-auto">
+            <DateRangePicker date={date} setDate={setDate} />
+            <Button className="w-full lg:w-auto" onClick={handleGenerateReport} disabled={!reportType || !date}>
               <Filter className="mr-2 h-4 w-4" />
-              Generate Report
+              View Report
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Trial Balance</CardTitle>
-          <CardDescription>As of {new Date().toLocaleDateString()}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Particulars</TableHead>
-                <TableHead className="text-right">Debit (Dr)</TableHead>
-                <TableHead className="text-right">Credit (Cr)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {trialBalanceData.map((item) => (
-                <TableRow key={item.name}>
-                  <TableCell>{item.name}</TableCell>
-                  <TableCell className="text-right">
-                    {item.debit > 0 ? item.debit.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '-'}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {item.credit > 0 ? item.credit.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '-'}
-                  </TableCell>
+      {reportData && (
+        <Card>
+            <CardHeader>
+            <CardTitle>Trial Balance</CardTitle>
+            <CardDescription>As of {reportData.reportDate.toLocaleDateString()}</CardDescription>
+            </CardHeader>
+            <CardContent>
+            <Table>
+                <TableHeader>
+                <TableRow>
+                    <TableHead>Particulars</TableHead>
+                    <TableHead className="text-right">Debit (Dr)</TableHead>
+                    <TableHead className="text-right">Credit (Cr)</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-            <TableFooter>
-                <TableRow className="font-bold text-base">
-                    <TableCell>Total</TableCell>
+                </TableHeader>
+                <TableBody>
+                {reportData.data.map((item) => (
+                    <TableRow key={item.name}>
+                    <TableCell>{item.name}</TableCell>
                     <TableCell className="text-right">
-                        {totalDebit.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                        {item.debit > 0 ? formatCurrency(item.debit) : '-'}
                     </TableCell>
                     <TableCell className="text-right">
-                        {totalCredit.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                        {item.credit > 0 ? formatCurrency(item.credit) : '-'}
                     </TableCell>
-                </TableRow>
-            </TableFooter>
-          </Table>
-        </CardContent>
-      </Card>
+                    </TableRow>
+                ))}
+                </TableBody>
+                <TableFooter>
+                    <TableRow className="font-bold text-base">
+                        <TableCell>Total</TableCell>
+                        <TableCell className="text-right">
+                            {formatCurrency(reportData.totalDebit)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                            {formatCurrency(reportData.totalCredit)}
+                        </TableCell>
+                    </TableRow>
+                </TableFooter>
+            </Table>
+            </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
