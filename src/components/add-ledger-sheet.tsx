@@ -104,20 +104,26 @@ const uqcList = [
 ];
 
 const tdsConfigData = {
+  interest: {
+    section: '194A',
+    label: 'Interest (other than securities)',
+    deducteeTypeRequired: false,
+    rates: [{ label: 'Interest (10%)', value: 10 }],
+  },
   contractor: {
     section: '194C',
-    label: 'Payment to Contractor',
+    label: 'Contractor Payment',
     deducteeTypeRequired: true,
     rates: [
       { label: 'Individual/HUF (1%)', value: 1, type: 'individual' },
       { label: 'Others (2%)', value: 2, type: 'other' },
     ],
   },
-  professional: {
-    section: '194J',
-    label: 'Fees for Professional Services',
+  insurance_commission: {
+    section: '194D',
+    label: 'Commission on Insurance',
     deducteeTypeRequired: false,
-    rates: [{ label: 'Professional/Technical Fees (10%)', value: 10 }],
+    rates: [{ label: 'Insurance Commission (5%)', value: 5 }],
   },
   commission: {
     section: '194H',
@@ -125,14 +131,59 @@ const tdsConfigData = {
     deducteeTypeRequired: false,
     rates: [{ label: 'Commission/Brokerage (5%)', value: 5 }],
   },
-  rent: {
-    section: '194I',
-    label: 'Rent',
+  rent_land: {
+      section: '194I',
+      label: 'Rent - Land & Building',
+      deducteeTypeRequired: false,
+      rates: [{ label: 'Rent on Land/Building (10%)', value: 10 }]
+  },
+  rent_plant: {
+      section: '194I',
+      label: 'Rent - Plant & Machinery',
+      deducteeTypeRequired: false,
+      rates: [{ label: 'Rent on Plant/Machinery (2%)', value: 2 }]
+  },
+  professional: {
+    section: '194J',
+    label: 'Fees for Professional Services',
     deducteeTypeRequired: false,
-    rates: [
-      { label: 'Plant & Machinery (2%)', value: 2 },
-      { label: 'Land, Building, or Furniture (10%)', value: 10 },
-    ],
+    rates: [{ label: 'Professional Fees (10%)', value: 10 }],
+  },
+  technical: {
+    section: '194J',
+    label: 'Fees for Technical Services',
+    deducteeTypeRequired: false,
+    rates: [{ label: 'Technical Fees (10%)', value: 10 }],
+  },
+  director_fees: {
+    section: '194J',
+    label: 'Director Sitting Fees',
+    deducteeTypeRequired: false,
+    rates: [{ label: 'Director Fees (10%)', value: 10 }],
+  },
+  dividend: {
+    section: '194',
+    label: 'Dividend',
+    deducteeTypeRequired: false,
+    rates: [{ label: 'Dividend (10%)', value: 10 }],
+  },
+  lottery: {
+    section: '194B',
+    label: 'Winning from Lottery',
+    deducteeTypeRequired: false,
+    rates: [{ label: 'Lottery Winnings (30%)', value: 30 }],
+  },
+  ecommerce: {
+    section: '194O',
+    label: 'E-commerce Participant',
+    deducteeTypeRequired: false,
+    rates: [{ label: 'E-commerce (1%)', value: 1 }],
+  },
+  purchase_goods: {
+    section: '194Q',
+    label: 'Purchase of Goods > 50L',
+    deducteeTypeRequired: false,
+    rates: [{ label: 'Purchase of Goods (0.1%)', value: 0.1 }],
   },
 };
 
@@ -225,9 +276,10 @@ const ledgerFormSchema = z.object({
         if (!data.contactDetails?.state) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "State is required.", path: ["contactDetails.state"] });
         }
-        if (!data.gstDetails?.gstClassification) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Type of Supply is required when GST is applicable.", path: ["gstDetails.gstClassification"] });
-        }
+    }
+    
+    if (!data.gstDetails?.gstClassification && data.gstApplicable) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Type of Supply is required when GST is applicable.", path: ["gstDetails.gstClassification"] });
     }
 
     if (data.gstDetails?.gstClassification === 'Goods') {
@@ -771,7 +823,7 @@ export function AddLedgerSheet({
                                         <FormItem className="md:col-span-2">
                                             <FormLabel>
                                                 {supplyType === 'Goods' ? 'HSN Code' : (supplyType === 'Services' ? 'SAC Code' : 'HSN/SAC Code')}
-                                                {gstApplicable && (supplyType === 'Goods' || supplyType === 'Services') && <span className="text-destructive"> *</span>}
+                                                {(gstApplicable && (supplyType === 'Goods' || supplyType === 'Services')) && <span className="text-destructive"> *</span>}
                                             </FormLabel>
                                             <FormControl>
                                                 <Input {...field} />
