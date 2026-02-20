@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DateRangePicker } from '@/components/date-range-picker';
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { mockVouchers, mockLedgers, mockCompanies } from '@/lib/data';
 import type { Voucher, Ledger } from '@/lib/types';
 import type { ChartConfig } from '@/components/ui/chart';
@@ -68,15 +69,9 @@ export default function DashboardPage() {
     });
 
     // --- Dynamic Data Calculation Logic ---
-    const totalSales = filteredVouchers
+    const totalIncome = filteredVouchers
         .filter(v => v.voucherType === 'Sales')
         .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + item.amount, 0), 0);
-
-    const totalPurchases = filteredVouchers
-        .filter(v => v.voucherType === 'Purchase')
-        .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + item.amount, 0), 0);
-
-    const totalIncome = totalSales;
 
     const expenseLedgers = mockLedgers.filter(l => l.group === 'Expense' && !l.isGroup);
     const expenseLedgerIds = new Set(expenseLedgers.map(l => l.id));
@@ -93,14 +88,28 @@ export default function DashboardPage() {
         }, 0);
 
     const otherExpenses = filteredVouchers
-        .filter(v => v.voucherType === 'Payment' && expenseLedgerIds.has(v.partyLedger))
+        .filter(v => ['Payment', 'Journal'].includes(v.voucherType) && v.lineItems.some(li => expenseLedgerIds.has(li.ledgerId)))
         .reduce((sum, v) => {
+            v.lineItems.forEach(li => {
+                if (expenseLedgerIds.has(li.ledgerId)) {
+                    const ledgerName = expenseLedgerMap.get(li.ledgerId)?.ledgerName || 'Unknown Expense';
+                    expenseBreakdown[ledgerName] = (expenseBreakdown[ledgerName] || 0) + li.amount;
+                    sum += li.amount;
+                }
+            });
+            return sum;
+        }, 0);
+        
+    const paymentVoucherExpenses = filteredVouchers
+        .filter(v => v.voucherType === 'Payment' && expenseLedgerIds.has(v.partyLedger))
+         .reduce((sum, v) => {
             const ledgerName = expenseLedgerMap.get(v.partyLedger)?.ledgerName || 'Unknown Expense';
             expenseBreakdown[ledgerName] = (expenseBreakdown[ledgerName] || 0) + v.totalAmount;
             return sum + v.totalAmount;
         }, 0);
 
-    const totalExpenses = periodPurchases + otherExpenses;
+
+    const totalExpenses = periodPurchases + otherExpenses + paymentVoucherExpenses;
     
     const netProfit = totalIncome - totalExpenses;
 
@@ -285,13 +294,46 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
         <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Expense Breakdown</CardTitle>
-            <CardDescription>Summary of expenses for the selected period.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DashboardChart data={chartData} config={chartConfig} />
-          </CardContent>
+            <CardHeader>
+                <CardTitle>Expense Breakdown</CardTitle>
+                <CardDescription>Summary of expenses for the selected period.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-6">
+                <DashboardChart data={chartData} config={chartConfig} totalValue={totalExpenses} />
+                <div className="space-y-2">
+                    <ScrollArea className="h-56">
+                        <div className="space-y-4 pr-4">
+                            {chartData.length > 0 ? (
+                                chartData
+                                    .sort((a, b) => b.value - a.value)
+                                    .map((item) => {
+                                        const key = item.name.toLowerCase().replace(/ & | /g, '-');
+                                        const percentage = totalExpenses > 0 ? (item.value / totalExpenses) * 100 : 0;
+                                        return (
+                                            <div key={item.name} className="flex items-center group cursor-pointer rounded-md p-1 -m-1 hover:bg-muted/50">
+                                                <div className="flex items-center gap-2 flex-1">
+                                                    <span
+                                                        className="h-2 w-2 rounded-full"
+                                                        style={{ backgroundColor: chartConfig[key]?.color }}
+                                                    />
+                                                    <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">{item.name}</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="font-semibold text-sm">{formatCurrency(item.value)}</span>
+                                                    <span className="text-xs text-muted-foreground ml-2">{percentage.toFixed(0)}%</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                            ) : (
+                                <div className="flex items-center justify-center h-full text-center text-sm text-muted-foreground">
+                                    No expense data for this period.
+                                </div>
+                            )}
+                        </div>
+                    </ScrollArea>
+                </div>
+            </CardContent>
         </Card>
       </div>
     </div>
