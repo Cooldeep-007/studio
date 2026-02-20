@@ -24,7 +24,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { mockCompanies } from '@/lib/data';
+import { mockCompanies, mockVouchers } from '@/lib/data';
 import type { Company } from '@/lib/types';
 import { AddCompanySheet } from '@/components/add-company-sheet';
 import { DeleteCompanyDialog } from '@/components/delete-company-dialog';
@@ -49,13 +49,28 @@ export default function CompaniesPage() {
 
   const handleDeleteCompany = () => {
     if (!selectedCompany) return;
-    // In a real app, check for transactions before deleting.
-    // For this mock, we will just filter it out.
+
+    // As per specification, check for transactions before deleting.
+    const hasTransactions = mockVouchers.some(
+      (v) => v.companyId === selectedCompany.id
+    );
+
+    if (hasTransactions) {
+      toast({
+        variant: 'destructive',
+        title: 'Deletion Failed',
+        description: `Company "${selectedCompany.companyName}" cannot be deleted as it has existing financial records. Consider archiving it instead.`,
+      });
+      setIsAlertOpen(false); // Close the dialog
+      setSelectedCompany(null);
+      return;
+    }
+
     setCompanies((prev) =>
       prev.filter((c) => c.id !== selectedCompany.id)
     );
     toast({
-      title: 'Company Deleted',
+      title: 'Company Deleted Successfully',
       description: `${selectedCompany.companyName} has been removed.`,
     });
     setSelectedCompany(null);

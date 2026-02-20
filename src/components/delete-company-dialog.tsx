@@ -36,8 +36,8 @@ export function DeleteCompanyDialog({
             <span className="font-semibold text-foreground">
               {company?.companyName}
             </span>
-            . This action cannot be undone. In a real application, you would not
-            be able to delete a company with existing transactions.
+            . This action cannot be undone. Companies with existing financial
+            transactions cannot be deleted.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
