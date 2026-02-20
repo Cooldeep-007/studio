@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form';
+import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
 
 const voucherTypes = [
   'Sales Invoice',
@@ -33,6 +34,8 @@ export default function CreateVoucherPage() {
     switch (voucherType) {
       case 'Sales Invoice':
         return <SalesInvoiceForm />;
+      case 'Purchase Invoice':
+        return <PurchaseInvoiceForm />;
       // Other cases will be added here later
       default:
         return (
