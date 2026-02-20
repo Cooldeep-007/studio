@@ -10,19 +10,15 @@ import {
   BookCopy,
   Receipt,
   BarChart3,
-  FileText,
   Settings,
-  MoreHorizontal,
-  Search,
+  Landmark,
+  Wallet,
+  Notebook,
   Percent,
   ChevronRight,
 } from "lucide-react";
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -48,14 +44,10 @@ import {
   SidebarInset,
   SidebarTrigger,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import type { User } from "@/lib/types";
 import { mockUser } from "@/lib/data";
@@ -63,13 +55,19 @@ import { mockUser } from "@/lib/data";
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/companies", label: "Companies", icon: Building },
-  { href: "/ledgers", label: "Ledgers", icon: BookCopy },
+  { href: "/ledgers", label: "Masters", icon: BookCopy },
   { href: "/vouchers", label: "Vouchers", icon: Receipt },
+  { href: "/bank", label: "Bank", icon: Landmark },
+  { href: "/cash", label: "Cash", icon: Wallet },
+  { href: "/notepad", label: "Notepad", icon: Notebook },
   { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/invoices", label: "Invoices", icon: FileText },
 ];
 
-const settingsMenuItem = { href: "/settings", label: "Settings", icon: Settings };
+const settingsMenuItem = {
+  href: "/settings",
+  label: "Settings",
+  icon: Settings,
+};
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -79,17 +77,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (path === "/settings") {
       return pathname.startsWith(path);
     }
+    // For ledgers, which is under /ledgers, but label is Masters
+    if (path === '/ledgers') {
+      return pathname.startsWith('/ledgers');
+    }
     return pathname === path;
   };
-  const isGstActive = pathname.startsWith('/gst');
-
+  const isGstActive = pathname.startsWith("/gst");
 
   return (
     <SidebarProvider>
       <Sidebar collapsible="icon">
         <SidebarHeader className="p-4">
           <div className="flex items-center justify-between">
-            <Link href="/dashboard" className="flex items-center gap-2 group/logo">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2 group/logo"
+            >
               <svg
                 className="h-8 w-8 text-primary group-hover/logo:scale-105 transition-transform"
                 viewBox="0 0 24 24"
@@ -145,26 +149,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SidebarMenuItem>
               <Collapsible>
                 <CollapsibleTrigger className="w-full" asChild>
-                    <SidebarMenuButton isActive={isGstActive} tooltip={{children: 'GST'}}>
-                        <Percent />
-                        <span className="group-data-[collapsible=icon]:hidden w-full text-left">GST</span>
-                        <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden ml-auto" />
-                    </SidebarMenuButton>
+                  <SidebarMenuButton isActive={isGstActive} tooltip={{ children: "GST" }}>
+                    <Percent />
+                    <span className="group-data-[collapsible=icon]:hidden w-full text-left">
+                      GST
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden ml-auto" />
+                  </SidebarMenuButton>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <SidebarMenuSub>
                     <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={pathname === '/gst/gstr-1'}>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname === "/gst/gstr-1"}
+                      >
                         <Link href="/gst/gstr-1">GSTR-1</Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                     <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={pathname === '/gst/gstr-2b'}>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname === "/gst/gstr-2b"}
+                      >
                         <Link href="/gst/gstr-2b">GSTR-2B</Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                     <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={pathname === '/gst/gstr-3b'}>
+                      <SidebarMenuSubButton
+                        asChild
+                        isActive={pathname === "/gst/gstr-3b"}
+                      >
                         <Link href="/gst/gstr-3b">GSTR-3B</Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
@@ -195,8 +210,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <SidebarInset>
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 py-2">
           <SidebarTrigger className="sm:hidden" />
-          <div className="relative ml-auto flex-1 md:grow-0">
-          </div>
+          <div className="relative ml-auto flex-1 md:grow-0"></div>
           <UserMenu user={mockUser} avatarUrl={userAvatar?.imageUrl} />
         </header>
         <main className="flex-1 p-4 sm:px-6 sm:pb-6">{children}</main>
@@ -215,7 +229,11 @@ function UserMenu({ user, avatarUrl }: { user: User; avatarUrl?: string }) {
         >
           <Avatar className="h-8 w-8">
             {avatarUrl && (
-              <AvatarImage src={avatarUrl} alt={user.name} data-ai-hint="person avatar"/>
+              <AvatarImage
+                src={avatarUrl}
+                alt={user.name}
+                data-ai-hint="person avatar"
+              />
             )}
             <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
           </Avatar>
@@ -236,3 +254,5 @@ function UserMenu({ user, avatarUrl }: { user: User; avatarUrl?: string }) {
     </DropdownMenu>
   );
 }
+
+    

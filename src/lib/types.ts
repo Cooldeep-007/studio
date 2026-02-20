@@ -1,4 +1,3 @@
-
 export type UserRole = 'SuperAdmin' | 'FirmAdmin' | 'Staff' | 'ClientUser';
 
 export type User = {
@@ -29,7 +28,14 @@ export type Company = {
   status: 'Active' | 'Archived';
 };
 
-export type LedgerGroup = 'Assets' | 'Liabilities' | 'Income' | 'Expense' | 'Sundry Debtor' | 'Sundry Creditor' | 'Bank Accounts';
+export type LedgerGroup =
+  | 'Assets'
+  | 'Liabilities'
+  | 'Income'
+  | 'Expense'
+  | 'Sundry Debtor'
+  | 'Sundry Creditor'
+  | 'Bank Accounts';
 export type BalanceType = 'Dr' | 'Cr';
 
 export type Ledger = {
@@ -43,17 +49,17 @@ export type Ledger = {
   isGroup: boolean;
   gstApplicable: boolean;
   gstDetails?: {
-      gstType?: 'Regular' | 'Composition' | 'Unregistered' | 'Consumer' | 'SEZ' | 'Export';
-      gstin?: string;
-      gstRate?: number;
-      hsnCode?: string;
-      uqc?: string;
-      placeOfSupply?: string;
-      reverseCharge?: boolean;
-      itcEligibility?: 'Eligible' | 'Ineligible' | 'As per Rules';
-      gstClassification?: 'Goods' | 'Services';
-      eInvoiceRequired?: boolean;
-      eWayBillApplicable?: boolean;
+    gstType?: 'Regular' | 'Composition' | 'Unregistered' | 'Consumer' | 'SEZ' | 'Export';
+    gstin?: string;
+    gstRate?: number;
+    hsnCode?: string;
+    uqc?: string;
+    placeOfSupply?: string;
+    reverseCharge?: boolean;
+    itcEligibility?: 'Eligible' | 'Ineligible' | 'As per Rules';
+    gstClassification?: 'Goods' | 'Services';
+    eInvoiceRequired?: boolean;
+    eWayBillApplicable?: boolean;
   };
   contactDetails?: {
     contactPerson?: string;
@@ -67,16 +73,15 @@ export type Ledger = {
     country?: string;
     pan?: string;
   };
-   bankDetails?: {
-    bankName?: string;
+  bankDetails?: {
+    accountHolderName?: string;
     accountNumber?: string;
     ifscCode?: string;
+    bankName?: string;
     branch?: string;
-    upiId?: string;
+    accountType?: 'Savings' | 'Current' | 'OD';
     micrCode?: string;
-    defaultPaymentMode?: 'NEFT' | 'RTGS' | 'IMPS' | 'UPI' | 'Cheque';
-    paymentGatewayLinked?: boolean;
-    paymentGatewayCharges?: number;
+    upiId?: string;
   };
   creditControl?: {
     creditLimit?: number;
@@ -123,7 +128,6 @@ export type Ledger = {
   companyId: string;
 };
 
-
 export type VoucherType =
   | 'Sales'
   | 'Purchase'
@@ -155,38 +159,15 @@ export type Voucher = {
   createdBy: string; // userId
 };
 
-export type InvoiceLineItem = {
-    description: string;
-    amount: number;
-    taxRate?: number;
-    taxAmount?: number;
-    total: number;
-}
-
-export type Invoice = {
-    id: string;
-    invoiceNumber: string;
-    voucherId: string;
-    companyId: string;
-    firmId: string;
-    date: Date;
-    dueDate: Date;
-    party: {
-        name: string;
-        address: string;
-    };
-    lineItems: InvoiceLineItem[];
-    subTotal: number;
-    totalTax: number;
-    totalAmount: number;
-    status: 'Draft' | 'Sent' | 'Paid' | 'Overdue';
-    template: {
-        logoUrl?: string;
-        colorTheme?: string;
-        bankDetails?: string;
-        footerNotes?: string;
-        customFields?: Record<string, any>;
-    }
-}
+export type Note = {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'Low' | 'Medium' | 'High';
+  status: 'Pending' | 'Completed';
+  createdAt: Date;
+  reminderDate?: Date;
+  attachmentUrl?: string;
+};
 
     
