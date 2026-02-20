@@ -106,9 +106,17 @@ const currentFinancialYearStart = new Date(
 
 const defaultValues: Partial<CompanyFormValues> = {
   companyName: "",
+  mailingName: "",
+  addressLine1: "",
+  city: "",
+  pincode: "",
+  mobileNumber: "",
+  email: "",
   gstApplicable: false,
   financialYearStart: currentFinancialYearStart,
   booksStart: currentFinancialYearStart,
+  gstin: "",
+  pan: "",
 };
 
 const currentYear = new Date().getFullYear();
