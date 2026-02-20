@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -96,6 +97,7 @@ const ledgerFormSchema = z.object({
         gstin: z.string().optional(),
         gstRate: z.coerce.number().optional(),
         hsnCode: z.string().optional(),
+        gstClassification: z.enum(['Goods', 'Services']).optional(),
     }).optional(),
 
     // Contact Tab
@@ -166,6 +168,9 @@ const ledgerFormSchema = z.object({
         if (!data.contactDetails?.state) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "State is required.", path: ["contactDetails.state"] });
         }
+        if (!data.gstDetails?.gstClassification) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Type of Supply is required.", path: ["gstDetails.gstClassification"] });
+        }
     }
 
     if (data.group === 'Bank Accounts') {
@@ -200,6 +205,7 @@ const defaultValues: Partial<LedgerFormValues> = {
         gstin: "",
         gstRate: 0,
         hsnCode: "",
+        gstClassification: undefined,
     },
     contactDetails: {
         contactPerson: "",
@@ -270,6 +276,7 @@ export function AddLedgerSheet({
 
     const parentLedgerId = form.watch("parentLedgerId");
     const gstin = form.watch("gstDetails.gstin");
+    const supplyType = form.watch("gstDetails.gstClassification");
     
     const selectedParent = React.useMemo(() => {
         return ledgers.find(l => l.id === parentLedgerId);
@@ -522,7 +529,7 @@ export function AddLedgerSheet({
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Registration Type <span className="text-destructive">*</span></FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <Select onValueChange={field.onChange} value={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger><SelectValue placeholder="Select GST Type"/></SelectTrigger>
                                                 </FormControl>
@@ -549,6 +556,25 @@ export function AddLedgerSheet({
                                 />
                                 <FormField
                                     control={form.control}
+                                    name="gstDetails.gstClassification"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Type of Supply <span className="text-destructive">*</span></FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger><SelectValue placeholder="Select Supply Type"/></SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="Goods">Goods</SelectItem>
+                                                    <SelectItem value="Services">Services</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
                                     name="gstDetails.gstRate"
                                     render={({ field }) => (
                                         <FormItem>
@@ -564,7 +590,7 @@ export function AddLedgerSheet({
                                     name="gstDetails.hsnCode"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>HSN/SAC Code</FormLabel>
+                                            <FormLabel>{supplyType === 'Goods' ? 'HSN Code' : supplyType === 'Services' ? 'SAC Code' : 'HSN/SAC Code'}</FormLabel>
                                             <FormControl>
                                                 <Input {...field} />
                                             </FormControl>
