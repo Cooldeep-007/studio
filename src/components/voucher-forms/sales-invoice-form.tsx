@@ -59,7 +59,7 @@ const salesInvoiceSchema = z.object({
   roundOff: z.coerce.number().optional(),
   grandTotal: z.coerce.number(),
   narration: z.string().optional(),
-}).refine(data => data.dueDate >= data.invoiceDate, {
+}).refine(data => !data.dueDate || !data.invoiceDate || data.dueDate >= data.invoiceDate, {
   message: "Due date cannot be before the invoice date.",
   path: ["dueDate"],
 });
@@ -67,9 +67,9 @@ const salesInvoiceSchema = z.object({
 type SalesInvoiceFormValues = z.infer<typeof salesInvoiceSchema>;
 
 const defaultValues: Partial<SalesInvoiceFormValues> = {
-  invoiceNumber: `INV-${new Date().getTime()}`,
-  invoiceDate: new Date(),
-  dueDate: new Date(new Date().setDate(new Date().getDate() + 30)),
+  invoiceNumber: '',
+  invoiceDate: undefined,
+  dueDate: undefined,
   eWayBillRequired: false,
   eInvoiceRequired: false,
   lineItems: [
@@ -108,6 +108,16 @@ export function SalesInvoiceForm() {
     const partyLedgerId = form.watch('partyLedgerId');
 
     React.useEffect(() => {
+        form.reset({
+            ...defaultValues,
+            invoiceNumber: `INV-${new Date().getTime()}`,
+            invoiceDate: new Date(),
+            dueDate: new Date(new Date().setDate(new Date().getDate() + 30)),
+            lineItems: defaultValues.lineItems || [],
+        });
+    }, [form]);
+
+    React.useEffect(() => {
         const party = customerLedgers.find(c => c.id === partyLedgerId);
         if (party) {
             form.setValue('gstin', party.gstDetails?.gstin || '');
@@ -120,6 +130,7 @@ export function SalesInvoiceForm() {
     }, [partyLedgerId, form, customerLedgers]);
 
     React.useEffect(() => {
+        if (!watchedLineItems) return;
         let subTotal = 0;
         let totalGst = 0;
 
