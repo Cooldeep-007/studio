@@ -515,6 +515,25 @@ export function AddLedgerSheet({
                         </FormItem>
                     )}
                     />
+                <FormField
+                    control={form.control}
+                    name="gstDetails.gstClassification"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Type of Supply {form.watch("gstApplicable") && <span className="text-destructive">*</span>}</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select Supply Type"/></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="Goods">Goods</SelectItem>
+                                    <SelectItem value="Services">Services</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
                 <div className={cn(
                     "grid overflow-hidden transition-all duration-300 ease-in-out",
                     form.watch("gstApplicable") ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
@@ -550,25 +569,6 @@ export function AddLedgerSheet({
                                             <FormControl>
                                                 <Input placeholder="e.g., 29AABCU9511F1Z5" {...field} onChange={(e) => field.onChange(e.target.value.toUpperCase())} />
                                             </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="gstDetails.gstClassification"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Type of Supply <span className="text-destructive">*</span></FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger><SelectValue placeholder="Select Supply Type"/></SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="Goods">Goods</SelectItem>
-                                                    <SelectItem value="Services">Services</SelectItem>
-                                                </SelectContent>
-                                            </Select>
                                             <FormMessage />
                                         </FormItem>
                                     )}
