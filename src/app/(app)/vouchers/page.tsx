@@ -94,7 +94,7 @@ export default function VouchersPage() {
         </CardHeader>
         <CardContent>
           {Object.keys(groupedVouchers).length > 0 ? (
-            <Accordion type="single" collapsible className="w-full" defaultValue={`${sortedGroupKeys[0]}-item`}>
+            <Accordion type="single" collapsible className="w-full">
               {sortedGroupKeys.map((type) => {
                 const vouchers = groupedVouchers[type];
                 const totalAmount = vouchers.reduce(
