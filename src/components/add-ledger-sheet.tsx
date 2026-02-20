@@ -8,7 +8,7 @@ import * as z from "zod";
 import { toast } from "@/hooks/use-toast";
 import type { Ledger, LedgerGroup } from "@/lib/types";
 import {
-  Percent, ShieldCheck, Landmark, HeartPulse, Sparkles, FolderKanban, Bot, Puzzle, Loader2
+  Percent, ShieldCheck, Landmark, HeartPulse, Sparkles, FolderKanban, Bot, Puzzle, Loader2, AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -58,13 +58,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
 
 
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
+const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 
 const indianStates = [
     "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry"
@@ -101,6 +103,40 @@ const uqcList = [
     { code: 'UNT', description: 'Units' },
 ];
 
+const tdsConfigData = {
+  contractor: {
+    section: '194C',
+    label: 'Payment to Contractor',
+    deducteeTypeRequired: true,
+    rates: [
+      { label: 'Individual/HUF (1%)', value: 1, type: 'individual' },
+      { label: 'Others (2%)', value: 2, type: 'other' },
+    ],
+  },
+  professional: {
+    section: '194J',
+    label: 'Fees for Professional Services',
+    deducteeTypeRequired: false,
+    rates: [{ label: 'Professional/Technical Fees (10%)', value: 10 }],
+  },
+  commission: {
+    section: '194H',
+    label: 'Commission or Brokerage',
+    deducteeTypeRequired: false,
+    rates: [{ label: 'Commission/Brokerage (5%)', value: 5 }],
+  },
+  rent: {
+    section: '194I',
+    label: 'Rent',
+    deducteeTypeRequired: false,
+    rates: [
+      { label: 'Plant & Machinery (2%)', value: 2 },
+      { label: 'Land, Building, or Furniture (10%)', value: 10 },
+    ],
+  },
+};
+
+
 const ledgerFormSchema = z.object({
     ledgerName: z.string().min(2, "Ledger name must be at least 2 characters."),
     parentLedgerId: z.string().min(1, "Parent ledger is required."),
@@ -130,7 +166,7 @@ const ledgerFormSchema = z.object({
         city: z.string().optional(),
         state: z.string().optional(),
         pincode: z.string().optional(),
-        pan: z.string().optional(),
+        pan: z.string().optional().refine((val) => !val || panRegex.test(val), { message: "Invalid PAN format." }),
     }).optional(),
     
     // Advanced Tab
@@ -138,6 +174,8 @@ const ledgerFormSchema = z.object({
         tdsEnabled: z.boolean().default(false),
         tdsNatureOfPayment: z.string().optional(),
         tdsSection: z.string().optional(),
+        tdsDeducteeType: z.enum(['individual', 'other']).optional(),
+        tdsRate: z.coerce.number().optional(),
         tcsEnabled: z.boolean().default(false),
         tcsNatureOfCollection: z.string().optional(),
         tcsSection: z.string().optional(),
@@ -178,9 +216,7 @@ const ledgerFormSchema = z.object({
     }).optional(),
 }).superRefine((data, ctx) => {
     if (data.gstApplicable) {
-        if (!data.gstDetails?.gstin) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "GSTIN is required when GST is applicable.", path: ["gstDetails.gstin"] });
-        } else if (!gstRegex.test(data.gstDetails.gstin)) {
+        if (data.gstDetails?.gstin && !gstRegex.test(data.gstDetails.gstin)) {
              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid GSTIN format. Should be 15 characters.", path: ["gstDetails.gstin"] });
         }
         if (!data.gstDetails?.gstType) {
@@ -192,25 +228,26 @@ const ledgerFormSchema = z.object({
         if (!data.gstDetails?.gstClassification) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Type of Supply is required when GST is applicable.", path: ["gstDetails.gstClassification"] });
         }
+    }
 
-        if (data.gstDetails?.gstClassification === 'Goods') {
-            if (!data.gstDetails.hsnCode) {
-                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: "HSN Code is required.", path: ["gstDetails.hsnCode"] });
-            } else if (!/^\d{4,8}$/.test(data.gstDetails.hsnCode)) {
-                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "HSN must be 4, 6, or 8 digits.", path: ["gstDetails.hsnCode"] });
-            }
-            if (!data.gstDetails.uqc) {
-                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "UQC is required for Goods.", path: ["gstDetails.uqc"] });
-            }
+    if (data.gstDetails?.gstClassification === 'Goods') {
+        if (!data.gstDetails.hsnCode) {
+             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "HSN Code is required.", path: ["gstDetails.hsnCode"] });
+        } else if (!/^\d{4,8}$/.test(data.gstDetails.hsnCode)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "HSN must be 4, 6, or 8 digits.", path: ["gstDetails.hsnCode"] });
         }
-        if (data.gstDetails?.gstClassification === 'Services') {
-            if (!data.gstDetails.hsnCode) {
-                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SAC Code is required.", path: ["gstDetails.hsnCode"] });
-            } else if (!/^\d{4,8}$/.test(data.gstDetails.hsnCode)) {
-                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SAC must be 4, 6, or 8 digits.", path: ["gstDetails.hsnCode"] });
-            }
+        if (!data.gstDetails.uqc) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "UQC is required for Goods.", path: ["gstDetails.uqc"] });
         }
     }
+    if (data.gstDetails?.gstClassification === 'Services') {
+        if (!data.gstDetails.hsnCode) {
+             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SAC Code is required.", path: ["gstDetails.hsnCode"] });
+        } else if (!/^\d{4,8}$/.test(data.gstDetails.hsnCode)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SAC must be 4, 6, or 8 digits.", path: ["gstDetails.hsnCode"] });
+        }
+    }
+
 
     if (data.group === 'Bank Accounts') {
         if (!data.bankDetails?.accountNumber) {
@@ -242,9 +279,9 @@ const defaultValues: Partial<LedgerFormValues> = {
     gstDetails: {
         gstType: undefined,
         gstin: "",
-        gstRate: 0,
+        gstRate: undefined,
         hsnCode: "",
-        uqc: "",
+        uqc: undefined,
         gstClassification: undefined,
     },
     contactDetails: {
@@ -259,8 +296,10 @@ const defaultValues: Partial<LedgerFormValues> = {
     },
     tdsTcsConfig: {
         tdsEnabled: false,
-        tdsNatureOfPayment: "",
+        tdsNatureOfPayment: undefined,
         tdsSection: "",
+        tdsDeducteeType: undefined,
+        tdsRate: undefined,
         tcsEnabled: false,
         tcsNatureOfCollection: "",
         tcsSection: "",
@@ -318,7 +357,12 @@ export function AddLedgerSheet({
     const gstin = form.watch("gstDetails.gstin");
     const supplyType = form.watch("gstDetails.gstClassification");
     const gstApplicable = form.watch("gstApplicable");
-    
+    const tdsEnabled = form.watch('tdsTcsConfig.tdsEnabled');
+    const natureOfPayment = form.watch('tdsTcsConfig.tdsNatureOfPayment');
+    const deducteeType = form.watch('tdsTcsConfig.tdsDeducteeType');
+    const pan = form.watch('contactDetails.pan');
+    const isPanMissing = tdsEnabled && !pan;
+
     const selectedParent = React.useMemo(() => {
         return ledgers.find(l => l.id === parentLedgerId);
     }, [parentLedgerId, ledgers]);
@@ -331,12 +375,12 @@ export function AddLedgerSheet({
 
     React.useEffect(() => {
         if (gstin && gstRegex.test(gstin)) {
-            const pan = gstin.substring(2, 12);
-            form.setValue('contactDetails.pan', pan.toUpperCase());
+            const panFromGstin = gstin.substring(2, 12);
+            form.setValue('contactDetails.pan', panFromGstin.toUpperCase(), { shouldValidate: true });
             const stateCode = gstin.substring(0, 2);
             const stateName = gstStateCodes[stateCode as keyof typeof gstStateCodes];
             if (stateName) {
-                form.setValue('contactDetails.state', stateName);
+                form.setValue('contactDetails.state', stateName, { shouldValidate: true });
             }
             form.clearErrors("gstDetails.gstin");
         }
@@ -347,6 +391,54 @@ export function AddLedgerSheet({
             form.setValue('gstDetails.uqc', undefined, { shouldValidate: true });
         }
     }, [supplyType, form]);
+
+    // Main effect for TDS automation
+    React.useEffect(() => {
+        const clearTdsFields = () => {
+            form.setValue('tdsTcsConfig.tdsNatureOfPayment', undefined);
+            form.setValue('tdsTcsConfig.tdsSection', '');
+            form.setValue('tdsTcsConfig.tdsDeducteeType', undefined);
+            form.setValue('tdsTcsConfig.tdsRate', undefined);
+        };
+
+        if (!tdsEnabled) {
+            clearTdsFields();
+            return;
+        }
+
+        if (isPanMissing) {
+            form.setValue('tdsTcsConfig.tdsRate', 20);
+            return; 
+        }
+
+        const config = natureOfPayment ? tdsConfigData[natureOfPayment as keyof typeof tdsConfigData] : undefined;
+
+        if (config) {
+            form.setValue('tdsTcsConfig.tdsSection', config.section, { shouldValidate: true });
+            
+            // Reset deductee type if the new nature of payment doesn't require it
+            if (!config.deducteeTypeRequired) {
+                form.setValue('tdsTcsConfig.tdsDeducteeType', undefined);
+            }
+
+            if (config.deducteeTypeRequired) {
+                const rate = config.rates.find(r => r.type === deducteeType)?.value;
+                form.setValue('tdsTcsConfig.tdsRate', rate, { shouldValidate: true });
+            } else if (config.rates.length === 1) {
+                form.setValue('tdsTcsConfig.tdsRate', config.rates[0].value, { shouldValidate: true });
+            } else {
+                const currentRate = form.getValues('tdsTcsConfig.tdsRate');
+                const isCurrentRateValid = config.rates.some(r => r.value === currentRate);
+                if (!isCurrentRateValid) {
+                     form.setValue('tdsTcsConfig.tdsRate', undefined);
+                }
+            }
+        } else {
+            form.setValue('tdsTcsConfig.tdsSection', '');
+            form.setValue('tdsTcsConfig.tdsRate', undefined);
+        }
+
+    }, [tdsEnabled, isPanMissing, natureOfPayment, deducteeType, form]);
 
     async function onSubmit(data: LedgerFormValues) {
         setIsSubmitting(true);
@@ -441,7 +533,7 @@ export function AddLedgerSheet({
               </TabsList>
               
               {/* GENERAL TAB */}
-              <TabsContent value="general" className="space-y-6">
+              <TabsContent value="general" className="space-y-6 pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
                         control={form.control}
@@ -511,7 +603,7 @@ export function AddLedgerSheet({
                         name="openingBalance"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Amount <span className="text-destructive">*</span></FormLabel>
+                                <FormLabel>Amount</FormLabel>
                                 <FormControl>
                                     <Input type="number" placeholder="0.00" {...field} />
                                 </FormControl>
@@ -524,7 +616,7 @@ export function AddLedgerSheet({
                         name="balanceType"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Balance Type <span className="text-destructive">*</span></FormLabel>
+                                <FormLabel>Balance Type</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger>
@@ -544,7 +636,7 @@ export function AddLedgerSheet({
               </TabsContent>
 
               {/* STATUTORY TAB */}
-              <TabsContent value="statutory" className="space-y-6">
+              <TabsContent value="statutory" className="space-y-6 pt-4">
                 <FormField
                     control={form.control}
                     name="gstApplicable"
@@ -612,7 +704,7 @@ export function AddLedgerSheet({
                                     name="gstDetails.gstin"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>GSTIN <span className="text-destructive">*</span></FormLabel>
+                                            <FormLabel>GSTIN</FormLabel>
                                             <FormControl>
                                                 <Input placeholder="e.g., 29AABCU9511F1Z5" {...field} onChange={(e) => field.onChange(e.target.value.toUpperCase())} />
                                             </FormControl>
@@ -653,7 +745,7 @@ export function AddLedgerSheet({
                                         name="gstDetails.uqc"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>UQC <span className="text-destructive">*</span></FormLabel>
+                                                <FormLabel>UQC {gstApplicable && <span className="text-destructive">*</span>}</FormLabel>
                                                 <Select
                                                     onValueChange={field.onChange}
                                                     value={field.value}
@@ -678,7 +770,7 @@ export function AddLedgerSheet({
                                     render={({ field }) => (
                                         <FormItem className="md:col-span-2">
                                             <FormLabel>
-                                                {supplyType === 'Goods' ? 'HSN Code' : 'SAC Code'}
+                                                {supplyType === 'Goods' ? 'HSN Code' : (supplyType === 'Services' ? 'SAC Code' : 'HSN/SAC Code')}
                                                 {gstApplicable && (supplyType === 'Goods' || supplyType === 'Services') && <span className="text-destructive"> *</span>}
                                             </FormLabel>
                                             <FormControl>
@@ -695,7 +787,7 @@ export function AddLedgerSheet({
               </TabsContent>
               
               {/* CONTACT TAB */}
-              <TabsContent value="contact" className="space-y-4">
+              <TabsContent value="contact" className="space-y-4 pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="contactDetails.contactPerson" render={({ field }) => (<FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="contactDetails.mobileNumber" render={({ field }) => (<FormItem><FormLabel>Mobile Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -721,7 +813,7 @@ export function AddLedgerSheet({
                         )}
                     />
                     <FormField control={form.control} name="contactDetails.pincode" render={({ field }) => (<FormItem><FormLabel>Pincode</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="contactDetails.pan" render={({ field }) => (<FormItem><FormLabel>PAN</FormLabel><FormControl><Input {...field} readOnly={gstRegex.test(form.watch("gstDetails.gstin") || "")} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="contactDetails.pan" render={({ field }) => (<FormItem><FormLabel>PAN</FormLabel><FormControl><Input {...field} readOnly={!!gstin && gstRegex.test(gstin)} onChange={(e) => field.onChange(e.target.value.toUpperCase())} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
               </TabsContent>
               
@@ -735,33 +827,84 @@ export function AddLedgerSheet({
                             <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TDS Deduction</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
                         )} />
 
-                        <div className={cn("grid overflow-hidden transition-all duration-300 ease-in-out", form.watch("tdsTcsConfig.tdsEnabled") ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
-                          <div className="min-h-0">
+                        <div className={cn("grid overflow-hidden transition-all duration-300 ease-in-out", tdsEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
+                          <div className="min-h-0 space-y-4">
+                            {isPanMissing && (
+                                <Alert variant="destructive">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    <AlertTitle>Higher TDS Rate Applicable</AlertTitle>
+                                    <AlertDescription>
+                                        A 20% TDS rate is applied because the PAN is not available.
+                                    </AlertDescription>
+                                </Alert>
+                            )}
                             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-md border p-4">
-                              <FormField control={form.control} name="tdsTcsConfig.tdsNatureOfPayment" render={({ field }) => (
-                                  <FormItem><FormLabel>Nature of Payment</FormLabel>
-                                      <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select nature..." /></SelectTrigger></FormControl>
-                                          <SelectContent>
-                                              <SelectItem value="contractor">Payment to Contractor</SelectItem>
-                                              <SelectItem value="professional">Fees for Professional Services</SelectItem>
-                                              <SelectItem value="commission">Commission or Brokerage</SelectItem>
-                                              <SelectItem value="rent">Rent</SelectItem>
-                                          </SelectContent>
-                                      </Select>
-                                      <FormMessage />
-                                  </FormItem>)} />
+                               <FormField 
+                                    control={form.control} 
+                                    name="tdsTcsConfig.tdsNatureOfPayment" 
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Nature of Payment</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue placeholder="Select nature..." /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                {Object.entries(tdsConfigData).map(([key, config]) => (
+                                                    <SelectItem key={key} value={key}>{config.label}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
                               <FormField control={form.control} name="tdsTcsConfig.tdsSection" render={({ field }) => (
-                                  <FormItem><FormLabel>TDS Section</FormLabel>
-                                      <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select section..." /></SelectTrigger></FormControl>
-                                          <SelectContent>
-                                              <SelectItem value="194C">194C - Contractor</SelectItem>
-                                              <SelectItem value="194J">194J - Professional Fees</SelectItem>
-                                              <SelectItem value="194H">194H - Commission</SelectItem>
-                                              <SelectItem value="194I">194I - Rent</SelectItem>
-                                          </SelectContent>
-                                      </Select>
-                                      <FormMessage />
-                                  </FormItem>)} />
+                                  <FormItem><FormLabel>TDS Section</FormLabel><FormControl><Input {...field} disabled /></FormControl><FormMessage /></FormItem>
+                                )} />
+                                {natureOfPayment && tdsConfigData[natureOfPayment as keyof typeof tdsConfigData]?.deducteeTypeRequired && (
+                                    <FormField control={form.control} name="tdsTcsConfig.tdsDeducteeType" render={({ field }) => (
+                                        <FormItem className="md:col-span-2">
+                                            <FormLabel>Deductee Type</FormLabel>
+                                            <FormControl>
+                                                <RadioGroup onValueChange={field.onChange} value={field.value} className="flex gap-4">
+                                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                                        <FormControl><RadioGroupItem value="individual" /></FormControl>
+                                                        <FormLabel className="font-normal">Individual / HUF</FormLabel>
+                                                    </FormItem>
+                                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                                        <FormControl><RadioGroupItem value="other" /></FormControl>
+                                                        <FormLabel className="font-normal">Others (Company, etc.)</FormLabel>
+                                                    </FormItem>
+                                                </RadioGroup>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                )}
+                                <FormField
+                                    control={form.control}
+                                    name="tdsTcsConfig.tdsRate"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>TDS Rate (%)</FormLabel>
+                                            <Select 
+                                                onValueChange={(val) => field.onChange(Number(val))} 
+                                                value={field.value?.toString()}
+                                                disabled={isPanMissing || (natureOfPayment && tdsConfigData[natureOfPayment as keyof typeof tdsConfigData]?.rates.length === 1) || (natureOfPayment === 'contractor' && !!deducteeType)}
+                                            >
+                                                <FormControl><SelectTrigger><SelectValue placeholder="Select rate..." /></SelectTrigger></FormControl>
+                                                <SelectContent>
+                                                    {isPanMissing ? (
+                                                        <SelectItem value="20">20%</SelectItem>
+                                                    ) : (
+                                                        natureOfPayment && tdsConfigData[natureOfPayment as keyof typeof tdsConfigData]?.rates.map(rate => (
+                                                            <SelectItem key={rate.value} value={rate.value.toString()}>{rate.label}</SelectItem>
+                                                        ))
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                             </div>
                           </div>
                         </div>
