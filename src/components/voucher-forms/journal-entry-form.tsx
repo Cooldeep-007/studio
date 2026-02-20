@@ -68,8 +68,8 @@ export function JournalEntryForm() {
 
     const watchedLineItems = form.watch('lineItems');
 
-    const totalDebit = watchedLineItems.filter(li => li.type === 'Dr').reduce((sum, li) => sum + (li.amount || 0), 0);
-    const totalCredit = watchedLineItems.filter(li => li.type === 'Cr').reduce((sum, li) => sum + (li.amount || 0), 0);
+    const totalDebit = watchedLineItems.filter(li => li.type === 'Dr').reduce((sum, li) => sum + (Number(li.amount) || 0), 0);
+    const totalCredit = watchedLineItems.filter(li => li.type === 'Cr').reduce((sum, li) => sum + (Number(li.amount) || 0), 0);
     const difference = totalDebit - totalCredit;
 
     function onSubmit(data: JournalEntryFormValues) {
