@@ -197,6 +197,22 @@ export const mockLedgers: Ledger[] = [
     companyId: 'comp-001',
   },
   {
+    id: 'led-sales-return',
+    ledgerName: 'Sales Return',
+    parentLedgerId: 'group-sales-accounts',
+    group: 'Income', // It's a contra-income, so it lives here but will have a Dr balance.
+    isGroup: false,
+    openingBalance: 0,
+    currentBalance: 0,
+    balanceType: 'Dr', // Returns reduce income, so it has a debit balance.
+    gstApplicable: true,
+    status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    firmId: 'firm-abc',
+    companyId: 'comp-001',
+  },
+  {
     id: 'led-cash',
     ledgerName: 'Cash in Hand',
     parentLedgerId: 'group-current-assets',

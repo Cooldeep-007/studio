@@ -19,6 +19,11 @@ import { Label } from '@/components/ui/label';
 import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form';
 import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
 import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
+import { CreditNoteForm } from '@/components/voucher-forms/credit-note-form';
+import { JournalEntryForm } from '@/components/voucher-forms/journal-entry-form';
+import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
+import { AdhocInvoiceForm } from '@/components/voucher-forms/adhoc-invoice-form';
+
 
 const voucherTypes = [
   'Sales Invoice',
@@ -41,7 +46,14 @@ export default function CreateVoucherPage() {
         return <PurchaseInvoiceForm />;
       case 'Debit Note':
         return <DebitNoteForm />;
-      // Other cases will be added here later
+      case 'Credit Note':
+        return <CreditNoteForm />;
+      case 'Adhoc Invoice':
+        return <AdhocInvoiceForm />;
+      case 'Proforma Invoice':
+        return <ProformaInvoiceForm />;
+      case 'Journal Entry':
+        return <JournalEntryForm />;
       default:
         return (
           <div className="flex items-center justify-center h-40 mt-6 text-muted-foreground">
