@@ -528,10 +528,10 @@ export function AddLedgerSheet({
                 firmId: 'firm-abc', // Mock data
                 companyId: 'comp-001', // Mock data
                 ledgerCode: data.ledgerCode,
-                gstDetails: {
-                  ...data.gstDetails,
-                  ...data.gstAdvancedConfig,
-                },
+                gstDetails: data.gstApplicable ? {
+                  ...(data.gstDetails || {}),
+                  ...(data.gstAdvancedConfig || {}),
+                } : undefined,
                 contactDetails: data.contactDetails,
                 bankDetails: data.bankDetails,
                 creditControl: data.creditControl,
