@@ -1,7 +1,8 @@
+
 "use client";
 
 import * as React from "react";
-import { PlusCircle, ListFilter, Upload } from "lucide-react";
+import { PlusCircle, ListFilter, Upload, Search } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -27,6 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { AddLedgerSheet } from "@/components/add-ledger-sheet";
 import { mockLedgers, mockCompanies } from "@/lib/data";
 import type { Company, Ledger } from "@/lib/types";
@@ -90,6 +92,7 @@ function buildLedgerTree(ledgers: Ledger[]): LedgerWithChildren[] {
 // Component to render a single row (and its children recursively)
 function LedgerRow({ ledger, visibleColumns, level, parentName }: { ledger: LedgerWithChildren; visibleColumns: Record<string, boolean>; level: number, parentName?: string }) {
   const formatCurrency = (amount: number) => amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const getNestedValue = (obj: any, path: string): any => path.split('.').reduce((o, i) => o?.[i], obj);
 
   return (
     <>
@@ -97,22 +100,22 @@ function LedgerRow({ ledger, visibleColumns, level, parentName }: { ledger: Ledg
         {visibleColumns.ledgerName && <TableCell style={{ paddingLeft: `${level * 1.5 + 1}rem` }} className="font-medium">{ledger.ledgerName}</TableCell>}
         {visibleColumns.parentLedgerName && <TableCell>{parentName || '-'}</TableCell>}
         {visibleColumns.group && <TableCell><Badge variant="outline">{ledger.group}</Badge></TableCell>}
-        {visibleColumns['gstDetails.gstClassification'] && <TableCell>{ledger.gstDetails?.gstClassification || '-'}</TableCell>}
+        {visibleColumns['gstDetails.gstClassification'] && <TableCell>{getNestedValue(ledger, 'gstDetails.gstClassification') || '-'}</TableCell>}
         {visibleColumns.openingBalance && <TableCell className="text-right">{formatCurrency(ledger.openingBalance)}</TableCell>}
         {visibleColumns.currentBalance && <TableCell className="text-right">{formatCurrency(ledger.currentBalance)}</TableCell>}
         {visibleColumns.balanceType && <TableCell>{ledger.balanceType}</TableCell>}
         {visibleColumns.gstApplicable && <TableCell>{ledger.gstApplicable ? 'Yes' : 'No'}</TableCell>}
-        {visibleColumns['gstDetails.gstRate'] && <TableCell>{ledger.gstDetails?.gstRate ? `${ledger.gstDetails.gstRate}%` : '-'}</TableCell>}
+        {visibleColumns['gstDetails.gstRate'] && <TableCell>{getNestedValue(ledger, 'gstDetails.gstRate') ? `${getNestedValue(ledger, 'gstDetails.gstRate')}%` : '-'}</TableCell>}
         {visibleColumns.status && <TableCell><Badge variant={ledger.status === 'Active' ? 'default' : 'secondary'} className={ledger.status === 'Active' ? 'bg-green-100 text-green-800' : ''}>{ledger.status}</Badge></TableCell>}
         {visibleColumns.ledgerCode && <TableCell>{ledger.ledgerCode || '-'}</TableCell>}
-        {visibleColumns['contactDetails.contactPerson'] && <TableCell>{ledger.contactDetails?.contactPerson || '-'}</TableCell>}
-        {visibleColumns['contactDetails.mobileNumber'] && <TableCell>{ledger.contactDetails?.mobileNumber || '-'}</TableCell>}
-        {visibleColumns['contactDetails.email'] && <TableCell>{ledger.contactDetails?.email || '-'}</TableCell>}
-        {visibleColumns['contactDetails.addressLine1'] && <TableCell>{ledger.contactDetails?.addressLine1 || '-'}</TableCell>}
-        {visibleColumns['contactDetails.pan'] && <TableCell>{ledger.contactDetails?.pan || '-'}</TableCell>}
-        {visibleColumns['gstDetails.gstin'] && <TableCell>{ledger.gstDetails?.gstin || '-'}</TableCell>}
-        {visibleColumns['creditControl.creditLimit'] && <TableCell>{ledger.creditControl?.creditLimit ? formatCurrency(ledger.creditControl.creditLimit) : '-'}</TableCell>}
-        {visibleColumns['creditControl.creditPeriod'] && <TableCell>{ledger.creditControl?.creditPeriod || '-'}</TableCell>}
+        {visibleColumns['contactDetails.contactPerson'] && <TableCell>{getNestedValue(ledger, 'contactDetails.contactPerson') || '-'}</TableCell>}
+        {visibleColumns['contactDetails.mobileNumber'] && <TableCell>{getNestedValue(ledger, 'contactDetails.mobileNumber') || '-'}</TableCell>}
+        {visibleColumns['contactDetails.email'] && <TableCell>{getNestedValue(ledger, 'contactDetails.email') || '-'}</TableCell>}
+        {visibleColumns['contactDetails.addressLine1'] && <TableCell>{getNestedValue(ledger, 'contactDetails.addressLine1') || '-'}</TableCell>}
+        {visibleColumns['contactDetails.pan'] && <TableCell>{getNestedValue(ledger, 'contactDetails.pan') || '-'}</TableCell>}
+        {visibleColumns['gstDetails.gstin'] && <TableCell>{getNestedValue(ledger, 'gstDetails.gstin') || '-'}</TableCell>}
+        {visibleColumns['creditControl.creditLimit'] && <TableCell>{getNestedValue(ledger, 'creditControl.creditLimit') ? formatCurrency(getNestedValue(ledger, 'creditControl.creditLimit')) : '-'}</TableCell>}
+        {visibleColumns['creditControl.creditPeriod'] && <TableCell>{getNestedValue(ledger, 'creditControl.creditPeriod') || '-'}</TableCell>}
         {visibleColumns.createdAt && <TableCell>{new Date(ledger.createdAt).toLocaleDateString()}</TableCell>}
         {visibleColumns.lastUpdatedAt && <TableCell>{new Date(ledger.lastUpdatedAt).toLocaleDateString()}</TableCell>}
       </TableRow>
@@ -129,6 +132,8 @@ export default function LedgersPage() {
   const [ledgerTree, setLedgerTree] = React.useState<LedgerWithChildren[]>([]);
   const [visibleColumns, setVisibleColumns] = React.useState<Record<string, boolean>>({});
   const [isMounted, setIsMounted] = React.useState(false);
+  const [search, setSearch] = React.useState('');
+  const [columnFilters, setColumnFilters] = React.useState<Record<string, string>>({});
   
   const ledgerMap = React.useMemo(() => Object.fromEntries(ledgers.map(l => [l.id, l])), [ledgers]);
 
@@ -153,12 +158,69 @@ export default function LedgersPage() {
   }, [visibleColumns, isMounted]);
 
   React.useEffect(() => {
-    const tree = buildLedgerTree(ledgers);
+    const getNestedValue = (obj: any, path: string): any => {
+        return path.split('.').reduce((o, i) => (o ? o[i] : undefined), obj);
+    };
+
+    const lowercasedSearch = search.toLowerCase();
+    const activeColumnFilters = Object.entries(columnFilters).filter(([, value]) => value);
+
+    if (!lowercasedSearch && activeColumnFilters.length === 0) {
+        const tree = buildLedgerTree(ledgers);
+        setLedgerTree(tree);
+        return;
+    }
+
+    const filtered = ledgers.filter(ledger => {
+        const matchesGlobalSearch = lowercasedSearch ? ledger.ledgerName.toLowerCase().includes(lowercasedSearch) : true;
+        if (!matchesGlobalSearch) return false;
+
+        const matchesColumnFilters = activeColumnFilters.every(([colId, filterValue]) => {
+            const lowercasedFilter = filterValue.toLowerCase();
+            let value: any;
+
+            if (colId === 'parentLedgerName') {
+                value = ledger.parentLedgerId ? ledgerMap[ledger.parentLedgerId]?.ledgerName : '-';
+            } else {
+                value = getNestedValue(ledger, colId);
+            }
+            
+            if (value === undefined || value === null) return false;
+
+            if (colId === 'createdAt' || colId === 'lastUpdatedAt') {
+              value = new Date(value).toLocaleDateString();
+            }
+
+            return String(value).toLowerCase().includes(lowercasedFilter);
+        });
+
+        return matchesColumnFilters;
+    });
+
+    const ledgerIdsToShow = new Set<string>();
+    filtered.forEach(ledger => {
+        ledgerIdsToShow.add(ledger.id);
+        let current = ledger;
+        while (current.parentLedgerId) {
+            const parent = ledgerMap[current.parentLedgerId];
+            if (!parent) break;
+            ledgerIdsToShow.add(parent.id);
+            current = parent;
+        }
+    });
+
+    const ledgersForTree = ledgers.filter(l => ledgerIdsToShow.has(l.id));
+    const tree = buildLedgerTree(ledgersForTree);
     setLedgerTree(tree);
-  }, [ledgers]);
+
+  }, [ledgers, search, columnFilters, ledgerMap]);
   
   const handleColumnVisibilityChange = (columnId: string, checked: boolean) => {
     setVisibleColumns(prev => ({ ...prev, [columnId]: checked }));
+  };
+
+  const handleColumnFilterChange = (columnId: string, value: string) => {
+    setColumnFilters(prev => ({ ...prev, [columnId]: value }));
   };
 
   if (!isMounted) {
@@ -166,16 +228,27 @@ export default function LedgersPage() {
     return null; 
   }
 
+  const visibleCols = allColumns.filter(col => visibleColumns[col.id]);
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Chart of Accounts</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full sm:w-auto items-center gap-2">
+            <div className="relative flex-grow sm:flex-grow-0">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder="Search ledgers..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-10 w-full sm:w-64"
+                />
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" className="flex-shrink-0">
                   <ListFilter className="mr-2 h-4 w-4" />
-                  Show / Hide Columns
+                  View
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -209,7 +282,7 @@ export default function LedgersPage() {
             <AddLedgerSheet ledgers={ledgers} onLedgerCreated={handleLedgerCreated}>
               <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
-                Add Ledger
+                Add
               </Button>
             </AddLedgerSheet>
         </div>
@@ -221,24 +294,48 @@ export default function LedgersPage() {
           <CardDescription>Your complete list of accounts, organized by parent-child relationships.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {allColumns.filter(col => visibleColumns[col.id]).map(column => 
-                    <TableHead key={column.id} className={['openingBalance', 'currentBalance', 'creditControl.creditLimit'].includes(column.id) ? 'text-right' : ''}>
-                        {column.label}
-                    </TableHead>
+          <div className="overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {visibleCols.map(column => 
+                      <TableHead key={column.id} className={['openingBalance', 'currentBalance', 'creditControl.creditLimit'].includes(column.id) ? 'text-right' : ''}>
+                          {column.label}
+                      </TableHead>
+                  )}
+                </TableRow>
+                <TableRow>
+                   {visibleCols.map(column => (
+                      <TableCell key={`${column.id}-filter`} className="p-1 align-top">
+                          <Input
+                              placeholder={`Filter...`}
+                              value={columnFilters[column.id] || ''}
+                              onChange={(e) => handleColumnFilterChange(column.id, e.target.value)}
+                              className="h-8 text-xs"
+                          />
+                      </TableCell>
+                   ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ledgerTree.length > 0 ? (
+                  ledgerTree.map((ledger) => (
+                    <LedgerRow key={ledger.id} ledger={ledger} visibleColumns={visibleColumns} level={0} parentName={ledger.parentLedgerId ? ledgerMap[ledger.parentLedgerId]?.ledgerName : '-'}/>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={visibleCols.length} className="h-24 text-center">
+                      No results found.
+                    </TableCell>
+                  </TableRow>
                 )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ledgerTree.map((ledger) => (
-                <LedgerRow key={ledger.id} ledger={ledger} visibleColumns={visibleColumns} level={0} parentName={ledger.parentLedgerId ? ledgerMap[ledger.parentLedgerId]?.ledgerName : '-'}/>
-              ))}
-            </TableBody>
-          </Table>
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 }
+
+    
