@@ -46,6 +46,7 @@ export type Ledger = {
       gstin?: string;
       gstRate?: number;
       hsnCode?: string;
+      uqc?: string;
       placeOfSupply?: string;
       reverseCharge?: boolean;
       itcEligibility?: 'Eligible' | 'Ineligible' | 'As per Rules';

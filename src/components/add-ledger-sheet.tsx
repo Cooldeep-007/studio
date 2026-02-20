@@ -81,6 +81,26 @@ const gstStateCodes: { [key: string]: string } = {
   '38': 'Ladakh', '31': 'Lakshadweep', '34': 'Puducherry',
 };
 
+const uqcList = [
+    { code: 'BAG', description: 'Bags' },
+    { code: 'BTL', description: 'Bottles' },
+    { code: 'BOX', description: 'Box' },
+    { code: 'BUN', description: 'Bunches' },
+    { code: 'CAN', description: 'Cans' },
+    { code: 'CTN', description: 'Cartons' },
+    { code: 'DOZ', description: 'Dozen' },
+    { code: 'KGS', description: 'Kilograms' },
+    { code: 'LTR', description: 'Litres' },
+    { code: 'MTR', description: 'Meters' },
+    { code: 'NOS', description: 'Numbers' },
+    { code: 'PAC', description: 'Packs' },
+    { code: 'PCS', description: 'Pieces' },
+    { code: 'PRS', description: 'Pairs' },
+    { code: 'ROL', description: 'Rolls' },
+    { code: 'SET', description: 'Sets' },
+    { code: 'UNT', description: 'Units' },
+];
+
 const ledgerFormSchema = z.object({
     ledgerName: z.string().min(2, "Ledger name must be at least 2 characters."),
     parentLedgerId: z.string().min(1, "Parent ledger is required."),
@@ -97,6 +117,7 @@ const ledgerFormSchema = z.object({
         gstin: z.string().optional(),
         gstRate: z.coerce.number().optional(),
         hsnCode: z.string().optional(),
+        uqc: z.string().optional(),
         gstClassification: z.enum(['Goods', 'Services']).optional(),
     }).optional(),
 
@@ -169,7 +190,25 @@ const ledgerFormSchema = z.object({
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "State is required.", path: ["contactDetails.state"] });
         }
         if (!data.gstDetails?.gstClassification) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Type of Supply is required.", path: ["gstDetails.gstClassification"] });
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Type of Supply is required when GST is applicable.", path: ["gstDetails.gstClassification"] });
+        }
+
+        if (data.gstDetails?.gstClassification === 'Goods') {
+            if (!data.gstDetails.hsnCode) {
+                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: "HSN Code is required.", path: ["gstDetails.hsnCode"] });
+            } else if (!/^\d{4,8}$/.test(data.gstDetails.hsnCode)) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "HSN must be 4, 6, or 8 digits.", path: ["gstDetails.hsnCode"] });
+            }
+            if (!data.gstDetails.uqc) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "UQC is required for Goods.", path: ["gstDetails.uqc"] });
+            }
+        }
+        if (data.gstDetails?.gstClassification === 'Services') {
+            if (!data.gstDetails.hsnCode) {
+                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SAC Code is required.", path: ["gstDetails.hsnCode"] });
+            } else if (!/^\d{4,8}$/.test(data.gstDetails.hsnCode)) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SAC must be 4, 6, or 8 digits.", path: ["gstDetails.hsnCode"] });
+            }
         }
     }
 
@@ -205,6 +244,7 @@ const defaultValues: Partial<LedgerFormValues> = {
         gstin: "",
         gstRate: 0,
         hsnCode: "",
+        uqc: "",
         gstClassification: undefined,
     },
     contactDetails: {
@@ -277,6 +317,7 @@ export function AddLedgerSheet({
     const parentLedgerId = form.watch("parentLedgerId");
     const gstin = form.watch("gstDetails.gstin");
     const supplyType = form.watch("gstDetails.gstClassification");
+    const gstApplicable = form.watch("gstApplicable");
     
     const selectedParent = React.useMemo(() => {
         return ledgers.find(l => l.id === parentLedgerId);
@@ -300,6 +341,12 @@ export function AddLedgerSheet({
             form.clearErrors("gstDetails.gstin");
         }
     }, [gstin, form]);
+
+    React.useEffect(() => {
+        if (supplyType === 'Services') {
+            form.setValue('gstDetails.uqc', undefined, { shouldValidate: true });
+        }
+    }, [supplyType, form]);
 
     async function onSubmit(data: LedgerFormValues) {
         setIsSubmitting(true);
@@ -338,7 +385,7 @@ export function AddLedgerSheet({
                 companyId: 'comp-001', // Mock data
                 ledgerCode: data.ledgerCode,
                 gstDetails: {
-                  ...(data.gstDetails || {}),
+                  ...data.gstDetails,
                   ...(data.gstAdvancedConfig || {}),
                 },
                 contactDetails: data.contactDetails,
@@ -520,7 +567,7 @@ export function AddLedgerSheet({
                     name="gstDetails.gstClassification"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Type of Supply {form.watch("gstApplicable") && <span className="text-destructive">*</span>}</FormLabel>
+                            <FormLabel>Type of Supply {gstApplicable && <span className="text-destructive">*</span>}</FormLabel>
                             <Select onValueChange={field.onChange} value={field.value}>
                                 <FormControl>
                                     <SelectTrigger><SelectValue placeholder="Select Supply Type"/></SelectTrigger>
@@ -536,7 +583,7 @@ export function AddLedgerSheet({
                 />
                 <div className={cn(
                     "grid overflow-hidden transition-all duration-300 ease-in-out",
-                    form.watch("gstApplicable") ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                    gstApplicable ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
                 )}>
                     <div className="min-h-0">
                         <div className="space-y-4 p-4 border rounded-md mt-4">
@@ -602,13 +649,41 @@ export function AddLedgerSheet({
                                 />
                                 <FormField
                                     control={form.control}
-                                    name="gstDetails.hsnCode"
+                                    name="gstDetails.uqc"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>{supplyType === 'Goods' ? 'HSN Code' : supplyType === 'Services' ? 'SAC Code' : 'HSN/SAC Code'}</FormLabel>
+                                            <FormLabel>UQC {supplyType === 'Goods' && <span className="text-destructive">*</span>}</FormLabel>
+                                            <Select
+                                                onValueChange={field.onChange}
+                                                value={field.value}
+                                                disabled={supplyType !== 'Goods'}
+                                            >
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select UQC" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code} - {u.description}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="gstDetails.hsnCode"
+                                    render={({ field }) => (
+                                        <FormItem className="md:col-span-2">
+                                            <FormLabel>
+                                                {supplyType === 'Goods' ? 'HSN Code' : 'SAC Code'}
+                                                {gstApplicable && (supplyType === 'Goods' || supplyType === 'Services') && <span className="text-destructive"> *</span>}
+                                            </FormLabel>
                                             <FormControl>
                                                 <Input {...field} />
                                             </FormControl>
+                                            <FormMessage />
                                         </FormItem>
                                     )}
                                 />
@@ -631,7 +706,7 @@ export function AddLedgerSheet({
                         name="contactDetails.state"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>State {form.watch("gstApplicable") && <span className="text-destructive">*</span>}</FormLabel>
+                                <FormLabel>State {gstApplicable && <span className="text-destructive">*</span>}</FormLabel>
                                 <Select onValueChange={field.onChange} value={field.value}>
                                     <FormControl>
                                         <SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger>
