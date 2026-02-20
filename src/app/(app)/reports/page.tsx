@@ -93,9 +93,9 @@ export default function ReportsPage() {
           <CardDescription>Select filters to generate your report.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+          <div className="flex flex-col md:flex-row gap-4 items-center">
             <Select value={reportType} onValueChange={setReportType}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full md:w-[240px]">
                 <SelectValue placeholder="Select Report Type" />
               </SelectTrigger>
               <SelectContent>
