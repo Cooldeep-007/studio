@@ -30,43 +30,144 @@ export const mockCompanies: Company[] = [
 ];
 
 export const mockLedgers: Ledger[] = [
-  // Parent Ledgers (Groups)
-  {
-    id: 'led-assets',
-    ledgerName: 'Current Assets',
-    group: 'Assets',
-    isGroup: true,
-    openingBalance: 0,
-    currentBalance: 615000,
-    balanceType: 'Dr',
-    gstApplicable: false,
-    status: 'Active',
-    createdAt: new Date('2023-04-01'),
-    lastUpdatedAt: new Date('2023-04-01'),
-    firmId: 'firm-abc',
-    companyId: 'comp-001',
-  },
-  {
-    id: 'led-liabilities',
-    ledgerName: 'Capital & Liabilities',
-    group: 'Liabilities',
-    isGroup: true,
-    openingBalance: 0,
-    currentBalance: 1025000,
-    balanceType: 'Cr',
-    gstApplicable: false,
-    status: 'Active',
-    createdAt: new Date('2023-04-01'),
-    lastUpdatedAt: new Date('2023-04-01'),
-    firmId: 'firm-abc',
-    companyId: 'comp-001',
-  },
+  // =================================================================
+  // PARENT GROUPS (STANDARD ACCOUNTING HIERARCHY)
+  // =================================================================
   
-  // Child Ledgers
+  // Primary Groups (No Parent)
+  {
+    id: 'group-assets',
+    ledgerName: 'Assets',
+    group: 'Assets',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'group-liabilities',
+    ledgerName: 'Liabilities',
+    group: 'Liabilities',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'group-income',
+    ledgerName: 'Income',
+    group: 'Income',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'group-expense',
+    ledgerName: 'Expenses',
+    group: 'Expense',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+
+  // Sub-Groups under Assets
+  {
+    id: 'group-current-assets',
+    ledgerName: 'Current Assets',
+    parentLedgerId: 'group-assets',
+    group: 'Assets',
+    isGroup: true, openingBalance: 0, currentBalance: 615000, balanceType: 'Dr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'group-bank-accounts',
+    ledgerName: 'Bank Accounts',
+    parentLedgerId: 'group-current-assets',
+    group: 'Bank Accounts',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+   {
+    id: 'group-sundry-debtors',
+    ledgerName: 'Sundry Debtors',
+    parentLedgerId: 'group-current-assets',
+    group: 'Sundry Debtor',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+
+  // Sub-Groups under Liabilities
+   {
+    id: 'group-capital-account',
+    ledgerName: 'Capital Account',
+    parentLedgerId: 'group-liabilities',
+    group: 'Liabilities',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'group-current-liabilities',
+    ledgerName: 'Current Liabilities',
+    parentLedgerId: 'group-liabilities',
+    group: 'Liabilities',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'group-sundry-creditors',
+    ledgerName: 'Sundry Creditors',
+    parentLedgerId: 'group-current-liabilities',
+    group: 'Sundry Creditor',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'group-duties-taxes',
+    ledgerName: 'Duties & Taxes',
+    parentLedgerId: 'group-current-liabilities',
+    group: 'Liabilities',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+
+  // Sub-Groups under Income
+  {
+    id: 'group-sales-accounts',
+    ledgerName: 'Sales Accounts',
+    parentLedgerId: 'group-income',
+    group: 'Income',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'group-indirect-income',
+    ledgerName: 'Indirect Incomes',
+    parentLedgerId: 'group-income',
+    group: 'Income',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+
+  // Sub-Groups under Expense
+  {
+    id: 'group-purchase-accounts',
+    ledgerName: 'Purchase Accounts',
+    parentLedgerId: 'group-expense',
+    group: 'Expense',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'group-indirect-expenses',
+    ledgerName: 'Indirect Expenses',
+    parentLedgerId: 'group-expense',
+    group: 'Expense',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
+    createdAt: new Date('2023-04-01'), lastUpdatedAt: new Date('2023-04-01'), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+
+  // =================================================================
+  // CHILD LEDGERS (TRANSACTIONAL LEDGERS)
+  // =================================================================
+  
   {
     id: 'led-02',
     ledgerName: 'HDFC Bank',
-    parentLedgerId: 'led-assets',
+    parentLedgerId: 'group-bank-accounts',
     group: 'Bank Accounts',
     isGroup: false,
     openingBalance: 500000,
@@ -81,8 +182,8 @@ export const mockLedgers: Ledger[] = [
   },
   {
     id: 'led-04',
-    ledgerName: 'Client A (Sundry Debtor)',
-    parentLedgerId: 'led-assets',
+    ledgerName: 'Client A',
+    parentLedgerId: 'group-sundry-debtors',
     group: 'Sundry Debtor',
     isGroup: false,
     openingBalance: 15000,
@@ -101,7 +202,7 @@ export const mockLedgers: Ledger[] = [
         addressLine1: '789 Client Avenue',
         city: 'Bangalore',
         state: 'Karnataka',
-        pan: 'ABCDE1234F'
+        pan: 'AABCC1234F'
     },
     creditControl: {
         creditLimit: 50000,
@@ -114,8 +215,8 @@ export const mockLedgers: Ledger[] = [
   },
   {
     id: 'led-05',
-    ledgerName: 'Supplier B (Sundry Creditor)',
-    parentLedgerId: 'led-liabilities',
+    ledgerName: 'Supplier B',
+    parentLedgerId: 'group-sundry-creditors',
     group: 'Sundry Creditor',
     isGroup: false,
     openingBalance: 25000,
@@ -133,8 +234,8 @@ export const mockLedgers: Ledger[] = [
   },
    {
     id: 'led-06',
-    ledgerName: 'Capital Account',
-    parentLedgerId: 'led-liabilities',
+    ledgerName: 'Share Capital',
+    parentLedgerId: 'group-capital-account',
     group: 'Liabilities',
     isGroup: false,
     openingBalance: 1000000,
@@ -149,7 +250,8 @@ export const mockLedgers: Ledger[] = [
   },
   {
     id: 'led-01',
-    ledgerName: 'Sales Account',
+    ledgerName: 'Domestic Sales',
+    parentLedgerId: 'group-sales-accounts',
     group: 'Income',
     isGroup: false,
     openingBalance: 0,
@@ -168,6 +270,7 @@ export const mockLedgers: Ledger[] = [
   {
     id: 'led-03',
     ledgerName: 'Office Rent',
+    parentLedgerId: 'group-indirect-expenses',
     group: 'Expense',
     isGroup: false,
     openingBalance: 0,
