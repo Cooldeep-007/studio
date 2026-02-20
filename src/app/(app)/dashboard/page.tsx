@@ -1,3 +1,7 @@
+
+"use client";
+
+import * as React from 'react';
 import {
   DollarSign,
   Landmark,
@@ -9,6 +13,7 @@ import {
   Receipt,
   FileText
 } from 'lucide-react';
+import type { DateRange } from "react-day-picker";
 import {
   Card,
   CardContent,
@@ -35,24 +40,38 @@ import {
 } from "@/components/ui/select";
 import { DateRangePicker } from '@/components/date-range-picker';
 import { mockVouchers, mockLedgers, mockCompanies } from '@/lib/data';
+import type { Voucher } from '@/lib/types';
+
 
 // Helper function for currency formatting
 const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
         style: 'currency',
-        currency: 'USD',
+        currency: 'INR',
         minimumFractionDigits: 2,
     }).format(amount);
 };
 
 
 export default function DashboardPage() {
+    const [date, setDate] = React.useState<DateRange | undefined>({
+      from: new Date(new Date().getFullYear(), 0, 1),
+      to: new Date(),
+    });
+
+    // --- Data Filtering Logic ---
+    const filteredVouchers = mockVouchers.filter(v => {
+        const voucherDate = new Date(v.date);
+        if (!date?.from || !date?.to) return true;
+        return voucherDate >= date.from && voucherDate <= date.to;
+    });
+
     // --- Data Calculation Logic ---
-    const totalSales = mockVouchers
+    const totalSales = filteredVouchers
         .filter(v => v.voucherType === 'Sales')
         .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + item.amount, 0), 0);
 
-    const totalPurchases = mockVouchers
+    const totalPurchases = filteredVouchers
         .filter(v => v.voucherType === 'Purchase')
         .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + item.amount, 0), 0);
 
@@ -81,11 +100,11 @@ export default function DashboardPage() {
         .filter(l => l.group === 'Sundry Creditor' && !l.isGroup)
         .reduce((acc, l) => acc + l.currentBalance, 0);
 
-    const outputGst = mockVouchers
+    const outputGst = filteredVouchers
         .filter(v => v.voucherType === 'Sales')
         .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + (item.taxAmount || 0), 0), 0);
 
-    const inputGst = mockVouchers
+    const inputGst = filteredVouchers
         .filter(v => v.voucherType === 'Purchase')
         .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + (item.taxAmount || 0), 0), 0);
 
@@ -94,18 +113,18 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Firm Dashboard</h1>
         <div className="flex items-center gap-4">
             <Select defaultValue={mockCompanies[0]?.id}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Select Company" />
               </SelectTrigger>
               <SelectContent>
                 {mockCompanies.map(c => <SelectItem key={c.id} value={c.id}>{c.companyName}</SelectItem>)}
               </SelectContent>
             </Select>
-            <DateRangePicker />
+            <DateRangePicker date={date} setDate={setDate} />
         </div>
       </div>
 
@@ -214,10 +233,12 @@ export default function DashboardPage() {
         <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>Recent Transactions</CardTitle>
-            <CardDescription>Your last 5 transactions.</CardDescription>
+            <CardDescription>
+                Your last 5 transactions in the selected period.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <RecentTransactions />
+            <RecentTransactions vouchers={filteredVouchers.slice(0, 5)} />
           </CardContent>
         </Card>
         <Card className="lg:col-span-3">
@@ -234,7 +255,7 @@ export default function DashboardPage() {
   );
 }
 
-function RecentTransactions() {
+function RecentTransactions({ vouchers }: { vouchers: Voucher[] }) {
   return (
     <Table>
       <TableHeader>
@@ -246,24 +267,35 @@ function RecentTransactions() {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {mockVouchers.slice(0, 5).map((voucher) => (
-          <TableRow key={voucher.id}>
-            <TableCell>
-              {new Date(voucher.date).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-              })}
-            </TableCell>
-            <TableCell className="font-medium">{voucher.voucherNumber}</TableCell>
-            <TableCell>
-              <Badge variant="outline">{voucher.voucherType}</Badge>
-            </TableCell>
-            <TableCell className="text-right">
-              {formatCurrency(voucher.totalAmount)}
-            </TableCell>
-          </TableRow>
-        ))}
+        {vouchers.length > 0 ? (
+          vouchers.map((voucher) => (
+            <TableRow key={voucher.id}>
+              <TableCell>
+                {new Date(voucher.date).toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                })}
+              </TableCell>
+              <TableCell className="font-medium">{voucher.voucherNumber}</TableCell>
+              <TableCell>
+                <Badge variant="outline">{voucher.voucherType}</Badge>
+              </TableCell>
+              <TableCell className="text-right">
+                {formatCurrency(voucher.totalAmount)}
+              </TableCell>
+            </TableRow>
+          ))
+        ) : (
+            <TableRow>
+                <TableCell colSpan={4} className="h-24 text-center">
+                    No transactions for this period.
+                </TableCell>
+            </TableRow>
+        )}
       </TableBody>
     </Table>
   );
 }
+
+    
