@@ -1,3 +1,4 @@
+
 import type { Company, Ledger, User, Voucher, Invoice } from './types';
 
 export const mockUser: User = {
@@ -74,6 +75,14 @@ export const mockLedgers: Ledger[] = [
   },
 
   // Sub-Groups under Assets
+  {
+    id: 'group-fixed-assets',
+    ledgerName: 'Fixed Assets',
+    parentLedgerId: 'group-assets',
+    group: 'Assets',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+  },
   {
     id: 'group-current-assets',
     ledgerName: 'Current Assets',
@@ -181,13 +190,37 @@ export const mockLedgers: Ledger[] = [
   // CHILD LEDGERS (TRANSACTIONAL LEDGERS)
   // =================================================================
   {
+    id: 'led-purchase-account',
+    ledgerName: 'Purchase Account',
+    parentLedgerId: 'group-purchase-accounts',
+    group: 'Expense',
+    isGroup: false, openingBalance: 0, currentBalance: 20000, balanceType: 'Dr', gstApplicable: true, status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'led-machinery',
+    ledgerName: 'Machinery',
+    parentLedgerId: 'group-fixed-assets',
+    group: 'Assets',
+    isGroup: false, openingBalance: 500000, currentBalance: 495000, balanceType: 'Dr', gstApplicable: false, status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'led-depreciation',
+    ledgerName: 'Depreciation',
+    parentLedgerId: 'group-indirect-expenses',
+    group: 'Expense',
+    isGroup: false, openingBalance: 0, currentBalance: 5000, balanceType: 'Dr', gstApplicable: false, status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
     id: 'led-purchase-return',
     ledgerName: 'Purchase Return',
     parentLedgerId: 'group-purchase-accounts',
     group: 'Expense', // It's a contra-expense, so it lives here but will have a Cr balance.
     isGroup: false,
     openingBalance: 0,
-    currentBalance: 0,
+    currentBalance: 5000,
     balanceType: 'Cr', // Returns reduce expenses, so it has a credit balance.
     gstApplicable: true,
     status: 'Active',
@@ -203,7 +236,7 @@ export const mockLedgers: Ledger[] = [
     group: 'Income', // It's a contra-income, so it lives here but will have a Dr balance.
     isGroup: false,
     openingBalance: 0,
-    currentBalance: 0,
+    currentBalance: 2000,
     balanceType: 'Dr', // Returns reduce income, so it has a debit balance.
     gstApplicable: true,
     status: 'Active',
@@ -474,7 +507,7 @@ export const mockVouchers: Voucher[] = [
     date: new Date(MOCK_DATA_YEAR, 10, 1),
     partyLedger: 'led-05', // Supplier B
     lineItems: [
-      { ledgerId: 'led-inventory', amount: 20000, taxRate: 12, taxAmount: 2400 },
+      { ledgerId: 'led-purchase-account', amount: 20000, taxRate: 12, taxAmount: 2400 },
     ],
     totalAmount: 22400,
     firmId: 'firm-abc',
@@ -492,7 +525,50 @@ export const mockVouchers: Voucher[] = [
     firmId: 'firm-abc',
     companyId: 'comp-001',
     createdBy: 'user-123',
-  }
+  },
+  {
+    id: 'vch-006',
+    voucherNumber: 'CN-001',
+    voucherType: 'Credit Note',
+    date: new Date(MOCK_DATA_YEAR, 10, 15),
+    partyLedger: 'led-04', // Client A
+    lineItems: [
+      { ledgerId: 'led-sales-return', amount: 2000, taxRate: 18, taxAmount: 360 },
+    ],
+    totalAmount: 2360,
+    firmId: 'firm-abc',
+    companyId: 'comp-001',
+    createdBy: 'user-123',
+  },
+  {
+    id: 'vch-007',
+    voucherNumber: 'DN-001',
+    voucherType: 'Debit Note',
+    date: new Date(MOCK_DATA_YEAR, 10, 18),
+    partyLedger: 'led-05', // Supplier B
+    lineItems: [
+      { ledgerId: 'led-purchase-return', amount: 5000, taxRate: 12, taxAmount: 600 },
+    ],
+    totalAmount: 5600,
+    firmId: 'firm-abc',
+    companyId: 'comp-001',
+    createdBy: 'user-123',
+  },
+   {
+    id: 'vch-008',
+    voucherNumber: 'JRNL-001',
+    voucherType: 'Journal',
+    date: new Date(MOCK_DATA_YEAR, 10, 30),
+    partyLedger: 'led-depreciation', // Dummy party for journal
+    lineItems: [
+      { ledgerId: 'led-depreciation', type: 'Dr', amount: 5000 },
+      { ledgerId: 'led-machinery', type: 'Cr', amount: 5000 },
+    ],
+    totalAmount: 5000,
+    firmId: 'firm-abc',
+    companyId: 'comp-001',
+    createdBy: 'user-123',
+  },
 ];
 
 export const mockInvoices: Invoice[] = [
@@ -523,3 +599,5 @@ export const mockInvoices: Invoice[] = [
         }
     }
 ]
+
+    

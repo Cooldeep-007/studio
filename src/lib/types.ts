@@ -1,3 +1,4 @@
+
 export type UserRole = 'SuperAdmin' | 'FirmAdmin' | 'Staff' | 'ClientUser';
 
 export type User = {
@@ -95,6 +96,7 @@ export type Ledger = {
     tcsEnabled?: boolean;
     tcsNature?: string;
     tcsRate?: number;
+    tdsDeducteeType?: 'individual' | 'other';
   };
   costCenterConfig?: {
     enabled?: boolean;
@@ -137,6 +139,7 @@ export type VoucherLineItem = {
   amount: number;
   taxRate?: number;
   taxAmount?: number;
+  type?: 'Dr' | 'Cr';
 };
 
 export type Voucher = {
@@ -185,3 +188,5 @@ export type Invoice = {
         customFields?: Record<string, any>;
     }
 }
+
+    
