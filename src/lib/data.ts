@@ -217,6 +217,7 @@ export const mockLedgers: Ledger[] = [
     gstDetails: {
       gstRate: 18,
       gstin: '29AABCC1234F1Z5',
+      gstClassification: 'Services',
     },
     status: 'Active',
     contactDetails: {
@@ -284,6 +285,7 @@ export const mockLedgers: Ledger[] = [
     gstApplicable: true,
     gstDetails: {
         gstRate: 18,
+        gstClassification: 'Goods',
     },
     status: 'Active',
     createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
@@ -333,7 +335,7 @@ export const mockLedgers: Ledger[] = [
     currentBalance: 12000,
     balanceType: 'Dr',
     gstApplicable: true,
-    gstDetails: { gstRate: 5 },
+    gstDetails: { gstRate: 5, gstClassification: 'Services' },
     status: 'Active',
     createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 10, 10),

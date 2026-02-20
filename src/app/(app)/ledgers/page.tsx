@@ -42,6 +42,7 @@ const allColumns: { id: keyof Ledger | 'parentLedgerName' | string; label: strin
     { id: 'ledgerName', label: 'Ledger Name', isAdvanced: false },
     { id: 'parentLedgerName', label: 'Parent Ledger', isAdvanced: false },
     { id: 'group', label: 'Group', isAdvanced: false },
+    { id: 'gstDetails.gstClassification', label: 'Goods/Services', isAdvanced: false },
     { id: 'openingBalance', label: 'Opening Balance', isAdvanced: false },
     { id: 'currentBalance', label: 'Current Balance', isAdvanced: false },
     { id: 'balanceType', label: 'Dr/Cr', isAdvanced: false },
@@ -96,6 +97,7 @@ function LedgerRow({ ledger, visibleColumns, level, parentName }: { ledger: Ledg
         {visibleColumns.ledgerName && <TableCell style={{ paddingLeft: `${level * 1.5 + 1}rem` }} className="font-medium">{ledger.ledgerName}</TableCell>}
         {visibleColumns.parentLedgerName && <TableCell>{parentName || '-'}</TableCell>}
         {visibleColumns.group && <TableCell><Badge variant="outline">{ledger.group}</Badge></TableCell>}
+        {visibleColumns['gstDetails.gstClassification'] && <TableCell>{ledger.gstDetails?.gstClassification || '-'}</TableCell>}
         {visibleColumns.openingBalance && <TableCell className="text-right">{formatCurrency(ledger.openingBalance)}</TableCell>}
         {visibleColumns.currentBalance && <TableCell className="text-right">{formatCurrency(ledger.currentBalance)}</TableCell>}
         {visibleColumns.balanceType && <TableCell>{ledger.balanceType}</TableCell>}

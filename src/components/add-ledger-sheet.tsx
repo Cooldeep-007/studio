@@ -338,8 +338,8 @@ export function AddLedgerSheet({
                 companyId: 'comp-001', // Mock data
                 ledgerCode: data.ledgerCode,
                 gstDetails: {
-                  ...data.gstDetails,
-                  ...data.gstAdvancedConfig,
+                  ...(data.gstDetails || {}),
+                  ...(data.gstAdvancedConfig || {}),
                 },
                 contactDetails: data.contactDetails,
                 bankDetails: data.bankDetails,
