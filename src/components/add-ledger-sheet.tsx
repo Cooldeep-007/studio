@@ -579,9 +579,24 @@ export function AddLedgerSheet({
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>GST Rate (%)</FormLabel>
-                                            <FormControl>
-                                                <Input type="number" placeholder="e.g., 18" {...field} />
-                                            </FormControl>
+                                            <Select onValueChange={(val) => field.onChange(Number(val))} value={field.value?.toString()}>
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select a rate" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="0">0% (Exempt/Nil)</SelectItem>
+                                                    <SelectItem value="0.1">0.1%</SelectItem>
+                                                    <SelectItem value="0.25">0.25%</SelectItem>
+                                                    <SelectItem value="3">3%</SelectItem>
+                                                    <SelectItem value="5">5%</SelectItem>
+                                                    <SelectItem value="12">12%</SelectItem>
+                                                    <SelectItem value="18">18%</SelectItem>
+                                                    <SelectItem value="28">28%</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
                                         </FormItem>
                                     )}
                                 />
