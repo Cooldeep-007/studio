@@ -8,16 +8,14 @@ import {
     endOfYear, 
     startOfMonth, 
     endOfMonth,
-    startOfQuarter,
-    endOfQuarter,
     getYear,
-    getMonth,
 } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
   PopoverContent,
@@ -31,7 +29,6 @@ import {
     SelectValue 
 } from "./ui/select"
 import { Separator } from "./ui/separator"
-import { Switch } from "./ui/switch"
 import { Label } from "./ui/label"
 
 // Helper to get Indian financial year
@@ -69,13 +66,7 @@ export function DateRangePicker({
   date,
   setDate
 }: DateRangePickerProps) {
-  const [isOpen, setIsOpen] = React.useState(false);
-
-  const handlePresetClick = (preset: DateRange) => {
-    setDate(preset);
-    setIsOpen(false);
-  }
-
+  
   const handlePeriodSelect = (type: 'fy' | 'quarter' | 'month', value: string) => {
       const now = new Date();
       
@@ -119,13 +110,13 @@ export function DateRangePicker({
           const to = endOfMonth(from);
           setDate({ from, to });
       }
-      setIsOpen(false);
   }
 
+  const currentFinancialYear = getFinancialYear(date?.from || new Date());
 
   return (
     <div className={cn("grid gap-2", className)}>
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <Popover>
         <PopoverTrigger asChild>
           <Button
             id="date"
@@ -150,8 +141,8 @@ export function DateRangePicker({
             )}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="end">
-            <div className="flex flex-col items-start gap-1 p-3 w-[220px]">
+        <PopoverContent className="w-auto p-0 flex" align="end">
+             <div className="flex flex-col items-start gap-1 p-3 w-[220px] border-r">
                 <div className="space-y-2 w-full">
                     <Label>Financial Year</Label>
                     <Select onValueChange={(value) => handlePeriodSelect('fy', value)} defaultValue={getYear(getFinancialYear(date?.from || new Date()).start).toString()}>
@@ -193,22 +184,26 @@ export function DateRangePicker({
                 <Separator className="my-4" />
                 
                 <div className="text-sm font-medium text-muted-foreground mb-2 px-2">Presets</div>
-                <Button variant="ghost" className="w-full justify-start" onClick={() => handlePresetClick({ from: addDays(new Date(), -6), to: new Date() })}>Last 7 Days</Button>
-                <Button variant="ghost" className="w-full justify-start" onClick={() => handlePresetClick({ from: addDays(new Date(), -29), to: new Date() })}>Last 30 Days</Button>
-                <Button variant="ghost" className="w-full justify-start" onClick={() => handlePresetClick({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
+                <Button variant="ghost" className="w-full justify-start" onClick={() => setDate({ from: addDays(new Date(), -6), to: new Date() })}>Last 7 Days</Button>
+                <Button variant="ghost" className="w-full justify-start" onClick={() => setDate({ from: addDays(new Date(), -29), to: new Date() })}>Last 30 Days</Button>
+                <Button variant="ghost" className="w-full justify-start" onClick={() => setDate({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
                 <Button variant="ghost" className="w-full justify-start" onClick={() => {
                     const now = new Date();
                     const lastMonthStart = startOfMonth(addDays(now, -30));
-                    handlePresetClick({ from: lastMonthStart, to: endOfMonth(lastMonthStart) });
+                    setDate({ from: lastMonthStart, to: endOfMonth(lastMonthStart) });
                 }}>Last Month</Button>
-                <Button variant="ghost" className="w-full justify-start" onClick={() => handlePresetClick({ from: startOfYear(new Date()), to: endOfYear(new Date()) })}>This Calendar Year</Button>
-                
-                <Separator className="my-4" />
-                <div className="flex items-center space-x-2 p-2">
-                  <Switch id="compare-mode" disabled />
-                  <Label htmlFor="compare-mode">Compare Period</Label>
-                </div>
+                <Button variant="ghost" className="w-full justify-start" onClick={() => setDate({ from: startOfYear(new Date()), to: endOfYear(new Date()) })}>This Calendar Year</Button>
             </div>
+            <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={date?.from}
+                selected={date}
+                onSelect={setDate}
+                numberOfMonths={2}
+                fromDate={currentFinancialYear.start}
+                toDate={currentFinancialYear.end}
+            />
         </PopoverContent>
       </Popover>
     </div>

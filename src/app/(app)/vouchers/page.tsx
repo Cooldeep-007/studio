@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { PlusCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import type { DateRange } from "react-day-picker";
 import {
   Table,
@@ -73,8 +73,8 @@ const getFinancialYearLabel = (date: Date): string => {
 export default function VouchersPage() {
   const [groupBy, setGroupBy] = React.useState('voucherType');
   const [date, setDate] = React.useState<DateRange | undefined>({
-      from: new Date(2023, 3, 1),
-      to: new Date(2024, 2, 31),
+      from: startOfMonth(new Date()),
+      to: endOfMonth(new Date()),
   });
   const ledgerMap = React.useMemo(() => new Map(mockLedgers.map(l => [l.id, l.ledgerName])), []);
 
@@ -218,7 +218,7 @@ export default function VouchersPage() {
                         <TableBody>
                           {sortedVouchers.map((voucher) => (
                             <TableRow key={voucher.id} className="hover:bg-muted/50 transition-colors">
-                              <TableCell>{new Date(voucher.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</TableCell>
+                              <TableCell>{format(new Date(voucher.date), 'dd/MM/yyyy')}</TableCell>
                               <TableCell className="font-medium">{voucher.voucherNumber}</TableCell>
                                <TableCell>
                                  {groupBy === 'voucherType'
