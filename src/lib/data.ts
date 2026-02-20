@@ -132,6 +132,14 @@ export const mockLedgers: Ledger[] = [
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
     createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
+   {
+    id: 'group-tds-payable',
+    ledgerName: 'TDS Payable',
+    parentLedgerId: 'group-duties-taxes',
+    group: 'Liabilities',
+    isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+  },
 
   // Sub-Groups under Income
   {
@@ -250,6 +258,7 @@ export const mockLedgers: Ledger[] = [
     gstApplicable: true,
     gstDetails: {
         gstRate: 12,
+        gstClassification: 'Goods',
     },
     status: 'Active',
     createdAt: new Date(MOCK_DATA_YEAR, 5, 15),
@@ -308,6 +317,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 9, 26),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    tdsTcsConfig: { tdsEnabled: true, tdsNatureOfPayment: 'rent_land', tdsSection: '194I', tdsRate: 10 },
   },
   {
     id: 'led-salaries',
@@ -341,6 +351,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 10, 10),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    tdsTcsConfig: { tdsEnabled: true, tdsNatureOfPayment: 'professional', tdsSection: '194J', tdsRate: 10 },
   },
   {
     id: 'led-utilities',
@@ -414,6 +425,18 @@ export const mockVouchers: Voucher[] = [
     companyId: 'comp-001',
     createdBy: 'user-123',
   },
+  {
+    id: 'vch-005',
+    voucherNumber: 'PAY-002',
+    voucherType: 'Payment',
+    date: new Date(MOCK_DATA_YEAR, 10, 10),
+    partyLedger: 'led-marketing',
+    lineItems: [{ ledgerId: 'led-02', amount: 12000 }],
+    totalAmount: 12000,
+    firmId: 'firm-abc',
+    companyId: 'comp-001',
+    createdBy: 'user-123',
+  }
 ];
 
 export const mockInvoices: Invoice[] = [
