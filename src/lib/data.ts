@@ -8,11 +8,11 @@ export const mockUser: User = {
   email: 'admin@example.com',
 };
 
-const currentYear = new Date().getFullYear();
-const currentMonth = new Date().getMonth();
+// Use a fixed year for mock data to avoid hydration issues between server and client rendering
+const MOCK_DATA_YEAR = 2023;
 
-const financialYearStart = new Date(currentMonth >= 3 ? currentYear : currentYear - 1, 3, 1);
-const financialYearEnd = new Date(currentMonth >= 3 ? currentYear + 1 : currentYear, 2, 31);
+const financialYearStart = new Date(MOCK_DATA_YEAR, 3, 1); // April 1, 2023
+const financialYearEnd = new Date(MOCK_DATA_YEAR + 1, 2, 31); // March 31, 2024
 
 
 export const mockCompanies: Company[] = [
@@ -49,28 +49,28 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Assets',
     group: 'Assets',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
   {
     id: 'group-liabilities',
     ledgerName: 'Liabilities',
     group: 'Liabilities',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
   {
     id: 'group-income',
     ledgerName: 'Income',
     group: 'Income',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
   {
     id: 'group-expense',
     ledgerName: 'Expenses',
     group: 'Expense',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
 
   // Sub-Groups under Assets
@@ -80,7 +80,7 @@ export const mockLedgers: Ledger[] = [
     parentLedgerId: 'group-assets',
     group: 'Assets',
     isGroup: true, openingBalance: 0, currentBalance: 615000, balanceType: 'Dr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
   {
     id: 'group-bank-accounts',
@@ -88,7 +88,7 @@ export const mockLedgers: Ledger[] = [
     parentLedgerId: 'group-current-assets',
     group: 'Bank Accounts',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
    {
     id: 'group-sundry-debtors',
@@ -96,7 +96,7 @@ export const mockLedgers: Ledger[] = [
     parentLedgerId: 'group-current-assets',
     group: 'Sundry Debtor',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
 
   // Sub-Groups under Liabilities
@@ -106,7 +106,7 @@ export const mockLedgers: Ledger[] = [
     parentLedgerId: 'group-liabilities',
     group: 'Liabilities',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
   {
     id: 'group-current-liabilities',
@@ -114,7 +114,7 @@ export const mockLedgers: Ledger[] = [
     parentLedgerId: 'group-liabilities',
     group: 'Liabilities',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
   {
     id: 'group-sundry-creditors',
@@ -122,7 +122,7 @@ export const mockLedgers: Ledger[] = [
     parentLedgerId: 'group-current-liabilities',
     group: 'Sundry Creditor',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
   {
     id: 'group-duties-taxes',
@@ -130,7 +130,7 @@ export const mockLedgers: Ledger[] = [
     parentLedgerId: 'group-current-liabilities',
     group: 'Liabilities',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
 
   // Sub-Groups under Income
@@ -140,7 +140,7 @@ export const mockLedgers: Ledger[] = [
     parentLedgerId: 'group-income',
     group: 'Income',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
   {
     id: 'group-indirect-income',
@@ -148,7 +148,7 @@ export const mockLedgers: Ledger[] = [
     parentLedgerId: 'group-income',
     group: 'Income',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
 
   // Sub-Groups under Expense
@@ -158,7 +158,7 @@ export const mockLedgers: Ledger[] = [
     parentLedgerId: 'group-expense',
     group: 'Expense',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
   {
     id: 'group-indirect-expenses',
@@ -166,7 +166,7 @@ export const mockLedgers: Ledger[] = [
     parentLedgerId: 'group-expense',
     group: 'Expense',
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
-    createdAt: new Date(currentYear, 3, 1), lastUpdatedAt: new Date(currentYear, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
 
   // =================================================================
@@ -183,8 +183,8 @@ export const mockLedgers: Ledger[] = [
     balanceType: 'Dr',
     gstApplicable: false,
     status: 'Active',
-    createdAt: new Date(currentYear, 3, 1),
-    lastUpdatedAt: new Date(currentYear, 3, 1),
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
@@ -199,8 +199,8 @@ export const mockLedgers: Ledger[] = [
     balanceType: 'Dr',
     gstApplicable: false,
     status: 'Active',
-    createdAt: new Date(currentYear, 3, 1),
-    lastUpdatedAt: new Date(currentYear, 9, 27),
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 9, 27),
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
@@ -232,8 +232,8 @@ export const mockLedgers: Ledger[] = [
         creditLimit: 50000,
         creditPeriod: 30,
     },
-    createdAt: new Date(currentYear, 4, 10),
-    lastUpdatedAt: new Date(currentYear, 9, 27),
+    createdAt: new Date(MOCK_DATA_YEAR, 4, 10),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 9, 27),
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
@@ -251,8 +251,8 @@ export const mockLedgers: Ledger[] = [
         gstRate: 12,
     },
     status: 'Active',
-    createdAt: new Date(currentYear, 5, 15),
-    lastUpdatedAt: new Date(currentYear, 10, 1),
+    createdAt: new Date(MOCK_DATA_YEAR, 5, 15),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 10, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
@@ -267,8 +267,8 @@ export const mockLedgers: Ledger[] = [
     balanceType: 'Cr',
     gstApplicable: false,
     status: 'Active',
-    createdAt: new Date(currentYear, 3, 1),
-    lastUpdatedAt: new Date(currentYear, 3, 1),
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
@@ -286,8 +286,8 @@ export const mockLedgers: Ledger[] = [
         gstRate: 18,
     },
     status: 'Active',
-    createdAt: new Date(currentYear, 3, 1),
-    lastUpdatedAt: new Date(currentYear, 9, 25),
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 9, 25),
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
@@ -302,8 +302,8 @@ export const mockLedgers: Ledger[] = [
     balanceType: 'Dr',
     gstApplicable: false,
     status: 'Active',
-    createdAt: new Date(currentYear, 3, 1),
-    lastUpdatedAt: new Date(currentYear, 9, 26),
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 9, 26),
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
@@ -318,8 +318,8 @@ export const mockLedgers: Ledger[] = [
     balanceType: 'Dr',
     gstApplicable: false,
     status: 'Active',
-    createdAt: new Date(currentYear, 3, 1),
-    lastUpdatedAt: new Date(currentYear, 10, 5),
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 10, 5),
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
@@ -335,8 +335,8 @@ export const mockLedgers: Ledger[] = [
     gstApplicable: true,
     gstDetails: { gstRate: 5 },
     status: 'Active',
-    createdAt: new Date(currentYear, 3, 1),
-    lastUpdatedAt: new Date(currentYear, 10, 10),
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 10, 10),
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
@@ -351,8 +351,8 @@ export const mockLedgers: Ledger[] = [
     balanceType: 'Dr',
     gstApplicable: false,
     status: 'Active',
-    createdAt: new Date(currentYear, 3, 1),
-    lastUpdatedAt: new Date(currentYear, 10, 12),
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 10, 12),
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
@@ -364,7 +364,7 @@ export const mockVouchers: Voucher[] = [
     id: 'vch-001',
     voucherNumber: 'SALE-001',
     voucherType: 'Sales',
-    date: new Date(currentYear, 9, 25),
+    date: new Date(MOCK_DATA_YEAR, 9, 25),
     partyLedger: 'led-04', // Client A
     lineItems: [
       { ledgerId: 'led-01', amount: 10000, taxRate: 18, taxAmount: 1800 },
@@ -378,7 +378,7 @@ export const mockVouchers: Voucher[] = [
     id: 'vch-002',
     voucherNumber: 'PAY-001',
     voucherType: 'Payment',
-    date: new Date(currentYear, 9, 26),
+    date: new Date(MOCK_DATA_YEAR, 9, 26),
     partyLedger: 'led-03', // Office Rent
     lineItems: [{ ledgerId: 'led-02', amount: 25000 }], // Paid from HDFC
     totalAmount: 25000,
@@ -390,7 +390,7 @@ export const mockVouchers: Voucher[] = [
     id: 'vch-003',
     voucherNumber: 'RCPT-001',
     voucherType: 'Receipt',
-    date: new Date(currentYear, 9, 27),
+    date: new Date(MOCK_DATA_YEAR, 9, 27),
     partyLedger: 'led-04', // Client A
     lineItems: [{ ledgerId: 'led-02', amount: 5000 }], // Received in HDFC
     totalAmount: 5000,
@@ -402,7 +402,7 @@ export const mockVouchers: Voucher[] = [
     id: 'vch-004',
     voucherNumber: 'PUR-001',
     voucherType: 'Purchase',
-    date: new Date(currentYear, 10, 1),
+    date: new Date(MOCK_DATA_YEAR, 10, 1),
     partyLedger: 'led-05', // Supplier B
     lineItems: [
       { ledgerId: 'led-inventory', amount: 20000, taxRate: 12, taxAmount: 2400 },
@@ -421,8 +421,8 @@ export const mockInvoices: Invoice[] = [
         voucherId: "vch-001",
         companyId: "comp-001",
         firmId: "firm-abc",
-        date: new Date(currentYear, 9, 25),
-        dueDate: new Date(currentYear, 10, 24),
+        date: new Date(MOCK_DATA_YEAR, 9, 25),
+        dueDate: new Date(MOCK_DATA_YEAR, 10, 24),
         party: {
             name: "Client A",
             address: "789 Client Avenue, Bangalore, KA"

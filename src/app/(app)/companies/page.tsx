@@ -40,7 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from "@/components/ui/badge";
 
 export default function CompaniesPage() {
-  const [companies, setCompanies] = React.useState<Company[]>([]);
+  const [companies, setCompanies] = React.useState<Company[]>(mockCompanies);
   const [isAddSheetOpen, setIsAddSheetOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = React.useState(false);
@@ -48,10 +48,6 @@ export default function CompaniesPage() {
     null
   );
   const { toast } = useToast();
-
-  React.useEffect(() => {
-    setCompanies(mockCompanies);
-  }, []);
 
   const activeCompanies = companies.filter((c) => c.status === 'Active');
   const archivedCompanies = companies.filter((c) => c.status === 'Archived');
@@ -223,7 +219,7 @@ export default function CompaniesPage() {
           </AddCompanySheet>
         </div>
 
-        <Tabs defaultValue="active" className="space-y-4">
+        <Tabs defaultValue="archived" className="space-y-4">
           <TabsList>
             <TabsTrigger value="active">Active</TabsTrigger>
             <TabsTrigger value="archived">
