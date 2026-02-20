@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { PlusCircle, ListFilter } from "lucide-react";
+import { PlusCircle, ListFilter, Upload } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -28,8 +28,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AddLedgerSheet } from "@/components/add-ledger-sheet";
-import { mockLedgers } from "@/lib/data";
-import type { Ledger } from "@/lib/types";
+import { mockLedgers, mockCompanies } from "@/lib/data";
+import type { Company, Ledger } from "@/lib/types";
+import { TallyImportDialog } from "@/components/tally-import-dialog";
 
 // Helper type for tree structure
 interface LedgerWithChildren extends Ledger {
@@ -121,11 +122,13 @@ function LedgerRow({ ledger, visibleColumns, level, parentName }: { ledger: Ledg
 }
 
 export default function LedgersPage() {
+  const [ledgers, setLedgers] = React.useState<Ledger[]>(mockLedgers);
+  const [companies, setCompanies] = React.useState<Company[]>(mockCompanies);
   const [ledgerTree, setLedgerTree] = React.useState<LedgerWithChildren[]>([]);
   const [visibleColumns, setVisibleColumns] = React.useState<Record<string, boolean>>({});
   const [isMounted, setIsMounted] = React.useState(false);
-  const ledgerMap = React.useMemo(() => Object.fromEntries(mockLedgers.map(l => [l.id, l])), []);
-
+  
+  const ledgerMap = React.useMemo(() => Object.fromEntries(ledgers.map(l => [l.id, l])), [ledgers]);
 
   React.useEffect(() => {
     setIsMounted(true);
@@ -144,9 +147,9 @@ export default function LedgersPage() {
   }, [visibleColumns, isMounted]);
 
   React.useEffect(() => {
-    const tree = buildLedgerTree(mockLedgers);
+    const tree = buildLedgerTree(ledgers);
     setLedgerTree(tree);
-  }, []);
+  }, [ledgers]);
   
   const handleColumnVisibilityChange = (columnId: string, checked: boolean) => {
     setVisibleColumns(prev => ({ ...prev, [columnId]: checked }));
@@ -196,7 +199,8 @@ export default function LedgersPage() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            <AddLedgerSheet ledgers={mockLedgers}>
+            <TallyImportDialog companies={companies} ledgers={ledgers} />
+            <AddLedgerSheet ledgers={ledgers}>
               <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Ledger
