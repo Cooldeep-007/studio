@@ -93,7 +93,7 @@ export default function ReportsPage() {
           <CardDescription>Select filters to generate your report.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
             <Select value={reportType} onValueChange={setReportType}>
               <SelectTrigger>
                 <SelectValue placeholder="Select Report Type" />
@@ -105,7 +105,7 @@ export default function ReportsPage() {
               </SelectContent>
             </Select>
             <DateRangePicker date={date} setDate={setDate} />
-            <Button className="w-full lg:w-auto" onClick={handleGenerateReport} disabled={!reportType || !date}>
+            <Button className="w-full md:w-auto" onClick={handleGenerateReport} disabled={!reportType || !date}>
               <Filter className="mr-2 h-4 w-4" />
               View Report
             </Button>
