@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
-  title: 'Accountant X SaaS Backend',
+  title: 'Pro Accounting',
   description: 'Production-ready multi-tenant SaaS Accounting Backend',
 };
 
