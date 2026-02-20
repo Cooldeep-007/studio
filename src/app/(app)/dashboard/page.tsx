@@ -94,11 +94,11 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className='flex flex-wrap gap-4 justify-between items-center'>
+      <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold tracking-tight">Firm Dashboard</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
             <Select defaultValue={mockCompanies[0]?.id}>
-              <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Select Company" />
               </SelectTrigger>
               <SelectContent>
