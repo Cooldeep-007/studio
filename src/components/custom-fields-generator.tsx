@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { handleGenerateSchema } from "@/app/actions";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,7 +28,7 @@ function SubmitButton() {
 }
 
 export function CustomFieldsGenerator() {
-  const [state, formAction] = useFormState(handleGenerateSchema, initialState);
+  const [state, formAction] = useActionState(handleGenerateSchema, initialState);
 
   return (
     <form action={formAction}>
