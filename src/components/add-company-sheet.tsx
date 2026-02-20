@@ -219,6 +219,7 @@ export function AddCompanySheet({
       financialYearStart: data.financialYearStart,
       financialYearEnd: new Date(data.financialYearStart.getFullYear() + 1, 2, 31),
       firmId: 'firm-abc',
+      status: 'Active',
     };
 
     onCompanyCreated(newCompany);

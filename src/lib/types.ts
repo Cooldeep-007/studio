@@ -25,6 +25,7 @@ export type Company = {
   financialYearStart: Date;
   financialYearEnd: Date;
   firmId: string;
+  status: 'Active' | 'Archived';
 };
 
 export type LedgerGroup = 'Assets' | 'Liabilities' | 'Income' | 'Expense' | 'Sundry Debtor' | 'Sundry Creditor' | 'Bank Accounts';
