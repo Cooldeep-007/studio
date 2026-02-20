@@ -8,7 +8,6 @@ import { format } from "date-fns";
 import type { Company } from "@/lib/types";
 
 import {
-  CalendarIcon,
   Loader2,
   Building,
   Banknote,
@@ -53,8 +52,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { Calendar } from "./ui/calendar";
 
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
 const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
@@ -100,12 +97,28 @@ const companyFormSchema = z.object({
 
 type CompanyFormValues = z.infer<typeof companyFormSchema>;
 
+const today = new Date();
+const currentFinancialYearStart = new Date(
+  today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1,
+  3,
+  1
+);
+
 const defaultValues: Partial<CompanyFormValues> = {
   companyName: "",
   gstApplicable: false,
-  financialYearStart: new Date(new Date().getFullYear(), 3, 1),
-  booksStart: new Date(new Date().getFullYear(), 3, 1),
+  financialYearStart: currentFinancialYearStart,
+  booksStart: currentFinancialYearStart,
 };
+
+const currentYear = new Date().getFullYear();
+const financialYears = Array.from({ length: 6 }, (_, i) => {
+    const year = currentYear + 1 - i; // From next year down to 4 years ago
+    return {
+        label: `FY ${year}-${(year + 1).toString().slice(-2)}`,
+        value: new Date(year, 3, 1),
+    };
+});
 
 export function AddCompanySheet({
   children,
@@ -192,26 +205,58 @@ export function AddCompanySheet({
 
                 <TabsContent value="financial" className="space-y-6 pt-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="financialYearStart" render={({ field }) => (
-                      <FormItem className="flex flex-col"><FormLabel>Financial Year Beginning From <span className="text-destructive">*</span></FormLabel>
-                        <Popover><PopoverTrigger asChild><FormControl>
-                              <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl></PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent>
-                        </Popover><FormMessage />
-                      </FormItem>)}/>
-                    <FormField control={form.control} name="booksStart" render={({ field }) => (
-                      <FormItem className="flex flex-col"><FormLabel>Books Beginning From <span className="text-destructive">*</span></FormLabel>
-                        <Popover><PopoverTrigger asChild><FormControl>
-                              <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl></PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent>
-                        </Popover><FormMessage />
-                      </FormItem>)}/>
+                    <FormField
+                      control={form.control}
+                      name="financialYearStart"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Financial Year Beginning From <span className="text-destructive">*</span></FormLabel>
+                          <Select
+                            onValueChange={(value) => {
+                              const selectedDate = new Date(value);
+                              field.onChange(selectedDate);
+                              form.setValue('booksStart', selectedDate); // Also set books start date
+                            }}
+                            value={field.value?.toISOString()}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Financial Year" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {financialYears.map(fy => (
+                                <SelectItem key={fy.label} value={fy.value.toISOString()}>
+                                  {fy.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="booksStart"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Books Beginning From <span className="text-destructive">*</span></FormLabel>
+                          <FormControl>
+                            <Input
+                              value={field.value ? format(field.value, "PPP") : ''}
+                              readOnly
+                              disabled
+                              className="disabled:cursor-not-allowed disabled:opacity-100"
+                            />
+                          </FormControl>
+                           <FormDescription>
+                            Automatically set from the financial year.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 </TabsContent>
 
