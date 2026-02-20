@@ -44,7 +44,6 @@ import {
 } from "@/components/ui/tabs";
 import {
   Tooltip,
-  TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
@@ -98,6 +97,8 @@ const ledgerFormSchema = z.object({
         tdsSection: z.string().optional(),
         tdsRate: z.coerce.number().optional(),
         tcsEnabled: z.boolean().default(false),
+        tcsNature: z.string().optional(),
+        tcsRate: z.coerce.number().optional(),
     }).optional(),
     
     gstAdvancedConfig: z.object({
@@ -157,6 +158,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
             balanceType: 'Dr',
             gstApplicable: false,
             gstDetails: {
+                gstType: undefined,
                 gstin: "",
                 gstRate: 0,
                 hsnCode: "",
@@ -177,9 +179,12 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                 tdsSection: "",
                 tdsRate: 0,
                 tcsEnabled: false,
+                tcsNature: "",
+                tcsRate: 0
             },
             gstAdvancedConfig: {
                 reverseCharge: false,
+                itcEligibility: undefined,
                 eInvoiceRequired: false,
             },
             costCenterConfig: {
@@ -189,6 +194,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                 creditLimit: 0,
                 creditPeriod: 0,
                 interestRate: 0,
+                riskCategory: undefined,
             },
             automationRules: {
                 autoRoundOff: false,
@@ -198,6 +204,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                 accountNumber: "",
                 ifscCode: "",
                 bankName: "",
+                defaultPaymentMode: undefined
             },
             complianceConfig: {
                 approvalRequired: false,
@@ -208,6 +215,8 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
 
     const parentLedgerId = form.watch("parentLedgerId");
     const gstApplicable = form.watch("gstApplicable");
+    const tdsEnabled = form.watch("tdsTcsConfig.tdsEnabled");
+    const tcsEnabled = form.watch("tdsTcsConfig.tcsEnabled");
     
     const selectedParent = React.useMemo(() => {
         return ledgers.find(l => l.id === parentLedgerId);
@@ -454,15 +463,52 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                       <AccordionTrigger className="text-base"><Percent className="mr-2 h-5 w-5 text-primary" />TDS / TCS Configuration</AccordionTrigger>
                       <AccordionContent className="pt-4 space-y-6">
                         <FormField control={form.control} name="tdsTcsConfig.tdsEnabled" render={({ field }) => (
-                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TDS</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TDS Deduction</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
                         )} />
-                         {form.watch("tdsTcsConfig.tdsEnabled") && <div className="grid md:grid-cols-2 gap-4 p-4 border rounded-md">
-                            <FormField control={form.control} name="tdsTcsConfig.tdsNatureOfPayment" render={({ field }) => (<FormItem><FormLabel>Nature of Payment</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="tdsTcsConfig.tdsSection" render={({ field }) => (<FormItem><FormLabel>TDS Section</FormLabel><FormControl><Input placeholder="e.g. 194J" {...field} /></FormControl></FormItem>)} />
-                         </div>}
-                         <FormField control={form.control} name="tdsTcsConfig.tcsEnabled" render={({ field }) => (
-                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TCS</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
+                        {tdsEnabled && (
+                            <div className="grid md:grid-cols-2 gap-4 p-4 border rounded-md">
+                                <FormField control={form.control} name="tdsTcsConfig.tdsNatureOfPayment" render={({ field }) => (
+                                    <FormItem><FormLabel>Nature of Payment</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select nature..." /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="contractor">Payment to Contractor</SelectItem>
+                                                <SelectItem value="professional">Fees for Professional Services</SelectItem>
+                                                <SelectItem value="commission">Commission or Brokerage</SelectItem>
+                                                <SelectItem value="rent">Rent</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </FormItem>)} />
+                                <FormField control={form.control} name="tdsTcsConfig.tdsSection" render={({ field }) => (
+                                    <FormItem><FormLabel>TDS Section</FormLabel>
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select section..." /></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="194C">194C - Contractor</SelectItem>
+                                                <SelectItem value="194J">194J - Professional Fees</SelectItem>
+                                                <SelectItem value="194H">194H - Commission</SelectItem>
+                                                <SelectItem value="194I">194I - Rent</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </FormItem>)} />
+                            </div>
+                        )}
+                        <FormField control={form.control} name="tdsTcsConfig.tcsEnabled" render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TCS Collection</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
                         )} />
+                        {tcsEnabled && (
+                           <div className="grid md:grid-cols-2 gap-4 p-4 border rounded-md">
+                               <FormField control={form.control} name="tdsTcsConfig.tcsNature" render={({ field }) => (
+                                   <FormItem><FormLabel>Nature of Collection</FormLabel>
+                                       <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select nature..." /></SelectTrigger></FormControl>
+                                           <SelectContent>
+                                               <SelectItem value="scrap">Sale of Scrap</SelectItem>
+                                               <SelectItem value="vehicle">Sale of Motor Vehicle (> 10L)</SelectItem>
+                                               <SelectItem value="goods">Sale of Goods (> 50L)</SelectItem>
+                                           </SelectContent>
+                                       </Select>
+                                   </FormItem>)} />
+                               <FormField control={form.control} name="tdsTcsConfig.tcsRate" render={({ field }) => (<FormItem><FormLabel>TCS Rate (%)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
+                           </div>
+                        )}
                       </AccordionContent>
                     </AccordionItem>
 
