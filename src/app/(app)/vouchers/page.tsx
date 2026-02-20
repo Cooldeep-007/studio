@@ -129,7 +129,7 @@ export default function VouchersPage() {
                         <TableBody>
                           {sortedVouchers.map((voucher) => (
                             <TableRow key={voucher.id} className="hover:bg-muted/50 transition-colors">
-                              <TableCell>{new Date(voucher.date).toLocaleDateString()}</TableCell>
+                              <TableCell>{new Date(voucher.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</TableCell>
                               <TableCell className="font-medium">{voucher.voucherNumber}</TableCell>
                                <TableCell>{voucher.partyLedger}</TableCell>
                               <TableCell className="text-right">

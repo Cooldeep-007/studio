@@ -128,7 +128,9 @@ export type VoucherType =
   | 'Payment'
   | 'Receipt'
   | 'Journal'
-  | 'Contra';
+  | 'Contra'
+  | 'Debit Note'
+  | 'Credit Note';
 
 export type VoucherLineItem = {
   ledgerId: string;
