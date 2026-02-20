@@ -75,18 +75,20 @@ const SidebarProvider = React.forwardRef<
     const [_open, _setOpen] = React.useState(defaultOpen)
     const open = openProp ?? _open
     const setOpen = React.useCallback(
-      (value: boolean | ((value: boolean) => boolean)) => {
-        const openState = typeof value === "function" ? value(open) : value
+      (value: boolean | ((prevState: boolean) => boolean)) => {
         if (setOpenProp) {
-          setOpenProp(openState)
+          const newState = typeof value === "function" ? value(open) : value
+          setOpenProp(newState)
+          document.cookie = `${SIDEBAR_COOKIE_NAME}=${newState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
         } else {
-          _setOpen(openState)
+          _setOpen((prev) => {
+            const newState = typeof value === "function" ? value(prev) : value
+            document.cookie = `${SIDEBAR_COOKIE_NAME}=${newState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+            return newState
+          })
         }
-
-        // This sets the cookie to keep the sidebar state.
-        document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
       },
-      [setOpenProp, open]
+      [open, setOpenProp]
     )
 
     // Helper to toggle the sidebar.
