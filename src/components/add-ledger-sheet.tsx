@@ -148,10 +148,61 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
     const form = useForm<LedgerFormValues>({
         resolver: zodResolver(ledgerFormSchema),
         defaultValues: {
+            ledgerName: "",
+            parentLedgerId: "",
             isGroup: false,
+            ledgerCode: "",
+            group: "",
             openingBalance: 0,
             balanceType: 'Dr',
             gstApplicable: false,
+            gstDetails: {
+                gstin: "",
+                gstRate: 0,
+                hsnCode: "",
+            },
+            contactDetails: {
+                contactPerson: "",
+                mobileNumber: "",
+                email: "",
+                addressLine1: "",
+                city: "",
+                state: "",
+                pincode: "",
+                pan: "",
+            },
+            tdsTcsConfig: {
+                tdsEnabled: false,
+                tdsNatureOfPayment: "",
+                tdsSection: "",
+                tdsRate: 0,
+                tcsEnabled: false,
+            },
+            gstAdvancedConfig: {
+                reverseCharge: false,
+                eInvoiceRequired: false,
+            },
+            costCenterConfig: {
+                enabled: false,
+            },
+            creditControl: {
+                creditLimit: 0,
+                creditPeriod: 0,
+                interestRate: 0,
+            },
+            automationRules: {
+                autoRoundOff: false,
+                autoReminder: false,
+            },
+            bankDetails: {
+                accountNumber: "",
+                ifscCode: "",
+                bankName: "",
+            },
+            complianceConfig: {
+                approvalRequired: false,
+                enableAuditTrail: true,
+            },
         },
     });
 
