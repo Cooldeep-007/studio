@@ -115,6 +115,9 @@ const ledgerFormSchema = z.object({
         tdsEnabled: z.boolean().default(false),
         tdsNatureOfPayment: z.string().optional(),
         tdsSection: z.string().optional(),
+        tcsEnabled: z.boolean().default(false),
+        tcsNatureOfCollection: z.string().optional(),
+        tcsSection: z.string().optional(),
     }).optional(),
 
     gstAdvancedConfig: z.object({
@@ -212,6 +215,9 @@ const defaultValues: Partial<LedgerFormValues> = {
         tdsEnabled: false,
         tdsNatureOfPayment: "",
         tdsSection: "",
+        tcsEnabled: false,
+        tcsNatureOfCollection: "",
+        tcsSection: "",
     },
     gstAdvancedConfig: {
         reverseCharge: false,
@@ -244,7 +250,15 @@ const defaultValues: Partial<LedgerFormValues> = {
 };
 
 
-export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNode; ledgers: Ledger[] }) {
+export function AddLedgerSheet({
+  children,
+  ledgers,
+  onLedgerCreated,
+}: {
+  children: React.ReactNode;
+  ledgers: Ledger[];
+  onLedgerCreated: (ledger: Ledger) => void;
+}) {
     const [isOpen, setIsOpen] = React.useState(false);
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const parentLedgers = ledgers.filter(l => l.isGroup);
@@ -299,15 +313,44 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
 
             // Simulate API call
             await new Promise((resolve) => setTimeout(resolve, 1000));
+            
+            const newLedger: Ledger = {
+                id: `led-${new Date().getTime()}`,
+                ledgerName: data.ledgerName,
+                parentLedgerId: data.parentLedgerId,
+                group: (derivedGroup || 'Assets') as LedgerGroup,
+                isGroup: data.isGroup,
+                openingBalance: data.openingBalance,
+                currentBalance: data.openingBalance,
+                balanceType: data.balanceType,
+                gstApplicable: data.gstApplicable,
+                status: 'Active',
+                createdAt: new Date(),
+                lastUpdatedAt: new Date(),
+                firmId: 'firm-abc', // Mock data
+                companyId: 'comp-001', // Mock data
+                ledgerCode: data.ledgerCode,
+                gstDetails: {
+                  ...data.gstDetails,
+                  ...data.gstAdvancedConfig,
+                },
+                contactDetails: data.contactDetails,
+                bankDetails: data.bankDetails,
+                creditControl: data.creditControl,
+                tdsTcsConfig: data.tdsTcsConfig,
+                costCenterConfig: data.costCenterConfig,
+                automationRules: data.automationRules,
+                complianceConfig: data.complianceConfig,
+            };
 
-            console.log("Saving Ledger:", { ...data, derivedGroup });
+            onLedgerCreated(newLedger);
+
             toast({
                 title: "Ledger Created Successfully",
                 description: `${data.ledgerName} has been added to your Chart of Accounts.`,
             });
             setIsOpen(false);
             form.reset(defaultValues);
-            // In a real app, you'd also trigger a refresh of the ledger list here.
         } catch (error) {
             console.error(error);
             toast({
@@ -598,6 +641,39 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                                               <SelectItem value="194J">194J - Professional Fees</SelectItem>
                                               <SelectItem value="194H">194H - Commission</SelectItem>
                                               <SelectItem value="194I">194I - Rent</SelectItem>
+                                          </SelectContent>
+                                      </Select>
+                                      <FormMessage />
+                                  </FormItem>)} />
+                            </div>
+                          </div>
+                        </div>
+                        <Separator />
+                         <FormField control={form.control} name="tdsTcsConfig.tcsEnabled" render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TCS Collection</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
+                        )} />
+
+                        <div className={cn("grid overflow-hidden transition-all duration-300 ease-in-out", form.watch("tdsTcsConfig.tcsEnabled") ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
+                          <div className="min-h-0">
+                            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-md border p-4">
+                              <FormField control={form.control} name="tdsTcsConfig.tcsNatureOfCollection" render={({ field }) => (
+                                  <FormItem><FormLabel>Nature of Collection</FormLabel>
+                                      <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select nature..." /></SelectTrigger></FormControl>
+                                          <SelectContent>
+                                               <SelectItem value="scrap">Sale of Scrap</SelectItem>
+                                               <SelectItem value="vehicle">Sale of Motor Vehicle (&gt; 10L)</SelectItem>
+                                               <SelectItem value="goods">Sale of Goods (&gt; 50L)</SelectItem>
+                                          </SelectContent>
+                                      </Select>
+                                      <FormMessage />
+                                  </FormItem>)} />
+                              <FormField control={form.control} name="tdsTcsConfig.tcsSection" render={({ field }) => (
+                                  <FormItem><FormLabel>TCS Section</FormLabel>
+                                      <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select section..." /></SelectTrigger></FormControl>
+                                          <SelectContent>
+                                              <SelectItem value="206C_scrap">206C(1) - Scrap</SelectItem>
+                                              <SelectItem value="206C_vehicle">206C(1F) - Motor Vehicle</SelectItem>
+                                              <SelectItem value="206C_goods">206C(1H) - Sale of Goods</SelectItem>
                                           </SelectContent>
                                       </Select>
                                       <FormMessage />

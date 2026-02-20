@@ -130,6 +130,10 @@ export default function LedgersPage() {
   
   const ledgerMap = React.useMemo(() => Object.fromEntries(ledgers.map(l => [l.id, l])), [ledgers]);
 
+  const handleLedgerCreated = (newLedger: Ledger) => {
+    setLedgers((prev) => [...prev, newLedger]);
+  };
+
   React.useEffect(() => {
     setIsMounted(true);
     const savedPrefs = localStorage.getItem('ledgerColumnPrefs');
@@ -200,7 +204,7 @@ export default function LedgersPage() {
               </DropdownMenuContent>
             </DropdownMenu>
             <TallyImportDialog companies={companies} ledgers={ledgers} />
-            <AddLedgerSheet ledgers={ledgers}>
+            <AddLedgerSheet ledgers={ledgers} onLedgerCreated={handleLedgerCreated}>
               <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Ledger
