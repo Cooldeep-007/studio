@@ -194,7 +194,7 @@ export function AddCompanySheet({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="financialYearStart" render={({ field }) => (
                       <FormItem className="flex flex-col"><FormLabel>Financial Year Beginning From <span className="text-destructive">*</span></FormLabel>
-                        <Popover modal={true}><PopoverTrigger asChild><FormControl>
+                        <Popover><PopoverTrigger asChild><FormControl>
                               <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
                                 {field.value ? format(field.value, "PPP") : <span>Pick a date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                               </Button>
@@ -204,7 +204,7 @@ export function AddCompanySheet({
                       </FormItem>)}/>
                     <FormField control={form.control} name="booksStart" render={({ field }) => (
                       <FormItem className="flex flex-col"><FormLabel>Books Beginning From <span className="text-destructive">*</span></FormLabel>
-                        <Popover modal={true}><PopoverTrigger asChild><FormControl>
+                        <Popover><PopoverTrigger asChild><FormControl>
                               <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
                                 {field.value ? format(field.value, "PPP") : <span>Pick a date</span>} <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                               </Button>
