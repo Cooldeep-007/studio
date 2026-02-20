@@ -40,7 +40,8 @@ import {
 } from "@/components/ui/select";
 import { DateRangePicker } from '@/components/date-range-picker';
 import { mockVouchers, mockLedgers, mockCompanies } from '@/lib/data';
-import type { Voucher } from '@/lib/types';
+import type { Voucher, Ledger } from '@/lib/types';
+import type { ChartConfig } from '@/components/ui/chart';
 
 
 // Helper function for currency formatting
@@ -66,7 +67,7 @@ export default function DashboardPage() {
         return voucherDate >= date.from && voucherDate <= date.to;
     });
 
-    // --- Data Calculation Logic ---
+    // --- Dynamic Data Calculation Logic ---
     const totalSales = filteredVouchers
         .filter(v => v.voucherType === 'Sales')
         .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + item.amount, 0), 0);
@@ -75,16 +76,45 @@ export default function DashboardPage() {
         .filter(v => v.voucherType === 'Purchase')
         .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + item.amount, 0), 0);
 
-    const totalIncome = mockLedgers
-        .filter(l => l.group === 'Income' && !l.isGroup)
-        .reduce((acc, l) => acc + l.currentBalance, 0);
+    const totalIncome = totalSales;
 
-    const totalExpenses = mockLedgers
-        .filter(l => l.group === 'Expense' && !l.isGroup)
-        .reduce((acc, l) => acc + l.currentBalance, 0);
+    const expenseLedgers = mockLedgers.filter(l => l.group === 'Expense' && !l.isGroup);
+    const expenseLedgerIds = new Set(expenseLedgers.map(l => l.id));
+    const expenseLedgerMap = new Map(expenseLedgers.map(l => [l.id, l]));
+
+    const expenseBreakdown: Record<string, number> = {};
+
+    const periodPurchases = filteredVouchers
+        .filter(v => v.voucherType === 'Purchase')
+        .reduce((sum, v) => {
+            const purchaseAmount = v.lineItems.reduce((acc, item) => acc + item.amount, 0);
+            expenseBreakdown['Purchases'] = (expenseBreakdown['Purchases'] || 0) + purchaseAmount;
+            return sum + purchaseAmount;
+        }, 0);
+
+    const otherExpenses = filteredVouchers
+        .filter(v => v.voucherType === 'Payment' && expenseLedgerIds.has(v.partyLedger))
+        .reduce((sum, v) => {
+            const ledgerName = expenseLedgerMap.get(v.partyLedger)?.ledgerName || 'Unknown Expense';
+            expenseBreakdown[ledgerName] = (expenseBreakdown[ledgerName] || 0) + v.totalAmount;
+            return sum + v.totalAmount;
+        }, 0);
+
+    const totalExpenses = periodPurchases + otherExpenses;
     
     const netProfit = totalIncome - totalExpenses;
 
+    const outputGst = filteredVouchers
+        .filter(v => v.voucherType === 'Sales')
+        .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + (item.taxAmount || 0), 0), 0);
+
+    const inputGst = filteredVouchers
+        .filter(v => v.voucherType === 'Purchase')
+        .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + (item.taxAmount || 0), 0), 0);
+
+    const gstPayable = Math.max(0, outputGst - inputGst);
+    
+    // --- Static Snapshot Data ---
     const bankBalance = mockLedgers
         .filter(l => l.group === 'Bank Accounts' && !l.isGroup)
         .reduce((acc, l) => acc + l.currentBalance, 0);
@@ -100,16 +130,28 @@ export default function DashboardPage() {
         .filter(l => l.group === 'Sundry Creditor' && !l.isGroup)
         .reduce((acc, l) => acc + l.currentBalance, 0);
 
-    const outputGst = filteredVouchers
-        .filter(v => v.voucherType === 'Sales')
-        .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + (item.taxAmount || 0), 0), 0);
+    // --- Chart Configuration ---
+    const chartColors = ["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"];
+    const chartData = Object.entries(expenseBreakdown).map(([name, value], index) => ({
+      name,
+      value,
+      fill: `var(--color-${chartColors[index % chartColors.length]})`,
+    }));
 
-    const inputGst = filteredVouchers
-        .filter(v => v.voucherType === 'Purchase')
-        .reduce((acc, v) => acc + v.lineItems.reduce((sum, item) => sum + (item.taxAmount || 0), 0), 0);
+    const chartConfig = {
+      value: {
+        label: 'Amount',
+      },
+      ...Object.entries(expenseBreakdown).reduce((acc, [name], index) => {
+        const key = name.toLowerCase().replace(/ & | /g, '-');
+        acc[key] = {
+          label: name,
+          color: `hsl(var(--${chartColors[index % chartColors.length]}))`,
+        };
+        return acc;
+      }, {} as any)
+    } satisfies ChartConfig;
 
-    const gstPayable = Math.max(0, outputGst - inputGst);
-    const gstCredit = Math.max(0, inputGst - outputGst);
 
   return (
     <div className="flex flex-col gap-6">
@@ -130,19 +172,31 @@ export default function DashboardPage() {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Card 1: Total Sales */}
+        {/* Card 1: Total Income */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Income</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalSales)}</div>
-            <p className="text-xs text-muted-foreground">+12.5% from last month</p>
+            <div className="text-2xl font-bold">{formatCurrency(totalIncome)}</div>
+            <p className="text-xs text-muted-foreground">For the selected period</p>
           </CardContent>
         </Card>
         
-        {/* Card 2: Net Profit/Loss */}
+        {/* Card 2: Total Expenses */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+            <TrendingDown className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalExpenses)}</div>
+            <p className="text-xs text-muted-foreground">For the selected period</p>
+          </CardContent>
+        </Card>
+        
+        {/* Card 3: Net Profit/Loss */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Net Profit / Loss</CardTitle>
@@ -150,11 +204,23 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${netProfit < 0 ? 'text-destructive' : ''}`}>{formatCurrency(netProfit)}</div>
-            <p className="text-xs text-muted-foreground">{netProfit < 0 ? 'Down from last month' : 'Up from last month'}</p>
+            <p className="text-xs text-muted-foreground">{netProfit < 0 ? 'Loss for this period' : 'Profit for this period'}</p>
+          </CardContent>
+        </Card>
+        
+        {/* Card 4: GST Payable */}
+         <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">GST Payable</CardTitle>
+            <Receipt className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(gstPayable)}</div>
+             <p className="text-xs text-muted-foreground">For this period</p>
           </CardContent>
         </Card>
 
-        {/* Card 3: Receivables */}
+        {/* Card 5: Receivables */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Receivables</CardTitle>
@@ -162,11 +228,11 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(outstandingReceivables)}</div>
-            <p className="text-xs text-muted-foreground">Outstanding amount</p>
+            <p className="text-xs text-muted-foreground">Total outstanding</p>
           </CardContent>
         </Card>
         
-        {/* Card 4: Payables */}
+        {/* Card 6: Payables */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Payables</CardTitle>
@@ -174,11 +240,11 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(outstandingPayables)}</div>
-            <p className="text-xs text-muted-foreground">Amount to be paid</p>
+            <p className="text-xs text-muted-foreground">Total to be paid</p>
           </CardContent>
         </Card>
         
-        {/* Card 5: Bank Balance */}
+        {/* Card 7: Bank Balance */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Bank Balance</CardTitle>
@@ -190,7 +256,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
         
-        {/* Card 6: Cash in Hand */}
+        {/* Card 8: Cash in Hand */}
          <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Cash in Hand</CardTitle>
@@ -198,33 +264,10 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(cashBalance)}</div>
-            <p className="text-xs text-muted-foreground">Available cash</p>
-          </CardContent>
-        </Card>
-
-        {/* Card 7: GST Payable */}
-         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">GST Payable</CardTitle>
-            <Receipt className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(gstPayable)}</div>
-             <p className="text-xs text-muted-foreground">For this period</p>
+            <p className="text-xs text-muted-foreground">Total available cash</p>
           </CardContent>
         </Card>
         
-        {/* Card 8: GST Input Credit */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">GST Input Credit</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{formatCurrency(gstCredit)}</div>
-            <p className="text-xs text-muted-foreground">Available to claim</p>
-          </CardContent>
-        </Card>
       </div>
 
 
@@ -244,10 +287,10 @@ export default function DashboardPage() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Expense Breakdown</CardTitle>
-            <CardDescription>Summary of expenses by category.</CardDescription>
+            <CardDescription>Summary of expenses for the selected period.</CardDescription>
           </CardHeader>
           <CardContent>
-            <DashboardChart />
+            <DashboardChart data={chartData} config={chartConfig} />
           </CardContent>
         </Card>
       </div>
@@ -297,5 +340,3 @@ function RecentTransactions({ vouchers }: { vouchers: Voucher[] }) {
     </Table>
   );
 }
-
-    
