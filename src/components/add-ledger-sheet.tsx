@@ -6,6 +6,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "@/hooks/use-toast";
 import type { Ledger, LedgerGroup } from "@/lib/types";
+import {
+  Percent, ShieldCheck, Landmark, HeartPulse, Sparkles, FolderKanban, Bot, Puzzle
+} from "lucide-react";
 
 import {
   Sheet,
@@ -17,6 +20,12 @@ import {
   SheetTrigger,
   SheetClose,
 } from "@/components/ui/sheet";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -33,6 +42,12 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -54,15 +69,17 @@ const ledgerFormSchema = z.object({
     group: z.string(), // This will be derived but needed for conditional logic
     openingBalance: z.coerce.number().default(0),
     balanceType: z.enum(['Dr', 'Cr']).default('Dr'),
+    
+    // Statutory Tab
     gstApplicable: z.boolean().default(false),
     gstDetails: z.object({
         gstType: z.enum(['Regular', 'Composition', 'Unregistered', 'Consumer', 'SEZ', 'Export']).optional(),
         gstin: z.string().optional(),
         gstRate: z.coerce.number().optional(),
         hsnCode: z.string().optional(),
-        placeOfSupply: z.string().optional(),
-        reverseCharge: z.boolean().default(false),
     }).optional(),
+
+    // Contact Tab
     contactDetails: z.object({
         contactPerson: z.string().optional(),
         mobileNumber: z.string().optional(),
@@ -73,16 +90,51 @@ const ledgerFormSchema = z.object({
         pincode: z.string().optional(),
         pan: z.string().optional(),
     }).optional(),
+    
+    // Advanced Tab
+    tdsTcsConfig: z.object({
+        tdsEnabled: z.boolean().default(false),
+        tdsNatureOfPayment: z.string().optional(),
+        tdsSection: z.string().optional(),
+        tdsRate: z.coerce.number().optional(),
+        tcsEnabled: z.boolean().default(false),
+    }).optional(),
+    
+    gstAdvancedConfig: z.object({
+        reverseCharge: z.boolean().default(false),
+        itcEligibility: z.enum(['Eligible', 'Ineligible', 'As per Rules']).optional(),
+        eInvoiceRequired: z.boolean().default(false),
+    }).optional(),
+
+    costCenterConfig: z.object({
+        enabled: z.boolean().default(false),
+    }).optional(),
+
+    creditControl: z.object({
+        creditLimit: z.coerce.number().optional(),
+        creditPeriod: z.coerce.number().optional(),
+        interestRate: z.coerce.number().optional(),
+        riskCategory: z.enum(['Low', 'Medium', 'High']).optional(),
+    }).optional(),
+
+    automationRules: z.object({
+        autoRoundOff: z.boolean().default(false),
+        autoReminder: z.boolean().default(false),
+    }).optional(),
+
     bankDetails: z.object({
         accountNumber: z.string().optional(),
         ifscCode: z.string().optional(),
         bankName: z.string().optional(),
+        defaultPaymentMode: z.enum(['NEFT', 'RTGS', 'IMPS', 'UPI', 'Cheque']).optional(),
     }).optional(),
-    creditControl: z.object({
-        creditLimit: z.coerce.number().optional(),
-        creditPeriod: z.coerce.number().optional(),
+
+    complianceConfig: z.object({
+        approvalRequired: z.boolean().default(false),
+        enableAuditTrail: z.boolean().default(true),
     }).optional(),
 });
+
 
 type LedgerFormValues = z.infer<typeof ledgerFormSchema>;
 
@@ -136,7 +188,8 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
               </SheetDescription>
             </SheetHeader>
             <Separator className="my-4" />
-            <ScrollArea className="flex-grow pr-6">
+            <ScrollArea className="flex-grow pr-6 -mr-6">
+            <TooltipProvider>
             <Tabs defaultValue="general">
               <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="general">General</TabsTrigger>
@@ -344,31 +397,93 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
               </TabsContent>
               
               {/* ADVANCED TAB */}
-              <TabsContent value="advanced" className="space-y-6">
-                {(derivedGroup === 'Sundry Debtor' || derivedGroup === 'Sundry Creditor') && (
-                    <div className="space-y-4 p-4 border rounded-md">
-                        <h4 className="font-medium">Credit Control</h4>
+              <TabsContent value="advanced" className="space-y-1">
+                 <Accordion type="multiple" className="w-full">
+                    <AccordionItem value="tds-tcs">
+                      <AccordionTrigger className="text-base"><Percent className="mr-2 h-5 w-5 text-primary" />TDS / TCS Configuration</AccordionTrigger>
+                      <AccordionContent className="pt-4 space-y-6">
+                        <FormField control={form.control} name="tdsTcsConfig.tdsEnabled" render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TDS</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
+                        )} />
+                         {form.watch("tdsTcsConfig.tdsEnabled") && <div className="grid md:grid-cols-2 gap-4 p-4 border rounded-md">
+                            <FormField control={form.control} name="tdsTcsConfig.tdsNatureOfPayment" render={({ field }) => (<FormItem><FormLabel>Nature of Payment</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="tdsTcsConfig.tdsSection" render={({ field }) => (<FormItem><FormLabel>TDS Section</FormLabel><FormControl><Input placeholder="e.g. 194J" {...field} /></FormControl></FormItem>)} />
+                         </div>}
+                         <FormField control={form.control} name="tdsTcsConfig.tcsEnabled" render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TCS</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
+                        )} />
+                      </AccordionContent>
+                    </AccordionItem>
+
+                    {(derivedGroup === 'Sundry Debtor' || derivedGroup === 'Sundry Creditor') && (
+                    <AccordionItem value="credit-control">
+                      <AccordionTrigger className="text-base"><HeartPulse className="mr-2 h-5 w-5 text-primary" />Credit & Risk Management</AccordionTrigger>
+                      <AccordionContent className="pt-4 space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField control={form.control} name="creditControl.creditLimit" render={({ field }) => (<FormItem><FormLabel>Credit Limit</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
                             <FormField control={form.control} name="creditControl.creditPeriod" render={({ field }) => (<FormItem><FormLabel>Credit Period (Days)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
+                             <FormField control={form.control} name="creditControl.interestRate" render={({ field }) => (<FormItem><FormLabel>Interest on Late Payment (%)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="creditControl.riskCategory" render={({ field }) => (<FormItem><FormLabel>Risk Category</FormLabel><Select onValueChange={field.onChange}><FormControl><SelectTrigger><SelectValue placeholder="Select Risk"/></SelectTrigger></FormControl><SelectContent><SelectItem value="Low">Low</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="High">High</SelectItem></SelectContent></Select></FormItem>)} />
                         </div>
-                    </div>
-                )}
-                {derivedGroup === 'Bank Accounts' && (
-                    <div className="space-y-4 p-4 border rounded-md">
-                        <h4 className="font-medium">Bank Details</h4>
+                      </AccordionContent>
+                    </AccordionItem>
+                    )}
+
+                    {derivedGroup === 'Bank Accounts' && (
+                    <AccordionItem value="banking">
+                      <AccordionTrigger className="text-base"><Landmark className="mr-2 h-5 w-5 text-primary" />Banking & Payments</AccordionTrigger>
+                      <AccordionContent className="pt-4 space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <FormField control={form.control} name="bankDetails.bankName" render={({ field }) => (<FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                             <FormField control={form.control} name="bankDetails.accountNumber" render={({ field }) => (<FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                             <FormField control={form.control} name="bankDetails.ifscCode" render={({ field }) => (<FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                             <FormField control={form.control} name="bankDetails.defaultPaymentMode" render={({ field }) => (<FormItem><FormLabel>Default Payment Mode</FormLabel><Select onValueChange={field.onChange}><FormControl><SelectTrigger><SelectValue placeholder="Select Mode"/></SelectTrigger></FormControl><SelectContent>{['NEFT', 'RTGS', 'IMPS', 'UPI', 'Cheque'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></FormItem>)} />
                         </div>
-                    </div>
-                )}
-                 <div className="text-center text-muted-foreground p-8">
-                    TDS/TCS, Cost Center, and Custom Fields will be configured here.
-                 </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                    )}
+
+                    <AccordionItem value="cost-center">
+                      <AccordionTrigger className="text-base"><FolderKanban className="mr-2 h-5 w-5 text-primary" />Cost & Profit Centers</AccordionTrigger>
+                      <AccordionContent className="pt-4 space-y-6">
+                        <FormField control={form.control} name="costCenterConfig.enabled" render={({ field }) => (
+                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable Cost Center Allocation</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
+                        )} />
+                      </AccordionContent>
+                    </AccordionItem>
+
+                     <AccordionItem value="automation">
+                      <AccordionTrigger className="text-base"><Sparkles className="mr-2 h-5 w-5 text-primary" />Automation Rules</AccordionTrigger>
+                      <AccordionContent className="pt-4 space-y-6">
+                          <FormField control={form.control} name="automationRules.autoRoundOff" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable Auto Round Off</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                           <FormField control={form.control} name="automationRules.autoReminder" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable Automatic Reminders</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                      </AccordionContent>
+                    </AccordionItem>
+                    
+                    <AccordionItem value="compliance">
+                      <AccordionTrigger className="text-base"><ShieldCheck className="mr-2 h-5 w-5 text-primary" />Compliance & Audit</AccordionTrigger>
+                      <AccordionContent className="pt-4 space-y-6">
+                         <FormField control={form.control} name="complianceConfig.enableAuditTrail" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable Audit Trail</FormLabel><FormDescription>Log every change to this ledger.</FormDescription></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                         <FormField control={form.control} name="complianceConfig.approvalRequired" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Require Approval for Vouchers</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>)} />
+                      </AccordionContent>
+                    </AccordionItem>
+
+                     <AccordionItem value="custom-fields">
+                      <AccordionTrigger className="text-base"><Puzzle className="mr-2 h-5 w-5 text-primary" />Custom Fields</AccordionTrigger>
+                      <AccordionContent className="pt-4 text-center text-muted-foreground">
+                        <p>Custom fields defined in Settings will appear here.</p>
+                      </AccordionContent>
+                    </AccordionItem>
+
+                     <AccordionItem value="ai-insights" disabled>
+                      <AccordionTrigger className="text-base"><Bot className="mr-2 h-5 w-5" />AI Insights & Smart Analysis</AccordionTrigger>
+                      <AccordionContent>
+                      </AccordionContent>
+                    </AccordionItem>
+                 </Accordion>
               </TabsContent>
             </Tabs>
+            </TooltipProvider>
             </ScrollArea>
             <SheetFooter className="pt-4 mt-auto">
               <SheetClose asChild>

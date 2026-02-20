@@ -47,6 +47,10 @@ export type Ledger = {
       hsnCode?: string;
       placeOfSupply?: string;
       reverseCharge?: boolean;
+      itcEligibility?: 'Eligible' | 'Ineligible' | 'As per Rules';
+      gstClassification?: 'Goods' | 'Services';
+      eInvoiceRequired?: boolean;
+      eWayBillApplicable?: boolean;
   };
   contactDetails?: {
     contactPerson?: string;
@@ -67,12 +71,46 @@ export type Ledger = {
     branch?: string;
     upiId?: string;
     micrCode?: string;
+    defaultPaymentMode?: 'NEFT' | 'RTGS' | 'IMPS' | 'UPI' | 'Cheque';
+    paymentGatewayLinked?: boolean;
+    paymentGatewayCharges?: number;
   };
   creditControl?: {
     creditLimit?: number;
     creditPeriod?: number; // in days
     billByBill?: boolean;
+    interestRate?: number;
+    gracePeriod?: number;
+    riskCategory?: 'Low' | 'Medium' | 'High';
+    autoBlockOverdue?: boolean;
   };
+  tdsTcsConfig?: {
+    tdsEnabled?: boolean;
+    tdsNatureOfPayment?: string;
+    tdsSection?: string;
+    tdsRate?: number;
+    deductorType?: string;
+    tcsEnabled?: boolean;
+    tcsNature?: string;
+    tcsRate?: number;
+  };
+  costCenterConfig?: {
+    enabled?: boolean;
+    defaultCostCenter?: string;
+  };
+  automationRules?: {
+    defaultVoucherType?: VoucherType;
+    autoRoundOff?: boolean;
+    defaultNarration?: string;
+    autoReminder?: boolean;
+  };
+  complianceConfig?: {
+    auditRequired?: boolean;
+    lockAfterDate?: Date;
+    approvalRequired?: boolean;
+    enableAuditTrail?: boolean;
+  };
+  customFields?: Record<string, any>;
   status: 'Active' | 'Inactive';
   ledgerCode?: string;
   createdAt: Date;
