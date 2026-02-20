@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { PlusCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import type { DateRange } from "react-day-picker";
 import {
   Table,
   TableBody,
@@ -34,6 +35,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { DateRangePicker } from '@/components/date-range-picker';
 
 import { mockVouchers, mockLedgers } from '@/lib/data';
 import type { Voucher, VoucherType } from '@/lib/types';
@@ -70,11 +72,23 @@ const getFinancialYearLabel = (date: Date): string => {
 
 export default function VouchersPage() {
   const [groupBy, setGroupBy] = React.useState('voucherType');
+  const [date, setDate] = React.useState<DateRange | undefined>({
+      from: new Date(2023, 3, 1),
+      to: new Date(2024, 2, 31),
+  });
   const ledgerMap = React.useMemo(() => new Map(mockLedgers.map(l => [l.id, l.ledgerName])), []);
+
+  const filteredVouchers = React.useMemo(() => {
+    return mockVouchers.filter(v => {
+        if (!date?.from || !date?.to) return true;
+        const voucherDate = new Date(v.date);
+        return voucherDate >= date.from && voucherDate <= date.to;
+    });
+  }, [date]);
 
   const groupedVouchers = React.useMemo(() => {
     if (groupBy === 'voucherType') {
-      return mockVouchers.reduce(
+      return filteredVouchers.reduce(
         (acc, voucher) => {
           const type = voucher.voucherType;
           if (!acc[type]) {
@@ -87,7 +101,7 @@ export default function VouchersPage() {
       );
     }
     if (groupBy === 'month') {
-        return mockVouchers.reduce((acc, voucher) => {
+        return filteredVouchers.reduce((acc, voucher) => {
             const monthYear = format(new Date(voucher.date), 'MMMM yyyy');
             if (!acc[monthYear]) {
                 acc[monthYear] = [];
@@ -97,7 +111,7 @@ export default function VouchersPage() {
         }, {} as Record<string, Voucher[]>);
     }
     if (groupBy === 'financialYear') {
-        return mockVouchers.reduce((acc, voucher) => {
+        return filteredVouchers.reduce((acc, voucher) => {
             const fyLabel = getFinancialYearLabel(new Date(voucher.date));
             if (!acc[fyLabel]) {
                 acc[fyLabel] = [];
@@ -107,7 +121,7 @@ export default function VouchersPage() {
         }, {} as Record<string, Voucher[]>);
     }
     return {};
-  }, [groupBy]);
+  }, [groupBy, filteredVouchers]);
   
   const sortedGroupKeys = React.useMemo(() => {
     const keys = Object.keys(groupedVouchers);
@@ -137,6 +151,7 @@ export default function VouchersPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Vouchers</h1>
         <div className="flex items-center gap-2">
+            <DateRangePicker date={date} setDate={setDate} />
             <Select value={groupBy} onValueChange={setGroupBy}>
                 <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Group by" />
@@ -232,7 +247,7 @@ export default function VouchersPage() {
             </Accordion>
           ) : (
             <div className="text-center text-muted-foreground py-12">
-              No voucher entries found.
+              No voucher entries found for the selected period.
             </div>
           )}
         </CardContent>
