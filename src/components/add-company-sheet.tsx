@@ -312,6 +312,20 @@ export function AddCompanySheet({
                           <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable Multi-Currency</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
                       )} />
                   </div>
+                   <Accordion type="multiple" className="w-full mt-6">
+                    <AccordionItem value="bank-details">
+                      <AccordionTrigger><Landmark className="mr-2"/>Bank Details</AccordionTrigger>
+                      <AccordionContent className="p-1">
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border rounded-lg p-4">
+                            <FormField control={form.control} name="bankDetails.bankName" render={({ field }) => (<FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="bankDetails.accountHolderName" render={({ field }) => (<FormItem><FormLabel>Account Holder Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="bankDetails.accountNumber" render={({ field }) => (<FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="bankDetails.ifscCode" render={({ field }) => (<FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                            <FormField control={form.control} name="bankDetails.branchName" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Branch Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                         </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                 </TabsContent>
 
                 <TabsContent value="tax" className="space-y-6 pt-4">
@@ -346,20 +360,6 @@ export function AddCompanySheet({
                    </div>
                 </TabsContent>
               </Tabs>
-              <Accordion type="multiple" className="w-full mt-6">
-                <AccordionItem value="bank-details">
-                  <AccordionTrigger><Landmark className="mr-2"/>Bank Details</AccordionTrigger>
-                  <AccordionContent className="p-1">
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border rounded-lg p-4">
-                        <FormField control={form.control} name="bankDetails.bankName" render={({ field }) => (<FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="bankDetails.accountHolderName" render={({ field }) => (<FormItem><FormLabel>Account Holder Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="bankDetails.accountNumber" render={({ field }) => (<FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="bankDetails.ifscCode" render={({ field }) => (<FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                        <FormField control={form.control} name="bankDetails.branchName" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Branch Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                     </div>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
             </ScrollArea>
             <SheetFooter className="pt-4 mt-auto">
               <SheetClose asChild>
