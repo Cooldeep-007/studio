@@ -23,10 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarIcon, Filter } from 'lucide-react';
-import { format } from 'date-fns';
+import { Filter } from 'lucide-react';
+import { DateRangePicker } from "@/components/date-range-picker";
 
 import { mockLedgers } from "@/lib/data";
 
@@ -52,7 +50,7 @@ export default function ReportsPage() {
           <CardDescription>Select filters to generate your report.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
             <Select>
               <SelectTrigger>
                 <SelectValue placeholder="Select Report Type" />
@@ -115,47 +113,4 @@ export default function ReportsPage() {
       </Card>
     </div>
   );
-}
-
-
-export function DateRangePicker() {
-  // In a real app, this would use state
-  const date = {
-    from: new Date(2023, 0, 1),
-    to: new Date(),
-  }
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          id="date"
-          variant={"outline"}
-          className="w-full justify-start text-left font-normal"
-        >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {date?.from ? (
-            date.to ? (
-              <>
-                {format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")}
-              </>
-            ) : (
-              format(date.from, "LLL dd, y")
-            )
-          ) : (
-            <span>Pick a date</span>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          initialFocus
-          mode="range"
-          defaultMonth={date?.from}
-          selected={date}
-          numberOfMonths={2}
-        />
-      </PopoverContent>
-    </Popover>
-  )
 }
