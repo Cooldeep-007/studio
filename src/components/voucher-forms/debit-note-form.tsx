@@ -60,7 +60,12 @@ const debitNoteSchema = z.object({
 
 type DebitNoteFormValues = z.infer<typeof debitNoteSchema>;
 
-const defaultValues: Partial<DebitNoteFormValues> = {
+const defaultValues: DebitNoteFormValues = {
+  supplierLedgerId: '',
+  gstin: '',
+  placeOfSupply: '',
+  originalInvoiceNo: '',
+  reasonLedgerId: '',
   debitNoteDate: new Date(),
   originalInvoiceDate: new Date(),
   lineItems: [
