@@ -77,39 +77,45 @@ export default function DashboardPage() {
     const expenseLedgerMap = new Map(expenseLedgers.map(l => [l.id, l]));
 
     // Refactored expense calculation to be pure
-    const allExpenses = [
-      // Purchases
-      ...filteredVouchers
-          .filter(v => v.voucherType === 'Purchase')
-          .map(v => ({
-              name: 'Purchases',
-              amount: v.lineItems.reduce((acc, item) => acc + item.amount, 0)
-          })),
-      // Other Expenses from Payment/Journal line items
-      ...filteredVouchers
-          .filter(v => ['Payment', 'Journal'].includes(v.voucherType))
-          .flatMap(v => v.lineItems
-              .filter(li => expenseLedgerIds.has(li.ledgerId))
-              .map(li => ({
-                  name: expenseLedgerMap.get(li.ledgerId)?.ledgerName || 'Unknown Expense',
-                  amount: li.amount
-              }))
-          ),
-      // Expenses from Payment voucher party ledgers
-      ...filteredVouchers
-          .filter(v => v.voucherType === 'Payment' && expenseLedgerIds.has(v.partyLedger))
-          .map(v => ({
-              name: expenseLedgerMap.get(v.partyLedger)?.ledgerName || 'Unknown Expense',
-              amount: v.totalAmount
-          }))
-    ];
+    const calculateExpenses = (vouchers: Voucher[]) => {
+      const allExpenses = [
+        // Purchases
+        ...vouchers
+            .filter(v => v.voucherType === 'Purchase')
+            .map(v => ({
+                name: 'Purchases',
+                amount: v.lineItems.reduce((acc, item) => acc + item.amount, 0)
+            })),
+        // Other Expenses from Payment/Journal line items
+        ...vouchers
+            .filter(v => ['Payment', 'Journal'].includes(v.voucherType))
+            .flatMap(v => v.lineItems
+                .filter(li => expenseLedgerIds.has(li.ledgerId))
+                .map(li => ({
+                    name: expenseLedgerMap.get(li.ledgerId)?.ledgerName || 'Unknown Expense',
+                    amount: li.amount
+                }))
+            ),
+        // Expenses from Payment voucher party ledgers
+        ...vouchers
+            .filter(v => v.voucherType === 'Payment' && expenseLedgerIds.has(v.partyLedger))
+            .map(v => ({
+                name: expenseLedgerMap.get(v.partyLedger)?.ledgerName || 'Unknown Expense',
+                amount: v.totalAmount
+            }))
+      ];
+      
+      const expenseBreakdown = allExpenses.reduce((acc, expense) => {
+          acc[expense.name] = (acc[expense.name] || 0) + expense.amount;
+          return acc;
+      }, {} as Record<string, number>);
 
-    const expenseBreakdown = allExpenses.reduce((acc, expense) => {
-        acc[expense.name] = (acc[expense.name] || 0) + expense.amount;
-        return acc;
-    }, {} as Record<string, number>);
+      const totalExpenses = Object.values(expenseBreakdown).reduce((sum, amount) => sum + amount, 0);
 
-    const totalExpenses = Object.values(expenseBreakdown).reduce((sum, amount) => sum + amount, 0);
+      return { expenseBreakdown, totalExpenses };
+    };
+    
+    const { expenseBreakdown, totalExpenses } = calculateExpenses(filteredVouchers);
     
     const netProfit = totalIncome - totalExpenses;
 
@@ -141,7 +147,11 @@ export default function DashboardPage() {
 
     // --- Chart Configuration ---
     const chartColors = ["chart-1", "chart-2", "chart-3", "chart-4", "chart-5"];
-    const chartData = Object.entries(expenseBreakdown).map(([name, value], index) => ({
+    
+    const sortedExpenses = Object.entries(expenseBreakdown)
+        .sort(([, a], [, b]) => b - a);
+
+    const chartData = sortedExpenses.map(([name, value], index) => ({
       name,
       value,
       fill: `var(--color-${chartColors[index % chartColors.length]})`,
@@ -151,7 +161,7 @@ export default function DashboardPage() {
       value: {
         label: 'Amount',
       },
-      ...Object.entries(expenseBreakdown).reduce((acc, [name], index) => {
+      ...sortedExpenses.reduce((acc, [name], index) => {
         const key = name.toLowerCase().replace(/ & | /g, '-');
         acc[key] = {
           label: name,
@@ -182,7 +192,7 @@ export default function DashboardPage() {
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Total Income */}
-        <Card>
+        <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Income</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
@@ -194,7 +204,7 @@ export default function DashboardPage() {
         </Card>
         
         {/* Card 2: Total Expenses */}
-        <Card>
+        <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
@@ -206,7 +216,7 @@ export default function DashboardPage() {
         </Card>
         
         {/* Card 3: Net Profit/Loss */}
-        <Card>
+        <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Net Profit / Loss</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -218,7 +228,7 @@ export default function DashboardPage() {
         </Card>
         
         {/* Card 4: GST Payable */}
-         <Card>
+         <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">GST Payable</CardTitle>
             <Receipt className="h-4 w-4 text-muted-foreground" />
@@ -230,7 +240,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Card 5: Receivables */}
-        <Card>
+        <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Receivables</CardTitle>
             <ArrowDownRight className="h-4 w-4 text-muted-foreground" />
@@ -242,7 +252,7 @@ export default function DashboardPage() {
         </Card>
         
         {/* Card 6: Payables */}
-        <Card>
+        <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Payables</CardTitle>
             <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
@@ -254,7 +264,7 @@ export default function DashboardPage() {
         </Card>
         
         {/* Card 7: Bank Balance */}
-        <Card>
+        <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Bank Balance</CardTitle>
             <Landmark className="h-4 w-4 text-muted-foreground" />
@@ -266,7 +276,7 @@ export default function DashboardPage() {
         </Card>
         
         {/* Card 8: Cash in Hand */}
-         <Card>
+         <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Cash in Hand</CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" />
@@ -304,8 +314,7 @@ export default function DashboardPage() {
                     <ScrollArea className="h-56">
                         <div className="space-y-4 pr-4">
                             {chartData.length > 0 ? (
-                                [...chartData]
-                                    .sort((a, b) => b.value - a.value)
+                                chartData
                                     .map((item) => {
                                         const key = item.name.toLowerCase().replace(/ & | /g, '-');
                                         const percentage = totalExpenses > 0 ? (item.value / totalExpenses) * 100 : 0;

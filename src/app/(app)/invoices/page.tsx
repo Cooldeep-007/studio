@@ -56,7 +56,7 @@ export default function InvoicesPage() {
             </TableHeader>
             <TableBody>
               {mockInvoices.map((invoice) => (
-                <TableRow key={invoice.id}>
+                <TableRow key={invoice.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="font-medium">
                     <Link href={`/invoices/${invoice.id}`} className="hover:underline text-primary">
                         {invoice.invoiceNumber}

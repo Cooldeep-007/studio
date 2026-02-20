@@ -92,7 +92,7 @@ function LedgerRow({ ledger, visibleColumns, level, parentName }: { ledger: Ledg
 
   return (
     <>
-      <TableRow>
+      <TableRow className="hover:bg-muted/50 transition-colors">
         {visibleColumns.ledgerName && <TableCell style={{ paddingLeft: `${level * 1.5 + 1}rem` }} className="font-medium">{ledger.ledgerName}</TableCell>}
         {visibleColumns.parentLedgerName && <TableCell>{parentName || '-'}</TableCell>}
         {visibleColumns.group && <TableCell><Badge variant="outline">{ledger.group}</Badge></TableCell>}

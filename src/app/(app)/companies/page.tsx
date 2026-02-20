@@ -53,7 +53,7 @@ export default function CompaniesPage() {
             </TableHeader>
             <TableBody>
               {mockCompanies.map((company) => (
-                <TableRow key={company.id}>
+                <TableRow key={company.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="font-medium">{company.companyName}</TableCell>
                   <TableCell>{company.gstin}</TableCell>
                   <TableCell>{company.address}</TableCell>

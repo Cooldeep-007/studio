@@ -49,7 +49,7 @@ export default function VouchersPage() {
             </TableHeader>
             <TableBody>
               {mockVouchers.map((voucher) => (
-                <TableRow key={voucher.id}>
+                <TableRow key={voucher.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell>{voucher.date.toLocaleDateString()}</TableCell>
                   <TableCell className="font-medium">{voucher.voucherNumber}</TableCell>
                   <TableCell>
