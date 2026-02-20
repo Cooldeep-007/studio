@@ -1,4 +1,7 @@
-import { PlusCircle } from "lucide-react";
+'use client';
+
+import * as React from 'react';
+import { MoreHorizontal, PlusCircle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -6,107 +9,142 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from '@/components/ui/card';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-
-import { mockCompanies } from "@/lib/data";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { mockCompanies } from '@/lib/data';
+import type { Company } from '@/lib/types';
+import { AddCompanySheet } from '@/components/add-company-sheet';
+import { DeleteCompanyDialog } from '@/components/delete-company-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 export default function CompaniesPage() {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Companies</h1>
-        <AddCompanyDialog />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Your Companies</CardTitle>
-          <CardDescription>A list of companies managed under your firm.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Company Name</TableHead>
-                <TableHead>GSTIN</TableHead>
-                <TableHead>Address</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockCompanies.map((company) => (
-                <TableRow key={company.id} className="hover:bg-muted/50 transition-colors">
-                  <TableCell className="font-medium">{company.companyName}</TableCell>
-                  <TableCell>{company.gstin}</TableCell>
-                  <TableCell>{company.address}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
+  const [companies, setCompanies] = React.useState<Company[]>(mockCompanies);
+  const [isSheetOpen, setIsSheetOpen] = React.useState(false);
+  const [isAlertOpen, setIsAlertOpen] = React.useState(false);
+  const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(
+    null
   );
-}
+  const { toast } = useToast();
 
-function AddCompanyDialog() {
+  const handleAddCompany = (newCompany: Company) => {
+    setCompanies((prev) => [...prev, newCompany]);
+    toast({
+      title: 'Company Created Successfully',
+      description: `${newCompany.companyName} has been added.`,
+    });
+  };
+
+  const handleDeleteCompany = () => {
+    if (!selectedCompany) return;
+    // In a real app, check for transactions before deleting.
+    // For this mock, we will just filter it out.
+    setCompanies((prev) =>
+      prev.filter((c) => c.id !== selectedCompany.id)
+    );
+    toast({
+      title: 'Company Deleted',
+      description: `${selectedCompany.companyName} has been removed.`,
+    });
+    setSelectedCompany(null);
+  };
+
+  const openDeleteDialog = (company: Company) => {
+    setSelectedCompany(company);
+    setIsAlertOpen(true);
+  };
+
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add Company
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Add New Company</DialogTitle>
-          <DialogDescription>
-            Fill in the details for the new company. Click save when you're done.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="name" className="text-right">
-              Name
-            </Label>
-            <Input id="name" placeholder="Innovate Inc." className="col-span-3" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="gstin" className="text-right">
-              GSTIN
-            </Label>
-            <Input id="gstin" placeholder="29AABCU9511F1Z5" className="col-span-3" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="address" className="text-right">
-              Address
-            </Label>
-            <Input id="address" placeholder="123 Tech Park, Bangalore" className="col-span-3" />
-          </div>
+    <>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Companies</h1>
+          <AddCompanySheet
+            open={isSheetOpen}
+            onOpenChange={setIsSheetOpen}
+            onCompanyCreated={handleAddCompany}
+          >
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add Company
+            </Button>
+          </AddCompanySheet>
         </div>
-        <DialogFooter>
-          <Button type="submit">Save company</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Companies</CardTitle>
+            <CardDescription>
+              A list of companies managed under your firm.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Company Name</TableHead>
+                  <TableHead>GSTIN</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead className="w-[50px] text-right">
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {companies.map((company) => (
+                  <TableRow
+                    key={company.id}
+                    className="transition-colors hover:bg-muted/50"
+                  >
+                    <TableCell className="font-medium">
+                      {company.companyName}
+                    </TableCell>
+                    <TableCell>{company.gstin}</TableCell>
+                    <TableCell>{company.address}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem>Edit</DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => openDeleteDialog(company)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+      <DeleteCompanyDialog
+        open={isAlertOpen}
+        onOpenChange={setIsAlertOpen}
+        company={selectedCompany}
+        onConfirm={handleDeleteCompany}
+      />
+    </>
   );
 }
