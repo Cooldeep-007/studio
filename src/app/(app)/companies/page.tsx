@@ -41,6 +41,7 @@ import { Badge } from "@/components/ui/badge";
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = React.useState<Company[]>(mockCompanies);
+  const [activeTab, setActiveTab] = React.useState("archived");
   const [isAddSheetOpen, setIsAddSheetOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = React.useState(false);
@@ -58,6 +59,7 @@ export default function CompaniesPage() {
       title: 'Company Created Successfully',
       description: `${newCompany.companyName} has been added.`,
     });
+    setActiveTab('active');
   };
 
   const handleDeleteConfirm = () => {
@@ -96,6 +98,7 @@ export default function CompaniesPage() {
       description: `${selectedCompany.companyName} has been archived.`,
     });
     setSelectedCompany(null);
+    setActiveTab('archived');
   };
 
   const handleRestoreCompany = (company: Company) => {
@@ -104,6 +107,7 @@ export default function CompaniesPage() {
       title: 'Company Restored',
       description: `${company.companyName} has been moved to the active list.`,
     });
+    setActiveTab('active');
   };
 
   const openDeleteDialog = (company: Company) => {
@@ -219,7 +223,7 @@ export default function CompaniesPage() {
           </AddCompanySheet>
         </div>
 
-        <Tabs defaultValue="archived" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="active">Active</TabsTrigger>
             <TabsTrigger value="archived">
