@@ -16,19 +16,32 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form';
 
 const voucherTypes = [
   'Sales Invoice',
   'Purchase Invoice',
   'Debit Note',
   'Credit Note',
-  'Adhoc Invoice',
-  'Proforma Invoice',
   'Journal Entry',
 ];
 
 export default function CreateVoucherPage() {
-  const [voucherType, setVoucherType] = React.useState<string>('');
+  const [voucherType, setVoucherType] = React.useState<string>('Sales Invoice');
+
+  const renderVoucherForm = () => {
+    switch (voucherType) {
+      case 'Sales Invoice':
+        return <SalesInvoiceForm />;
+      // Other cases will be added here later
+      default:
+        return (
+          <div className="flex items-center justify-center h-40 mt-6 text-muted-foreground">
+            <p>Select a voucher type to begin.</p>
+          </div>
+        );
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -36,7 +49,7 @@ export default function CreateVoucherPage() {
         <h1 className="text-2xl font-bold">Create Voucher</h1>
       </div>
 
-      <Card className="max-w-4xl mx-auto">
+      <Card>
         <CardHeader>
           <CardTitle>New Voucher</CardTitle>
           <CardDescription>
@@ -45,10 +58,10 @@ export default function CreateVoucherPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-6">
-            <div className="grid gap-3">
+            <div className="grid gap-3 max-w-sm">
               <Label htmlFor="voucher-type">Voucher Type</Label>
               <Select value={voucherType} onValueChange={setVoucherType}>
-                <SelectTrigger id="voucher-type" className="w-full sm:w-[300px]">
+                <SelectTrigger id="voucher-type">
                   <SelectValue placeholder="Select a voucher type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -60,10 +73,11 @@ export default function CreateVoucherPage() {
                 </SelectContent>
               </Select>
             </div>
-            {/* Dynamic fields will be loaded here based on voucherType */}
           </div>
         </CardContent>
       </Card>
+      
+      {renderVoucherForm()}
     </div>
   );
 }

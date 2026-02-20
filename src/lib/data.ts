@@ -369,6 +369,30 @@ export const mockLedgers: Ledger[] = [
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
+  {
+    id: 'led-cgst',
+    ledgerName: 'CGST',
+    parentLedgerId: 'group-duties-taxes',
+    group: 'Liabilities',
+    isGroup: false, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'led-sgst',
+    ledgerName: 'SGST',
+    parentLedgerId: 'group-duties-taxes',
+    group: 'Liabilities',
+    isGroup: false, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+  },
+  {
+    id: 'led-igst',
+    ledgerName: 'IGST',
+    parentLedgerId: 'group-duties-taxes',
+    group: 'Liabilities',
+    isGroup: false, openingBalance: 0, currentBalance: 0, balanceType: 'Cr', gstApplicable: false, status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
+  },
 ];
 
 
