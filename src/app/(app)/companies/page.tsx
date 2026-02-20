@@ -41,7 +41,7 @@ import { Badge } from "@/components/ui/badge";
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = React.useState<Company[]>(mockCompanies);
-  const [activeTab, setActiveTab] = React.useState("archived");
+  const [activeTab, setActiveTab] = React.useState("active");
   const [isAddSheetOpen, setIsAddSheetOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = React.useState(false);
@@ -126,6 +126,27 @@ export default function CompaniesPage() {
     return `${startYear}-${endYear}`;
   }
 
+  const renderCompanyActions = (company: Company, isArchived: boolean) => {
+    if (isArchived) {
+      return (
+        <DropdownMenuItem onClick={() => handleRestoreCompany(company)}>
+          <ArchiveRestore className="mr-2 h-4 w-4" />
+          Restore
+        </DropdownMenuItem>
+      );
+    }
+
+    return (
+      <>
+        <DropdownMenuItem>Edit</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => openArchiveDialog(company)}>
+          <Archive className="mr-2 h-4 w-4" />
+          Archive
+        </DropdownMenuItem>
+      </>
+    );
+  };
+
   const renderCompanyTable = (companyList: Company[], isArchived: boolean) => (
     <Card>
       <CardContent className="p-0">
@@ -168,20 +189,7 @@ export default function CompaniesPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {isArchived ? (
-                        <DropdownMenuItem onClick={() => handleRestoreCompany(company)}>
-                          <ArchiveRestore className="mr-2 h-4 w-4" />
-                          Restore
-                        </DropdownMenuItem>
-                      ) : (
-                        <>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openArchiveDialog(company)}>
-                            <Archive className="mr-2 h-4 w-4" />
-                            Archive
-                          </DropdownMenuItem>
-                        </>
-                      )}
+                      {renderCompanyActions(company, isArchived)}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => openDeleteDialog(company)}
