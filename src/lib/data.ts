@@ -176,10 +176,26 @@ export const mockLedgers: Ledger[] = [
     isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr', gstApplicable: false, status: 'Active',
     createdAt: new Date(MOCK_DATA_YEAR, 3, 1), lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1), firmId: 'firm-abc', companyId: 'comp-001',
   },
-
+  
   // =================================================================
   // CHILD LEDGERS (TRANSACTIONAL LEDGERS)
   // =================================================================
+  {
+    id: 'led-purchase-return',
+    ledgerName: 'Purchase Return',
+    parentLedgerId: 'group-purchase-accounts',
+    group: 'Expense', // It's a contra-expense, so it lives here but will have a Cr balance.
+    isGroup: false,
+    openingBalance: 0,
+    currentBalance: 0,
+    balanceType: 'Cr', // Returns reduce expenses, so it has a credit balance.
+    gstApplicable: true,
+    status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
+    firmId: 'firm-abc',
+    companyId: 'comp-001',
+  },
   {
     id: 'led-cash',
     ledgerName: 'Cash in Hand',

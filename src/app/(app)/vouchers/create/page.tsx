@@ -18,17 +18,20 @@ import {
 import { Label } from '@/components/ui/label';
 import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form';
 import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
+import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
 
 const voucherTypes = [
   'Sales Invoice',
   'Purchase Invoice',
   'Debit Note',
   'Credit Note',
+  'Adhoc Invoice',
+  'Proforma Invoice',
   'Journal Entry',
 ];
 
 export default function CreateVoucherPage() {
-  const [voucherType, setVoucherType] = React.useState<string>('Sales Invoice');
+  const [voucherType, setVoucherType] = React.useState<string>('');
 
   const renderVoucherForm = () => {
     switch (voucherType) {
@@ -36,6 +39,8 @@ export default function CreateVoucherPage() {
         return <SalesInvoiceForm />;
       case 'Purchase Invoice':
         return <PurchaseInvoiceForm />;
+      case 'Debit Note':
+        return <DebitNoteForm />;
       // Other cases will be added here later
       default:
         return (
