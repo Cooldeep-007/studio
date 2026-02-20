@@ -14,6 +14,8 @@ import {
   Settings,
   MoreHorizontal,
   Search,
+  Percent,
+  ChevronRight,
 } from "lucide-react";
 
 import {
@@ -22,6 +24,11 @@ import {
   AvatarImage,
 } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +50,9 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -71,44 +81,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     return pathname === path;
   };
+  const isGstActive = pathname.startsWith('/gst');
+
 
   return (
     <SidebarProvider>
-      <Sidebar>
+      <Sidebar collapsible="icon">
         <SidebarHeader className="p-4">
-          <Link href="/dashboard" className="flex items-center gap-2 group/logo">
-            <svg
-              className="h-8 w-8 text-primary group-hover/logo:scale-105 transition-transform"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M12 2L2 7V17L12 22L22 17V7L12 2Z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M2 7L12 12L22 7"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M12 22V12"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span className="text-xl font-bold font-headline group-data-[collapsible=icon]:hidden">
-              Pro Accounting
-            </span>
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link href="/dashboard" className="flex items-center gap-2 group/logo">
+              <svg
+                className="h-8 w-8 text-primary group-hover/logo:scale-105 transition-transform"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M12 2L2 7V17L12 22L22 17V7L12 2Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M2 7L12 12L22 7"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M12 22V12"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="text-xl font-bold font-headline group-data-[collapsible=icon]:hidden">
+                Pro Accounting
+              </span>
+            </Link>
+            <SidebarTrigger className="hidden md:flex" />
+          </div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
@@ -127,6 +142,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
+            <SidebarMenuItem>
+              <Collapsible>
+                <CollapsibleTrigger className="w-full" asChild>
+                    <SidebarMenuButton isActive={isGstActive} tooltip={{children: 'GST'}}>
+                        <Percent />
+                        <span className="group-data-[collapsible=icon]:hidden w-full text-left">GST</span>
+                        <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden ml-auto" />
+                    </SidebarMenuButton>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <SidebarMenuSub>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton asChild isActive={pathname === '/gst/gstr-1'}>
+                        <Link href="/gst/gstr-1">GSTR-1</Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton asChild isActive={pathname === '/gst/gstr-2b'}>
+                        <Link href="/gst/gstr-2b">GSTR-2B</Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton asChild isActive={pathname === '/gst/gstr-3b'}>
+                        <Link href="/gst/gstr-3b">GSTR-3B</Link>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  </SidebarMenuSub>
+                </CollapsibleContent>
+              </Collapsible>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-4">
