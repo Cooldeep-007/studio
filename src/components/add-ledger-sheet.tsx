@@ -7,7 +7,7 @@ import * as z from "zod";
 import { toast } from "@/hooks/use-toast";
 import type { Ledger, LedgerGroup } from "@/lib/types";
 import {
-  Percent, ShieldCheck, Landmark, HeartPulse, Sparkles, FolderKanban, Bot, Puzzle
+  Percent, ShieldCheck, Landmark, HeartPulse, Sparkles, FolderKanban, Bot, Puzzle, Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -62,12 +62,30 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
 
+
+const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
+
+const indianStates = [
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry"
+];
+
+const gstStateCodes: { [key: string]: string } = {
+  '37': 'Andhra Pradesh', '12': 'Arunachal Pradesh', '18': 'Assam', '10': 'Bihar', '22': 'Chhattisgarh',
+  '30': 'Goa', '24': 'Gujarat', '06': 'Haryana', '02': 'Himachal Pradesh', '20': 'Jharkhand',
+  '29': 'Karnataka', '32': 'Kerala', '23': 'Madhya Pradesh', '27': 'Maharashtra', '14': 'Manipur',
+  '17': 'Meghalaya', '15': 'Mizoram', '13': 'Nagaland', '21': 'Odisha', '03': 'Punjab',
+  '08': 'Rajasthan', '11': 'Sikkim', '33': 'Tamil Nadu', '36': 'Telangana', '16': 'Tripura',
+  '09': 'Uttar Pradesh', '05': 'Uttarakhand', '19': 'West Bengal', '35': 'Andaman and Nicobar Islands',
+  '04': 'Chandigarh', '26': 'Dadra and Nagar Haveli and Daman and Diu', '07': 'Delhi', '01': 'Jammu and Kashmir',
+  '38': 'Ladakh', '31': 'Lakshadweep', '34': 'Puducherry',
+};
+
 const ledgerFormSchema = z.object({
     ledgerName: z.string().min(2, "Ledger name must be at least 2 characters."),
     parentLedgerId: z.string().min(1, "Parent ledger is required."),
     isGroup: z.boolean().default(false),
     ledgerCode: z.string().optional(),
-    group: z.string(), // This will be derived but needed for conditional logic
+    group: z.string().optional(),
     openingBalance: z.coerce.number().default(0),
     balanceType: z.enum(['Dr', 'Cr']).default('Dr'),
     
@@ -84,7 +102,7 @@ const ledgerFormSchema = z.object({
     contactDetails: z.object({
         contactPerson: z.string().optional(),
         mobileNumber: z.string().optional(),
-        email: z.string().email().optional().or(z.literal('')),
+        email: z.string().email({ message: "Invalid email address." }).optional().or(z.literal('')),
         addressLine1: z.string().optional(),
         city: z.string().optional(),
         state: z.string().optional(),
@@ -97,10 +115,6 @@ const ledgerFormSchema = z.object({
         tdsEnabled: z.boolean().default(false),
         tdsNatureOfPayment: z.string().optional(),
         tdsSection: z.string().optional(),
-        tdsRate: z.coerce.number().optional(),
-        tcsEnabled: z.boolean().default(false),
-        tcsNature: z.string().optional(),
-        tcsRate: z.coerce.number().optional(),
     }).optional(),
 
     gstAdvancedConfig: z.object({
@@ -136,89 +150,112 @@ const ledgerFormSchema = z.object({
         approvalRequired: z.boolean().default(false),
         enableAuditTrail: z.boolean().default(true),
     }).optional(),
-});
+}).superRefine((data, ctx) => {
+    if (data.gstApplicable) {
+        if (!data.gstDetails?.gstin) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "GSTIN is required when GST is applicable.", path: ["gstDetails.gstin"] });
+        } else if (!gstRegex.test(data.gstDetails.gstin)) {
+             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid GSTIN format. Should be 15 characters.", path: ["gstDetails.gstin"] });
+        }
+        if (!data.gstDetails?.gstType) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Registration Type is required.", path: ["gstDetails.gstType"] });
+        }
+        if (!data.contactDetails?.state) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "State is required.", path: ["contactDetails.state"] });
+        }
+    }
 
+    if (data.group === 'Bank Accounts') {
+        if (!data.bankDetails?.accountNumber) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Account Number is required for Bank Ledgers.", path: ["bankDetails.accountNumber"] });
+        }
+        if (!data.bankDetails?.ifscCode) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "IFSC Code is required for Bank Ledgers.", path: ["bankDetails.ifscCode"] });
+        }
+    }
+
+    if (data.group === 'Sundry Debtor' || data.group === 'Sundry Creditor') {
+        if (!data.contactDetails?.mobileNumber && !data.contactDetails?.email) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Either Mobile Number or Email is required for Parties.", path: ["contactDetails.mobileNumber"] });
+        }
+    }
+});
 
 type LedgerFormValues = z.infer<typeof ledgerFormSchema>;
 
-const ledgerGroups: LedgerGroup[] = ['Assets', 'Liabilities', 'Income', 'Expense', 'Sundry Debtor', 'Sundry Creditor', 'Bank Accounts'];
+const defaultValues: Partial<LedgerFormValues> = {
+    ledgerName: "",
+    parentLedgerId: "",
+    isGroup: false,
+    ledgerCode: "",
+    group: "",
+    openingBalance: 0,
+    balanceType: 'Dr',
+    gstApplicable: false,
+    gstDetails: {
+        gstType: undefined,
+        gstin: "",
+        gstRate: 0,
+        hsnCode: "",
+    },
+    contactDetails: {
+        contactPerson: "",
+        mobileNumber: "",
+        email: "",
+        addressLine1: "",
+        city: "",
+        state: "",
+        pincode: "",
+        pan: "",
+    },
+    tdsTcsConfig: {
+        tdsEnabled: false,
+        tdsNatureOfPayment: "",
+        tdsSection: "",
+    },
+    gstAdvancedConfig: {
+        reverseCharge: false,
+        itcEligibility: undefined,
+        eInvoiceRequired: false,
+    },
+    costCenterConfig: {
+        enabled: false,
+    },
+    creditControl: {
+        creditLimit: 0,
+        creditPeriod: 0,
+        interestRate: 0,
+        riskCategory: undefined,
+    },
+    automationRules: {
+        autoRoundOff: false,
+        autoReminder: false,
+    },
+    bankDetails: {
+        accountNumber: "",
+        ifscCode: "",
+        bankName: "",
+        defaultPaymentMode: undefined
+    },
+    complianceConfig: {
+        approvalRequired: false,
+        enableAuditTrail: true,
+    },
+};
 
 
 export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNode; ledgers: Ledger[] }) {
     const [isOpen, setIsOpen] = React.useState(false);
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
     const parentLedgers = ledgers.filter(l => l.isGroup);
 
     const form = useForm<LedgerFormValues>({
         resolver: zodResolver(ledgerFormSchema),
-        defaultValues: {
-            ledgerName: "",
-            parentLedgerId: "",
-            isGroup: false,
-            ledgerCode: "",
-            group: "",
-            openingBalance: 0,
-            balanceType: 'Dr',
-            gstApplicable: false,
-            gstDetails: {
-                gstType: undefined,
-                gstin: "",
-                gstRate: 0,
-                hsnCode: "",
-            },
-            contactDetails: {
-                contactPerson: "",
-                mobileNumber: "",
-                email: "",
-                addressLine1: "",
-                city: "",
-                state: "",
-                pincode: "",
-                pan: "",
-            },
-            tdsTcsConfig: {
-                tdsEnabled: false,
-                tdsNatureOfPayment: "",
-                tdsSection: "",
-                tdsRate: 0,
-                tcsEnabled: false,
-                tcsNature: "",
-                tcsRate: 0
-            },
-            gstAdvancedConfig: {
-                reverseCharge: false,
-                itcEligibility: undefined,
-                eInvoiceRequired: false,
-            },
-            costCenterConfig: {
-                enabled: false,
-            },
-            creditControl: {
-                creditLimit: 0,
-                creditPeriod: 0,
-                interestRate: 0,
-                riskCategory: undefined,
-            },
-            automationRules: {
-                autoRoundOff: false,
-                autoReminder: false,
-            },
-            bankDetails: {
-                accountNumber: "",
-                ifscCode: "",
-                bankName: "",
-                defaultPaymentMode: undefined
-            },
-            complianceConfig: {
-                approvalRequired: false,
-                enableAuditTrail: true,
-            },
-        },
+        defaultValues,
     });
 
     const parentLedgerId = form.watch("parentLedgerId");
-    const gstApplicable = form.watch("gstApplicable");
-    const tdsEnabled = form.watch("tdsTcsConfig.tdsEnabled");
-    const tcsEnabled = form.watch("tdsTcsConfig.tcsEnabled");
+    const gstin = form.watch("gstDetails.gstin");
     
     const selectedParent = React.useMemo(() => {
         return ledgers.find(l => l.id === parentLedgerId);
@@ -226,15 +263,61 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
 
     const derivedGroup = selectedParent?.group;
 
-    function onSubmit(data: LedgerFormValues) {
-        // In a real app, you would send this to your API
-        console.log({ ...data, derivedGroup });
-        toast({
-            title: "Ledger Creation Payload",
-            description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{JSON.stringify(data, null, 2)}</code></pre>,
-        });
-        setIsOpen(false);
-        form.reset();
+    React.useEffect(() => {
+        form.setValue('group', derivedGroup);
+    }, [derivedGroup, form]);
+
+    React.useEffect(() => {
+        if (gstin && gstRegex.test(gstin)) {
+            const pan = gstin.substring(2, 12);
+            form.setValue('contactDetails.pan', pan.toUpperCase());
+            const stateCode = gstin.substring(0, 2);
+            const stateName = gstStateCodes[stateCode as keyof typeof gstStateCodes];
+            if (stateName) {
+                form.setValue('contactDetails.state', stateName);
+            }
+            form.clearErrors("gstDetails.gstin");
+        }
+    }, [gstin, form]);
+
+    async function onSubmit(data: LedgerFormValues) {
+        setIsSubmitting(true);
+        try {
+            // Simulate duplicate check
+            const isDuplicate = ledgers.some(
+                (l) => l.ledgerName.toLowerCase().trim() === data.ledgerName.toLowerCase().trim()
+            );
+
+            if (isDuplicate) {
+                toast({
+                    variant: "destructive",
+                    title: "Ledger already exists",
+                    description: "A ledger with this name already exists in this company.",
+                });
+                return;
+            }
+
+            // Simulate API call
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+
+            console.log("Saving Ledger:", { ...data, derivedGroup });
+            toast({
+                title: "Ledger Created Successfully",
+                description: `${data.ledgerName} has been added to your Chart of Accounts.`,
+            });
+            setIsOpen(false);
+            form.reset(defaultValues);
+            // In a real app, you'd also trigger a refresh of the ledger list here.
+        } catch (error) {
+            console.error(error);
+            toast({
+                variant: "destructive",
+                title: "Failed to save ledger",
+                description: "An unexpected error occurred.",
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
     }
     
   return (
@@ -268,7 +351,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                         name="ledgerName"
                         render={({ field }) => (
                             <FormItem className="md:col-span-2">
-                                <FormLabel>Ledger Name</FormLabel>
+                                <FormLabel>Ledger Name <span className="text-destructive">*</span></FormLabel>
                                 <FormControl>
                                     <Input placeholder="e.g., Sales Account" {...field} />
                                 </FormControl>
@@ -281,7 +364,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                         name="parentLedgerId"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Under (Parent Ledger)</FormLabel>
+                                <FormLabel>Under (Parent Ledger) <span className="text-destructive">*</span></FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger>
@@ -331,7 +414,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                         name="openingBalance"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Amount</FormLabel>
+                                <FormLabel>Amount <span className="text-destructive">*</span></FormLabel>
                                 <FormControl>
                                     <Input type="number" placeholder="0.00" {...field} />
                                 </FormControl>
@@ -344,7 +427,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                         name="balanceType"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Balance Type</FormLabel>
+                                <FormLabel>Balance Type <span className="text-destructive">*</span></FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
                                         <SelectTrigger>
@@ -384,7 +467,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                     />
                 <div className={cn(
                     "grid overflow-hidden transition-all duration-300 ease-in-out",
-                    gstApplicable ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                    form.watch("gstApplicable") ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
                 )}>
                     <div className="min-h-0">
                         <div className="space-y-4 p-4 border rounded-md mt-4">
@@ -395,7 +478,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                                     name="gstDetails.gstType"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>GST Type</FormLabel>
+                                            <FormLabel>Registration Type <span className="text-destructive">*</span></FormLabel>
                                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger><SelectValue placeholder="Select GST Type"/></SelectTrigger>
@@ -404,6 +487,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                                                     {['Regular', 'Composition', 'Unregistered', 'Consumer', 'SEZ', 'Export'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                                                 </SelectContent>
                                             </Select>
+                                            <FormMessage />
                                         </FormItem>
                                     )}
                                 />
@@ -412,10 +496,11 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                                     name="gstDetails.gstin"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>GSTIN</FormLabel>
+                                            <FormLabel>GSTIN <span className="text-destructive">*</span></FormLabel>
                                             <FormControl>
-                                                <Input placeholder="e.g., 29AABCU9511F1Z5" {...field} />
+                                                <Input placeholder="e.g., 29AABCU9511F1Z5" {...field} onChange={(e) => field.onChange(e.target.value.toUpperCase())} />
                                             </FormControl>
+                                            <FormMessage />
                                         </FormItem>
                                     )}
                                 />
@@ -452,14 +537,31 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
               {/* CONTACT TAB */}
               <TabsContent value="contact" className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="contactDetails.contactPerson" render={({ field }) => (<FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                    <FormField control={form.control} name="contactDetails.mobileNumber" render={({ field }) => (<FormItem><FormLabel>Mobile Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                    <FormField control={form.control} name="contactDetails.email" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl></FormItem>)} />
-                    <FormField control={form.control} name="contactDetails.addressLine1" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Address</FormLabel><FormControl><Input placeholder="Address Line 1" {...field} /></FormControl></FormItem>)} />
-                    <FormField control={form.control} name="contactDetails.city" render={({ field }) => (<FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                    <FormField control={form.control} name="contactDetails.state" render={({ field }) => (<FormItem><FormLabel>State</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                    <FormField control={form.control} name="contactDetails.pincode" render={({ field }) => (<FormItem><FormLabel>Pincode</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                    <FormField control={form.control} name="contactDetails.pan" render={({ field }) => (<FormItem><FormLabel>PAN</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="contactDetails.contactPerson" render={({ field }) => (<FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="contactDetails.mobileNumber" render={({ field }) => (<FormItem><FormLabel>Mobile Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="contactDetails.email" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="contactDetails.addressLine1" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Address</FormLabel><FormControl><Input placeholder="Address Line 1" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="contactDetails.city" render={({ field }) => (<FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                     <FormField
+                        control={form.control}
+                        name="contactDetails.state"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>State {form.watch("gstApplicable") && <span className="text-destructive">*</span>}</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {indianStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField control={form.control} name="contactDetails.pincode" render={({ field }) => (<FormItem><FormLabel>Pincode</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="contactDetails.pan" render={({ field }) => (<FormItem><FormLabel>PAN</FormLabel><FormControl><Input {...field} readOnly={gstRegex.test(form.watch("gstDetails.gstin") || "")} /></FormControl><FormMessage /></FormItem>)} />
                 </div>
               </TabsContent>
               
@@ -473,7 +575,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                             <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TDS Deduction</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
                         )} />
 
-                        <div className={cn("grid overflow-hidden transition-all duration-300 ease-in-out", tdsEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
+                        <div className={cn("grid overflow-hidden transition-all duration-300 ease-in-out", form.watch("tdsTcsConfig.tdsEnabled") ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
                           <div className="min-h-0">
                             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-md border p-4">
                               <FormField control={form.control} name="tdsTcsConfig.tdsNatureOfPayment" render={({ field }) => (
@@ -486,6 +588,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                                               <SelectItem value="rent">Rent</SelectItem>
                                           </SelectContent>
                                       </Select>
+                                      <FormMessage />
                                   </FormItem>)} />
                               <FormField control={form.control} name="tdsTcsConfig.tdsSection" render={({ field }) => (
                                   <FormItem><FormLabel>TDS Section</FormLabel>
@@ -497,33 +600,12 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                                               <SelectItem value="194I">194I - Rent</SelectItem>
                                           </SelectContent>
                                       </Select>
+                                      <FormMessage />
                                   </FormItem>)} />
                             </div>
                           </div>
                         </div>
                         
-                        <FormField control={form.control} name="tdsTcsConfig.tcsEnabled" render={({ field }) => (
-                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TCS Collection</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
-                        )} />
-
-                        <div className={cn("grid overflow-hidden transition-all duration-300 ease-in-out", tcsEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
-                          <div className="min-h-0">
-                            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-md border p-4">
-                               <FormField control={form.control} name="tdsTcsConfig.tcsNature" render={({ field }) => (
-                                   <FormItem><FormLabel>Nature of Collection</FormLabel>
-                                       <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select nature..." /></SelectTrigger></FormControl>
-                                           <SelectContent>
-                                               <SelectItem value="scrap">Sale of Scrap</SelectItem>
-                                               <SelectItem value="vehicle">Sale of Motor Vehicle (&gt; 10L)</SelectItem>
-                                               <SelectItem value="goods">Sale of Goods (&gt; 50L)</SelectItem>
-                                           </SelectContent>
-                                       </Select>
-                                   </FormItem>)} />
-                               <FormField control={form.control} name="tdsTcsConfig.tcsRate" render={({ field }) => (<FormItem><FormLabel>TCS Rate (%)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
-                            </div>
-                          </div>
-                        </div>
-
                       </AccordionContent>
                     </AccordionItem>
 
@@ -532,10 +614,10 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                       <AccordionTrigger className="text-base"><HeartPulse className="mr-2 h-5 w-5 text-primary" />Credit & Risk Management</AccordionTrigger>
                       <AccordionContent className="pt-4 space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <FormField control={form.control} name="creditControl.creditLimit" render={({ field }) => (<FormItem><FormLabel>Credit Limit</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="creditControl.creditPeriod" render={({ field }) => (<FormItem><FormLabel>Credit Period (Days)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
-                             <FormField control={form.control} name="creditControl.interestRate" render={({ field }) => (<FormItem><FormLabel>Interest on Late Payment (%)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="creditControl.riskCategory" render={({ field }) => (<FormItem><FormLabel>Risk Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Risk"/></SelectTrigger></FormControl><SelectContent><SelectItem value="Low">Low</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="High">High</SelectItem></SelectContent></Select></FormItem>)} />
+                            <FormField control={form.control} name="creditControl.creditLimit" render={({ field }) => (<FormItem><FormLabel>Credit Limit</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="creditControl.creditPeriod" render={({ field }) => (<FormItem><FormLabel>Credit Period (Days)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={form.control} name="creditControl.interestRate" render={({ field }) => (<FormItem><FormLabel>Interest on Late Payment (%)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="creditControl.riskCategory" render={({ field }) => (<FormItem><FormLabel>Risk Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Risk"/></SelectTrigger></FormControl><SelectContent><SelectItem value="Low">Low</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="High">High</SelectItem></SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                       </AccordionContent>
                     </AccordionItem>
@@ -546,10 +628,10 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                       <AccordionTrigger className="text-base"><Landmark className="mr-2 h-5 w-5 text-primary" />Banking & Payments</AccordionTrigger>
                       <AccordionContent className="pt-4 space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <FormField control={form.control} name="bankDetails.bankName" render={({ field }) => (<FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="bankDetails.accountNumber" render={({ field }) => (<FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="bankDetails.ifscCode" render={({ field }) => (<FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                             <FormField control={form.control} name="bankDetails.defaultPaymentMode" render={({ field }) => (<FormItem><FormLabel>Default Payment Mode</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Mode"/></SelectTrigger></FormControl><SelectContent>{['NEFT', 'RTGS', 'IMPS', 'UPI', 'Cheque'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></FormItem>)} />
+                            <FormField control={form.control} name="bankDetails.bankName" render={({ field }) => (<FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="bankDetails.accountNumber" render={({ field }) => (<FormItem><FormLabel>Account Number <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={form.control} name="bankDetails.ifscCode" render={({ field }) => (<FormItem><FormLabel>IFSC Code <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={form.control} name="bankDetails.defaultPaymentMode" render={({ field }) => (<FormItem><FormLabel>Default Payment Mode</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Mode"/></SelectTrigger></FormControl><SelectContent>{['NEFT', 'RTGS', 'IMPS', 'UPI', 'Cheque'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                       </AccordionContent>
                     </AccordionItem>
@@ -601,7 +683,10 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
               <SheetClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
               </SheetClose>
-              <Button type="submit">Save Ledger</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting ? "Saving..." : "Save Ledger"}
+              </Button>
             </SheetFooter>
           </form>
         </Form>
