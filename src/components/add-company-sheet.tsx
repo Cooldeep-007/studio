@@ -70,7 +70,7 @@ const indianStates = [
 
 const companyFormSchema = z.object({
   // Basic Details
-  companyName: z.string().min(2, "Company name is required."),
+  companyName: z.string().min(1, "Company name is required."),
   mailingName: z.string().optional(),
   addressLine1: z.string().optional(),
   addressLine2: z.string().optional(),
@@ -109,16 +109,19 @@ const companyFormSchema = z.object({
   }).optional(),
 
 }).superRefine((data, ctx) => {
+    if (data.booksStart < data.financialYearStart) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Books cannot begin before the financial year.", path: ["booksStart"] });
+    }
     if (data.gstApplicable) {
         if (!data.gstin || !gstRegex.test(data.gstin)) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A valid 15-character GSTIN is required.", path: ["gstin"] });
+        } else {
+            // If GSTIN is valid, check if PAN matches
+            const panFromGstin = data.gstin.substring(2, 12);
+            if (data.pan !== panFromGstin) {
+                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: "PAN should be auto-filled and must match the PAN from GSTIN.", path: ["pan"] });
+            }
         }
-        if(!data.pan || !panRegex.test(data.pan)) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A valid PAN is required and should be auto-filled from GSTIN.", path: ["pan"] });
-        }
-    }
-    if (data.booksStart < data.financialYearStart) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Books cannot begin before the financial year.", path: ["booksStart"] });
     }
 });
 
