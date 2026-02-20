@@ -33,14 +33,29 @@ export type BalanceType = 'Dr' | 'Cr';
 export type Ledger = {
   id: string;
   ledgerName: string;
+  parentLedgerId?: string;
   group: LedgerGroup;
   openingBalance: number;
+  currentBalance: number;
   balanceType: BalanceType;
-  gstApplicable?: boolean;
+  gstApplicable: boolean;
   gstRate?: number;
+  status: 'Active' | 'Inactive';
+  ledgerCode?: string;
+  contactPerson?: string;
+  mobileNumber?: string;
+  email?: string;
+  address?: string;
+  pan?: string;
+  gstin?: string;
+  creditLimit?: number;
+  paymentTerms?: string;
+  createdAt: Date;
+  lastUpdatedAt: Date;
   firmId: string;
   companyId: string;
 };
+
 
 export type VoucherType =
   | 'Sales'
