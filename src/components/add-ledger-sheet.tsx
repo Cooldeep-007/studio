@@ -9,6 +9,7 @@ import type { Ledger, LedgerGroup } from "@/lib/types";
 import {
   Percent, ShieldCheck, Landmark, HeartPulse, Sparkles, FolderKanban, Bot, Puzzle
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import {
   Sheet,
@@ -101,7 +102,7 @@ const ledgerFormSchema = z.object({
         tcsNature: z.string().optional(),
         tcsRate: z.coerce.number().optional(),
     }).optional(),
-    
+
     gstAdvancedConfig: z.object({
         reverseCharge: z.boolean().default(false),
         itcEligibility: z.enum(['Eligible', 'Ineligible', 'As per Rules']).optional(),
@@ -381,66 +382,71 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                         </FormItem>
                     )}
                     />
-                {gstApplicable && (
-                    <div className="space-y-4 p-4 border rounded-md">
-                        <h4 className="font-medium">GST Details</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <FormField
-                                control={form.control}
-                                name="gstDetails.gstType"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>GST Type</FormLabel>
-                                        <Select onValueChange={field.onChange}>
+                <div className={cn(
+                    "grid overflow-hidden transition-all duration-300 ease-in-out",
+                    gstApplicable ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                )}>
+                    <div className="min-h-0">
+                        <div className="space-y-4 p-4 border rounded-md mt-4">
+                            <h4 className="font-medium">GST Details</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                 <FormField
+                                    control={form.control}
+                                    name="gstDetails.gstType"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>GST Type</FormLabel>
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger><SelectValue placeholder="Select GST Type"/></SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {['Regular', 'Composition', 'Unregistered', 'Consumer', 'SEZ', 'Export'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="gstDetails.gstin"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>GSTIN</FormLabel>
                                             <FormControl>
-                                                <SelectTrigger><SelectValue placeholder="Select GST Type"/></SelectTrigger>
+                                                <Input placeholder="e.g., 29AABCU9511F1Z5" {...field} />
                                             </FormControl>
-                                            <SelectContent>
-                                                {['Regular', 'Composition', 'Unregistered', 'Consumer', 'SEZ', 'Export'].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="gstDetails.gstin"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>GSTIN</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="e.g., 29AABCU9511F1Z5" {...field} />
-                                        </FormControl>
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="gstDetails.gstRate"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>GST Rate (%)</FormLabel>
-                                        <FormControl>
-                                            <Input type="number" placeholder="e.g., 18" {...field} />
-                                        </FormControl>
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="gstDetails.hsnCode"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>HSN/SAC Code</FormLabel>
-                                        <FormControl>
-                                            <Input {...field} />
-                                        </FormControl>
-                                    </FormItem>
-                                )}
-                            />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="gstDetails.gstRate"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>GST Rate (%)</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" placeholder="e.g., 18" {...field} />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="gstDetails.hsnCode"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>HSN/SAC Code</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
                         </div>
                     </div>
-                )}
+                </div>
               </TabsContent>
               
               {/* CONTACT TAB */}
@@ -466,37 +472,43 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                         <FormField control={form.control} name="tdsTcsConfig.tdsEnabled" render={({ field }) => (
                             <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TDS Deduction</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
                         )} />
-                        {tdsEnabled && (
-                            <div className="grid md:grid-cols-2 gap-4 p-4 border rounded-md">
-                                <FormField control={form.control} name="tdsTcsConfig.tdsNatureOfPayment" render={({ field }) => (
-                                    <FormItem><FormLabel>Nature of Payment</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select nature..." /></SelectTrigger></FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="contractor">Payment to Contractor</SelectItem>
-                                                <SelectItem value="professional">Fees for Professional Services</SelectItem>
-                                                <SelectItem value="commission">Commission or Brokerage</SelectItem>
-                                                <SelectItem value="rent">Rent</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </FormItem>)} />
-                                <FormField control={form.control} name="tdsTcsConfig.tdsSection" render={({ field }) => (
-                                    <FormItem><FormLabel>TDS Section</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select section..." /></SelectTrigger></FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="194C">194C - Contractor</SelectItem>
-                                                <SelectItem value="194J">194J - Professional Fees</SelectItem>
-                                                <SelectItem value="194H">194H - Commission</SelectItem>
-                                                <SelectItem value="194I">194I - Rent</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </FormItem>)} />
+
+                        <div className={cn("grid overflow-hidden transition-all duration-300 ease-in-out", tdsEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
+                          <div className="min-h-0">
+                            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-md border p-4">
+                              <FormField control={form.control} name="tdsTcsConfig.tdsNatureOfPayment" render={({ field }) => (
+                                  <FormItem><FormLabel>Nature of Payment</FormLabel>
+                                      <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select nature..." /></SelectTrigger></FormControl>
+                                          <SelectContent>
+                                              <SelectItem value="contractor">Payment to Contractor</SelectItem>
+                                              <SelectItem value="professional">Fees for Professional Services</SelectItem>
+                                              <SelectItem value="commission">Commission or Brokerage</SelectItem>
+                                              <SelectItem value="rent">Rent</SelectItem>
+                                          </SelectContent>
+                                      </Select>
+                                  </FormItem>)} />
+                              <FormField control={form.control} name="tdsTcsConfig.tdsSection" render={({ field }) => (
+                                  <FormItem><FormLabel>TDS Section</FormLabel>
+                                      <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select section..." /></SelectTrigger></FormControl>
+                                          <SelectContent>
+                                              <SelectItem value="194C">194C - Contractor</SelectItem>
+                                              <SelectItem value="194J">194J - Professional Fees</SelectItem>
+                                              <SelectItem value="194H">194H - Commission</SelectItem>
+                                              <SelectItem value="194I">194I - Rent</SelectItem>
+                                          </SelectContent>
+                                      </Select>
+                                  </FormItem>)} />
                             </div>
-                        )}
+                          </div>
+                        </div>
+                        
                         <FormField control={form.control} name="tdsTcsConfig.tcsEnabled" render={({ field }) => (
                             <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable TCS Collection</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
                         )} />
-                        {tcsEnabled && (
-                           <div className="grid md:grid-cols-2 gap-4 p-4 border rounded-md">
+
+                        <div className={cn("grid overflow-hidden transition-all duration-300 ease-in-out", tcsEnabled ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
+                          <div className="min-h-0">
+                            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-md border p-4">
                                <FormField control={form.control} name="tdsTcsConfig.tcsNature" render={({ field }) => (
                                    <FormItem><FormLabel>Nature of Collection</FormLabel>
                                        <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select nature..." /></SelectTrigger></FormControl>
@@ -508,8 +520,10 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                                        </Select>
                                    </FormItem>)} />
                                <FormField control={form.control} name="tdsTcsConfig.tcsRate" render={({ field }) => (<FormItem><FormLabel>TCS Rate (%)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
-                           </div>
-                        )}
+                            </div>
+                          </div>
+                        </div>
+
                       </AccordionContent>
                     </AccordionItem>
 
@@ -521,7 +535,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                             <FormField control={form.control} name="creditControl.creditLimit" render={({ field }) => (<FormItem><FormLabel>Credit Limit</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
                             <FormField control={form.control} name="creditControl.creditPeriod" render={({ field }) => (<FormItem><FormLabel>Credit Period (Days)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
                              <FormField control={form.control} name="creditControl.interestRate" render={({ field }) => (<FormItem><FormLabel>Interest on Late Payment (%)</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
-                            <FormField control={form.control} name="creditControl.riskCategory" render={({ field }) => (<FormItem><FormLabel>Risk Category</FormLabel><Select onValueChange={field.onChange}><FormControl><SelectTrigger><SelectValue placeholder="Select Risk"/></SelectTrigger></FormControl><SelectContent><SelectItem value="Low">Low</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="High">High</SelectItem></SelectContent></Select></FormItem>)} />
+                            <FormField control={form.control} name="creditControl.riskCategory" render={({ field }) => (<FormItem><FormLabel>Risk Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Risk"/></SelectTrigger></FormControl><SelectContent><SelectItem value="Low">Low</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="High">High</SelectItem></SelectContent></Select></FormItem>)} />
                         </div>
                       </AccordionContent>
                     </AccordionItem>
@@ -535,7 +549,7 @@ export function AddLedgerSheet({ children, ledgers }: { children: React.ReactNod
                             <FormField control={form.control} name="bankDetails.bankName" render={({ field }) => (<FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                             <FormField control={form.control} name="bankDetails.accountNumber" render={({ field }) => (<FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                             <FormField control={form.control} name="bankDetails.ifscCode" render={({ field }) => (<FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                             <FormField control={form.control} name="bankDetails.defaultPaymentMode" render={({ field }) => (<FormItem><FormLabel>Default Payment Mode</FormLabel><Select onValueChange={field.onChange}><FormControl><SelectTrigger><SelectValue placeholder="Select Mode"/></SelectTrigger></FormControl><SelectContent>{['NEFT', 'RTGS', 'IMPS', 'UPI', 'Cheque'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></FormItem>)} />
+                             <FormField control={form.control} name="bankDetails.defaultPaymentMode" render={({ field }) => (<FormItem><FormLabel>Default Payment Mode</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Mode"/></SelectTrigger></FormControl><SelectContent>{['NEFT', 'RTGS', 'IMPS', 'UPI', 'Cheque'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select></FormItem>)} />
                         </div>
                       </AccordionContent>
                     </AccordionItem>
