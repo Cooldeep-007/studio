@@ -70,8 +70,13 @@ const defaultValues: Partial<SalesInvoiceFormValues> = {
   invoiceNumber: '',
   invoiceDate: undefined,
   dueDate: undefined,
+  placeOfSupply: '',
   eWayBillRequired: false,
   eInvoiceRequired: false,
+  partyLedgerId: '',
+  gstin: '',
+  billingAddress: '',
+  shippingAddress: '',
   lineItems: [
     { 
       itemName: '', 
@@ -79,12 +84,22 @@ const defaultValues: Partial<SalesInvoiceFormValues> = {
       rate: 0, 
       discount: 0,
       gstRate: 0,
-      hsnCode: '', uqc: '', taxableValue: 0, cgst: 0, sgst: 0, igst: 0, total: 0 
+      hsnCode: '', 
+      uqc: '', 
+      taxableValue: 0, 
+      cgst: 0, 
+      sgst: 0, 
+      igst: 0, 
+      total: 0 
     }
   ],
+  reverseCharge: false,
+  tcsApplicable: false,
   totalTaxableAmount: 0,
   totalGst: 0,
+  roundOff: 0,
   grandTotal: 0,
+  narration: '',
 };
 
 export function SalesInvoiceForm() {
