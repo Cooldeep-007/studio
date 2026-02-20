@@ -1,4 +1,4 @@
-"use server";
+'use server';
 
 import { generateCustomFieldSchema } from "@/ai/flows/generate-custom-field-schema";
 import { z } from "zod";
@@ -70,6 +70,7 @@ type TallyLedger = {
   PARENT: string;
   OPENINGBALANCE: number;
   ISDEEMEDPOSITIVE: 'Yes' | 'No';
+  GSTCLASSIFICATIONNAME?: string;
   LEDGERCONTACT?: string;
   LEDGERPHONE?: string;
   LEDGEREMAIL?: string;
@@ -87,6 +88,7 @@ export type TallyPreviewLedger = {
     openingBalance: number;
     balanceType: 'Dr' | 'Cr';
     gstin?: string;
+    gstClassification?: 'Goods' | 'Services';
     status: 'New' | 'Duplicate' | 'Update' | 'Error';
     error?: string;
 }
@@ -142,6 +144,16 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
             const openingBalance = Math.abs(tallyLedger.OPENINGBALANCE || 0);
             const balanceType = tallyLedger.ISDEEMEDPOSITIVE === 'No' ? 'Cr' : 'Dr';
 
+            let classification: TallyPreviewLedger['gstClassification'];
+            const gstClassificationName = tallyLedger.GSTCLASSIFICATIONNAME;
+            if (gstClassificationName) {
+                if (gstClassificationName.toLowerCase().includes('goods')) {
+                    classification = 'Goods';
+                } else if (gstClassificationName.toLowerCase().includes('service')) {
+                    classification = 'Services';
+                }
+            }
+
             const existing = existingLedgers.find(l => l.ledgerName.toLowerCase() === ledgerName.toLowerCase());
 
             let status: TallyPreviewLedger['status'] = 'New';
@@ -156,6 +168,7 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
                 openingBalance,
                 balanceType,
                 gstin: tallyLedger.PARTYGSTIN,
+                gstClassification: classification,
                 status,
             });
         }

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useFormStatus } from "react-dom";
+import { useFormStatus, useActionState } from "react-dom";
 import { handleTallyImport, type TallyImportState, type TallyPreviewLedger } from "@/app/actions";
 import type { Company, Ledger } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -66,7 +66,7 @@ function SubmitButton() {
 
 export function TallyImportDialog({ companies, ledgers }: { companies: Company[], ledgers: Ledger[] }) {
   const [isOpen, setIsOpen] = React.useState(false);
-  const [state, formAction] = React.useActionState(handleTallyImport, initialState);
+  const [state, formAction] = useActionState(handleTallyImport, initialState);
   const [fileContent, setFileContent] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -84,10 +84,12 @@ export function TallyImportDialog({ companies, ledgers }: { companies: Company[]
 
   React.useEffect(() => {
     if (state.message && !state.error) {
-        toast({
-            title: "Import Complete",
-            description: state.message,
-        });
+        if (state.summary) {
+            toast({
+                title: "Import Complete",
+                description: state.message,
+            });
+        }
     }
     if (state.error) {
          toast({
@@ -202,6 +204,7 @@ function ImportPreview({ preview }: { preview: TallyPreviewLedger[] }) {
                         <TableRow>
                             <TableHead>Ledger Name</TableHead>
                             <TableHead>Parent</TableHead>
+                            <TableHead>Type</TableHead>
                             <TableHead>Opening Balance</TableHead>
                             <TableHead>Dr/Cr</TableHead>
                             <TableHead>GSTIN</TableHead>
@@ -213,6 +216,7 @@ function ImportPreview({ preview }: { preview: TallyPreviewLedger[] }) {
                             <TableRow key={index}>
                                 <TableCell>{ledger.ledgerName}</TableCell>
                                 <TableCell>{ledger.parent}</TableCell>
+                                <TableCell>{ledger.gstClassification || "-"}</TableCell>
                                 <TableCell className="text-right">{ledger.openingBalance.toFixed(2)}</TableCell>
                                 <TableCell>{ledger.balanceType}</TableCell>
                                 <TableCell>{ledger.gstin || "-"}</TableCell>
