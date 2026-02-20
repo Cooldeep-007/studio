@@ -12,6 +12,8 @@ import {
   Building,
   Banknote,
   Percent,
+  Briefcase,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +43,12 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -65,21 +73,40 @@ const companyFormSchema = z.object({
   companyName: z.string().min(2, "Company name is required."),
   mailingName: z.string().optional(),
   addressLine1: z.string().optional(),
+  addressLine2: z.string().optional(),
   city: z.string().optional(),
+  district: z.string().optional(),
   state: z.string().optional(),
+  country: z.string().default('India'),
   pincode: z.string().length(6, "Pincode must be 6 digits.").optional().or(z.literal('')),
+  telephone: z.string().optional(),
   mobileNumber: z.string().length(10, "Mobile number must be 10 digits.").optional().or(z.literal('')),
   email: z.string().email("Invalid email format.").optional().or(z.literal('')),
+  website: z.string().url("Invalid URL format.").optional().or(z.literal('')),
   
   // Financial Details
   financialYearStart: z.date({ required_error: "Financial year start date is required."}),
   booksStart: z.date({ required_error: "Books beginning date is required."}),
+  baseCurrencySymbol: z.string().default('₹'),
+  formalCurrencyName: z.string().default('INR'),
+  inventory: z.boolean().default(false),
+  multiCurrency: z.boolean().default(false),
   
   // Tax Details
   gstApplicable: z.boolean().default(false),
   gstin: z.string().optional(),
   gstRegType: z.enum(['Regular', 'Composition', 'Unregistered']).optional(),
   pan: z.string().optional(),
+  tan: z.string().optional(),
+
+  // Bank Details
+  bankDetails: z.object({
+    bankName: z.string().optional(),
+    accountHolderName: z.string().optional(),
+    accountNumber: z.string().optional(),
+    ifscCode: z.string().optional(),
+    branchName: z.string().optional(),
+  }).optional(),
 
 }).superRefine((data, ctx) => {
     if (data.gstApplicable) {
@@ -108,21 +135,39 @@ const defaultValues: Partial<CompanyFormValues> = {
   companyName: "",
   mailingName: "",
   addressLine1: "",
+  addressLine2: "",
   city: "",
+  district: "",
   state: "",
+  country: "India",
   pincode: "",
+  telephone: "",
   mobileNumber: "",
   email: "",
-  gstApplicable: false,
+  website: "",
   financialYearStart: currentFinancialYearStart,
   booksStart: currentFinancialYearStart,
+  baseCurrencySymbol: "₹",
+  formalCurrencyName: "INR",
+  inventory: false,
+  multiCurrency: false,
+  gstApplicable: false,
   gstin: "",
+  gstRegType: undefined,
   pan: "",
+  tan: "",
+  bankDetails: {
+    bankName: "",
+    accountHolderName: "",
+    accountNumber: "",
+    ifscCode: "",
+    branchName: "",
+  },
 };
 
 const currentYear = new Date().getFullYear();
 const financialYears = Array.from({ length: 6 }, (_, i) => {
-    const year = currentYear + 1 - i; // From next year down to 4 years ago
+    const year = currentYear + 1 - i;
     return {
         label: `FY ${year}-${(year + 1).toString().slice(-2)}`,
         value: new Date(year, 3, 1),
@@ -147,20 +192,20 @@ export function AddCompanySheet({
   });
 
   const handleGstinBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    const gstinValue = e.target.value;
+    const gstinValue = e.target.value.toUpperCase();
+    form.setValue('gstin', gstinValue); // Ensure value is uppercase
     if (gstinValue && gstRegex.test(gstinValue)) {
       const pan = gstinValue.substring(2, 12);
-      form.setValue('pan', pan.toUpperCase(), { shouldValidate: true });
+      form.setValue('pan', pan, { shouldValidate: true });
     } else {
-      // Clear PAN if GSTIN is invalid or cleared
       form.setValue('pan', '', { shouldValidate: true });
     }
   };
 
+  const isGstValid = gstRegex.test(form.watch('gstin') || '');
 
   async function onSubmit(data: CompanyFormValues) {
     setIsSubmitting(true);
-    // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 1000));
     
     const newCompany: Company = {
@@ -170,7 +215,7 @@ export function AddCompanySheet({
       address: `${data.addressLine1 || ''}, ${data.city || ''}, ${data.state || ''}`,
       financialYearStart: data.financialYearStart,
       financialYearEnd: new Date(data.financialYearStart.getFullYear() + 1, 2, 31),
-      firmId: 'firm-abc', // Mock data
+      firmId: 'firm-abc',
     };
 
     onCompanyCreated(newCompany);
@@ -194,7 +239,7 @@ export function AddCompanySheet({
             <Separator className="my-4" />
             <ScrollArea className="flex-grow pr-6 -mr-6">
               <Tabs defaultValue="general">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="general">
                     <Building className="mr-2" /> General
                   </TabsTrigger>
@@ -207,77 +252,62 @@ export function AddCompanySheet({
                 </TabsList>
                 
                 <TabsContent value="general" className="space-y-6 pt-4">
-                  <FormField control={form.control} name="companyName" render={({ field }) => (<FormItem><FormLabel>Company Name <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="mailingName" render={({ field }) => (<FormItem><FormLabel>Mailing Name</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl></FormItem>)} />
-                  <FormField control={form.control} name="addressLine1" render={({ field }) => (<FormItem><FormLabel>Address</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl></FormItem>)} />
+                   <FormField control={form.control} name="companyName" render={({ field }) => (<FormItem><FormLabel>Company Name <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="mailingName" render={({ field }) => (<FormItem><FormLabel>Mailing Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                  <FormField control={form.control} name="addressLine1" render={({ field }) => (<FormItem><FormLabel>Address Line 1</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                  <FormField control={form.control} name="addressLine2" render={({ field }) => (<FormItem><FormLabel>Address Line 2</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} value={field.value || ''}/></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="district" render={({ field }) => (<FormItem><FormLabel>District</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                     <FormField control={form.control} name="state" render={({ field }) => (
                       <FormItem><FormLabel>State</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger></FormControl>
+                        <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger></FormControl>
                           <SelectContent>{indianStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       </FormItem>)} />
-                    <FormField control={form.control} name="pincode" render={({ field }) => (<FormItem><FormLabel>Pincode</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="mobileNumber" render={({ field }) => (<FormItem><FormLabel>Mobile Number</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="pincode" render={({ field }) => (<FormItem><FormLabel>Pincode</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                   </div>
-                   <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                  <FormField control={form.control} name="country" render={({ field }) => (<FormItem><FormLabel>Country</FormLabel><FormControl><Input {...field} readOnly /></FormControl></FormItem>)} />
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="telephone" render={({ field }) => (<FormItem><FormLabel>Telephone</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="mobileNumber" render={({ field }) => (<FormItem><FormLabel>Mobile Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                   </div>
+                   <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                   <FormField control={form.control} name="website" render={({ field }) => (<FormItem><FormLabel>Website</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                 </TabsContent>
 
                 <TabsContent value="financial" className="space-y-6 pt-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="financialYearStart"
-                      render={({ field }) => (
+                    <FormField control={form.control} name="financialYearStart" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Financial Year Beginning From <span className="text-destructive">*</span></FormLabel>
-                          <Select
-                            onValueChange={(value) => {
-                              const selectedDate = new Date(value);
-                              field.onChange(selectedDate);
-                              form.setValue('booksStart', selectedDate); // Also set books start date
-                            }}
-                            value={field.value?.toISOString()}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Financial Year" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {financialYears.map(fy => (
-                                <SelectItem key={fy.label} value={fy.value.toISOString()}>
-                                  {fy.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
+                          <Select onValueChange={(value) => { const selectedDate = new Date(value); field.onChange(selectedDate); form.setValue('booksStart', selectedDate); }} value={field.value?.toISOString()}>
+                            <FormControl><SelectTrigger><SelectValue placeholder="Select Financial Year" /></SelectTrigger></FormControl>
+                            <SelectContent>{financialYears.map(fy => (<SelectItem key={fy.label} value={fy.value.toISOString()}>{fy.label}</SelectItem>))}</SelectContent>
                           </Select>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                    <FormField
-                      control={form.control}
-                      name="booksStart"
-                      render={({ field }) => (
+                    <FormField control={form.control} name="booksStart" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Books Beginning From <span className="text-destructive">*</span></FormLabel>
-                          <FormControl>
-                            <Input
-                              value={field.value ? format(field.value, "PPP") : ''}
-                              readOnly
-                              disabled
-                              className="disabled:cursor-not-allowed disabled:opacity-100"
-                            />
-                          </FormControl>
-                           <FormDescription>
-                            Automatically set from the financial year.
-                          </FormDescription>
+                          <FormControl><Input value={field.value ? format(field.value, "PPP") : ''} readOnly disabled className="disabled:cursor-not-allowed disabled:opacity-100" /></FormControl>
+                          <FormDescription>Automatically set from the financial year.</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
+                     <FormField control={form.control} name="baseCurrencySymbol" render={({ field }) => (<FormItem><FormLabel>Base Currency Symbol</FormLabel><FormControl><Input {...field} readOnly /></FormControl></FormItem>)} />
+                     <FormField control={form.control} name="formalCurrencyName" render={({ field }) => (<FormItem><FormLabel>Formal Currency Name</FormLabel><FormControl><Input {...field} readOnly /></FormControl></FormItem>)} />
+                  </div>
+                  <div className="space-y-4">
+                     <FormField control={form.control} name="inventory" render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Maintain Accounts with Inventory</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
+                      )} />
+                      <FormField control={form.control} name="multiCurrency" render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Enable Multi-Currency</FormLabel></div><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>
+                      )} />
                   </div>
                 </TabsContent>
 
@@ -296,10 +326,7 @@ export function AddCompanySheet({
                                <FormItem>
                                    <FormLabel>GSTIN <span className="text-destructive">*</span></FormLabel>
                                    <FormControl>
-                                       <Input {...field} value={field.value || ''} onBlur={(e) => {
-                                           field.onBlur(e);
-                                           handleGstinBlur(e);
-                                       }} />
+                                       <Input {...field} onBlur={handleGstinBlur} />
                                    </FormControl>
                                    <FormMessage />
                                </FormItem>
@@ -307,14 +334,29 @@ export function AddCompanySheet({
                         />
                         <FormField control={form.control} name="gstRegType" render={({ field }) => (
                           <FormItem><FormLabel>GST Registration Type</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Type"/></SelectTrigger></FormControl>
+                            <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Type"/></SelectTrigger></FormControl>
                               <SelectContent><SelectItem value="Regular">Regular</SelectItem><SelectItem value="Composition">Composition</SelectItem><SelectItem value="Unregistered">Unregistered</SelectItem></SelectContent>
                             </Select>
                           </FormItem>)} />
-                        <FormField control={form.control} name="pan" render={({ field }) => (<FormItem><FormLabel>PAN Number <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} value={field.value || ''} readOnly /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="pan" render={({ field }) => (<FormItem><FormLabel>PAN Number <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} readOnly={isGstValid} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="tan" render={({ field }) => (<FormItem><FormLabel>TAN Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                    </div>
                 </TabsContent>
               </Tabs>
+              <Accordion type="multiple" className="w-full mt-6">
+                <AccordionItem value="bank-details">
+                  <AccordionTrigger><Landmark className="mr-2"/>Bank Details</AccordionTrigger>
+                  <AccordionContent className="p-1">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border rounded-lg p-4">
+                        <FormField control={form.control} name="bankDetails.bankName" render={({ field }) => (<FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="bankDetails.accountHolderName" render={({ field }) => (<FormItem><FormLabel>Account Holder Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="bankDetails.accountNumber" render={({ field }) => (<FormItem><FormLabel>Account Number</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="bankDetails.ifscCode" render={({ field }) => (<FormItem><FormLabel>IFSC Code</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                        <FormField control={form.control} name="bankDetails.branchName" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Branch Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                     </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             </ScrollArea>
             <SheetFooter className="pt-4 mt-auto">
               <SheetClose asChild>
