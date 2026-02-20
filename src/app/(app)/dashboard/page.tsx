@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -77,39 +76,40 @@ export default function DashboardPage() {
     const expenseLedgerIds = new Set(expenseLedgers.map(l => l.id));
     const expenseLedgerMap = new Map(expenseLedgers.map(l => [l.id, l]));
 
-    const expenseBreakdown: Record<string, number> = {};
+    // Refactored expense calculation to be pure
+    const allExpenses = [
+      // Purchases
+      ...filteredVouchers
+          .filter(v => v.voucherType === 'Purchase')
+          .map(v => ({
+              name: 'Purchases',
+              amount: v.lineItems.reduce((acc, item) => acc + item.amount, 0)
+          })),
+      // Other Expenses from Payment/Journal line items
+      ...filteredVouchers
+          .filter(v => ['Payment', 'Journal'].includes(v.voucherType))
+          .flatMap(v => v.lineItems
+              .filter(li => expenseLedgerIds.has(li.ledgerId))
+              .map(li => ({
+                  name: expenseLedgerMap.get(li.ledgerId)?.ledgerName || 'Unknown Expense',
+                  amount: li.amount
+              }))
+          ),
+      // Expenses from Payment voucher party ledgers
+      ...filteredVouchers
+          .filter(v => v.voucherType === 'Payment' && expenseLedgerIds.has(v.partyLedger))
+          .map(v => ({
+              name: expenseLedgerMap.get(v.partyLedger)?.ledgerName || 'Unknown Expense',
+              amount: v.totalAmount
+          }))
+    ];
 
-    const periodPurchases = filteredVouchers
-        .filter(v => v.voucherType === 'Purchase')
-        .reduce((sum, v) => {
-            const purchaseAmount = v.lineItems.reduce((acc, item) => acc + item.amount, 0);
-            expenseBreakdown['Purchases'] = (expenseBreakdown['Purchases'] || 0) + purchaseAmount;
-            return sum + purchaseAmount;
-        }, 0);
+    const expenseBreakdown = allExpenses.reduce((acc, expense) => {
+        acc[expense.name] = (acc[expense.name] || 0) + expense.amount;
+        return acc;
+    }, {} as Record<string, number>);
 
-    const otherExpenses = filteredVouchers
-        .filter(v => ['Payment', 'Journal'].includes(v.voucherType) && v.lineItems.some(li => expenseLedgerIds.has(li.ledgerId)))
-        .reduce((sum, v) => {
-            v.lineItems.forEach(li => {
-                if (expenseLedgerIds.has(li.ledgerId)) {
-                    const ledgerName = expenseLedgerMap.get(li.ledgerId)?.ledgerName || 'Unknown Expense';
-                    expenseBreakdown[ledgerName] = (expenseBreakdown[ledgerName] || 0) + li.amount;
-                    sum += li.amount;
-                }
-            });
-            return sum;
-        }, 0);
-        
-    const paymentVoucherExpenses = filteredVouchers
-        .filter(v => v.voucherType === 'Payment' && expenseLedgerIds.has(v.partyLedger))
-         .reduce((sum, v) => {
-            const ledgerName = expenseLedgerMap.get(v.partyLedger)?.ledgerName || 'Unknown Expense';
-            expenseBreakdown[ledgerName] = (expenseBreakdown[ledgerName] || 0) + v.totalAmount;
-            return sum + v.totalAmount;
-        }, 0);
-
-
-    const totalExpenses = periodPurchases + otherExpenses + paymentVoucherExpenses;
+    const totalExpenses = Object.values(expenseBreakdown).reduce((sum, amount) => sum + amount, 0);
     
     const netProfit = totalIncome - totalExpenses;
 
@@ -304,7 +304,7 @@ export default function DashboardPage() {
                     <ScrollArea className="h-56">
                         <div className="space-y-4 pr-4">
                             {chartData.length > 0 ? (
-                                chartData
+                                [...chartData]
                                     .sort((a, b) => b.value - a.value)
                                     .map((item) => {
                                         const key = item.name.toLowerCase().replace(/ & | /g, '-');
