@@ -87,7 +87,7 @@ const companyFormSchema = z.object({
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A valid 15-character GSTIN is required.", path: ["gstin"] });
         }
         if(!data.pan || !panRegex.test(data.pan)) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A valid PAN is required.", path: ["pan"] });
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A valid PAN is required and should be auto-filled from GSTIN.", path: ["pan"] });
         }
     }
     if (data.booksStart < data.financialYearStart) {
@@ -109,6 +109,7 @@ const defaultValues: Partial<CompanyFormValues> = {
   mailingName: "",
   addressLine1: "",
   city: "",
+  state: "",
   pincode: "",
   mobileNumber: "",
   email: "",
@@ -144,6 +145,18 @@ export function AddCompanySheet({
     resolver: zodResolver(companyFormSchema),
     defaultValues,
   });
+
+  const handleGstinBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const gstinValue = e.target.value;
+    if (gstinValue && gstRegex.test(gstinValue)) {
+      const pan = gstinValue.substring(2, 12);
+      form.setValue('pan', pan.toUpperCase(), { shouldValidate: true });
+    } else {
+      // Clear PAN if GSTIN is invalid or cleared
+      form.setValue('pan', '', { shouldValidate: true });
+    }
+  };
+
 
   async function onSubmit(data: CompanyFormValues) {
     setIsSubmitting(true);
@@ -195,20 +208,20 @@ export function AddCompanySheet({
                 
                 <TabsContent value="general" className="space-y-6 pt-4">
                   <FormField control={form.control} name="companyName" render={({ field }) => (<FormItem><FormLabel>Company Name <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="mailingName" render={({ field }) => (<FormItem><FormLabel>Mailing Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
-                  <FormField control={form.control} name="addressLine1" render={({ field }) => (<FormItem><FormLabel>Address</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                  <FormField control={form.control} name="mailingName" render={({ field }) => (<FormItem><FormLabel>Mailing Name</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl></FormItem>)} />
+                  <FormField control={form.control} name="addressLine1" render={({ field }) => (<FormItem><FormLabel>Address</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl></FormItem>)} />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
+                    <FormField control={form.control} name="city" render={({ field }) => (<FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} value={field.value || ''}/></FormControl></FormItem>)} />
                     <FormField control={form.control} name="state" render={({ field }) => (
                       <FormItem><FormLabel>State</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger></FormControl>
+                        <Select onValueChange={field.onChange} value={field.value || ''}><FormControl><SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger></FormControl>
                           <SelectContent>{indianStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                         </Select>
                       </FormItem>)} />
-                    <FormField control={form.control} name="pincode" render={({ field }) => (<FormItem><FormLabel>Pincode</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                    <FormField control={form.control} name="mobileNumber" render={({ field }) => (<FormItem><FormLabel>Mobile Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="pincode" render={({ field }) => (<FormItem><FormLabel>Pincode</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
+                    <FormField control={form.control} name="mobileNumber" render={({ field }) => (<FormItem><FormLabel>Mobile Number</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                   </div>
-                   <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                   <FormField control={form.control} name="email" render={({ field }) => (<FormItem><FormLabel>Email</FormLabel><FormControl><Input {...field} value={field.value || ''} /></FormControl><FormMessage /></FormItem>)} />
                 </TabsContent>
 
                 <TabsContent value="financial" className="space-y-6 pt-4">
@@ -276,14 +289,29 @@ export function AddCompanySheet({
                         </FormItem>)} />
 
                    <div className={cn("space-y-4", !form.watch("gstApplicable") && "hidden")}>
-                        <FormField control={form.control} name="gstin" render={({ field }) => (<FormItem><FormLabel>GSTIN <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField
+                           control={form.control}
+                           name="gstin"
+                           render={({ field }) => (
+                               <FormItem>
+                                   <FormLabel>GSTIN <span className="text-destructive">*</span></FormLabel>
+                                   <FormControl>
+                                       <Input {...field} value={field.value || ''} onBlur={(e) => {
+                                           field.onBlur(e);
+                                           handleGstinBlur(e);
+                                       }} />
+                                   </FormControl>
+                                   <FormMessage />
+                               </FormItem>
+                           )}
+                        />
                         <FormField control={form.control} name="gstRegType" render={({ field }) => (
                           <FormItem><FormLabel>GST Registration Type</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Type"/></SelectTrigger></FormControl>
                               <SelectContent><SelectItem value="Regular">Regular</SelectItem><SelectItem value="Composition">Composition</SelectItem><SelectItem value="Unregistered">Unregistered</SelectItem></SelectContent>
                             </Select>
                           </FormItem>)} />
-                        <FormField control={form.control} name="pan" render={({ field }) => (<FormItem><FormLabel>PAN Number <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                        <FormField control={form.control} name="pan" render={({ field }) => (<FormItem><FormLabel>PAN Number <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} value={field.value || ''} readOnly /></FormControl><FormMessage /></FormItem>)} />
                    </div>
                 </TabsContent>
               </Tabs>
