@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { format } from "date-fns"
+import { format, addDays, startOfYear, endOfYear, startOfMonth, endOfMonth } from "date-fns"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
 
@@ -18,13 +18,19 @@ export function DateRangePicker({
   className,
 }: React.HTMLAttributes<HTMLDivElement>) {
   const [date, setDate] = React.useState<DateRange | undefined>({
-    from: new Date(new Date().getFullYear(), 0, 1), // Start of current year
-    to: new Date(), // Today
+    from: new Date(new Date().getFullYear(), 0, 1),
+    to: new Date(),
   })
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  const handlePresetClick = (preset: DateRange) => {
+    setDate(preset);
+    setIsOpen(false);
+  }
 
   return (
     <div className={cn("grid gap-2", className)}>
-      <Popover>
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button
             id="date"
@@ -50,14 +56,29 @@ export function DateRangePicker({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="end">
-          <Calendar
-            initialFocus
-            mode="range"
-            defaultMonth={date?.from}
-            selected={date}
-            onSelect={setDate}
-            numberOfMonths={2}
-          />
+            <div className="flex items-start">
+                <div className="flex flex-col items-start gap-1 p-3 border-r border-border min-w-[150px]">
+                    <div className="text-sm font-medium text-muted-foreground mb-2 px-2">Presets</div>
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => handlePresetClick({ from: addDays(new Date(), -6), to: new Date() })}>Last 7 Days</Button>
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => handlePresetClick({ from: addDays(new Date(), -29), to: new Date() })}>Last 30 Days</Button>
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => handlePresetClick({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => {
+                        const now = new Date();
+                        const lastMonthStart = startOfMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+                        const lastMonthEnd = endOfMonth(lastMonthStart);
+                        handlePresetClick({ from: lastMonthStart, to: lastMonthEnd });
+                    }}>Last Month</Button>
+                    <Button variant="ghost" className="w-full justify-start" onClick={() => handlePresetClick({ from: startOfYear(new Date()), to: endOfYear(new Date()) })}>This Year</Button>
+                </div>
+                 <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={date?.from}
+                    selected={date}
+                    onSelect={setDate}
+                    numberOfMonths={2}
+                />
+            </div>
         </PopoverContent>
       </Popover>
     </div>
