@@ -34,7 +34,7 @@ export const mockCompanies: Company[] = [
     financialYearStart: financialYearStart,
     financialYearEnd: financialYearEnd,
     firmId: 'firm-abc',
-    status: 'Active',
+    status: 'Archived',
   },
 ];
 
