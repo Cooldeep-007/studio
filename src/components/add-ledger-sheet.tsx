@@ -386,7 +386,7 @@ export function AddLedgerSheet({
                 ledgerCode: data.ledgerCode,
                 gstDetails: {
                   ...data.gstDetails,
-                  ...(data.gstAdvancedConfig || {}),
+                  ...data.gstAdvancedConfig,
                 },
                 contactDetails: data.contactDetails,
                 bankDetails: data.bankDetails,
@@ -647,30 +647,31 @@ export function AddLedgerSheet({
                                         </FormItem>
                                     )}
                                 />
-                                <FormField
-                                    control={form.control}
-                                    name="gstDetails.uqc"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>UQC {supplyType === 'Goods' && <span className="text-destructive">*</span>}</FormLabel>
-                                            <Select
-                                                onValueChange={field.onChange}
-                                                value={field.value}
-                                                disabled={supplyType !== 'Goods'}
-                                            >
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Select UQC" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code} - {u.description}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                {supplyType === 'Goods' && (
+                                    <FormField
+                                        control={form.control}
+                                        name="gstDetails.uqc"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>UQC <span className="text-destructive">*</span></FormLabel>
+                                                <Select
+                                                    onValueChange={field.onChange}
+                                                    value={field.value}
+                                                >
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Select UQC" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code} - {u.description}</SelectItem>)}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
                                 <FormField
                                     control={form.control}
                                     name="gstDetails.hsnCode"
