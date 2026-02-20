@@ -27,6 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { AddLedgerSheet } from "@/components/add-ledger-sheet";
 import { mockLedgers } from "@/lib/data";
 import type { Ledger } from "@/lib/types";
 
@@ -36,7 +37,7 @@ interface LedgerWithChildren extends Ledger {
 }
 
 // All possible columns
-const allColumns: { id: keyof Ledger | 'parentLedgerName'; label: string; isAdvanced: boolean }[] = [
+const allColumns: { id: keyof Ledger | 'parentLedgerName' | string; label: string; isAdvanced: boolean }[] = [
     { id: 'ledgerName', label: 'Ledger Name', isAdvanced: false },
     { id: 'parentLedgerName', label: 'Parent Ledger', isAdvanced: false },
     { id: 'group', label: 'Group', isAdvanced: false },
@@ -44,17 +45,17 @@ const allColumns: { id: keyof Ledger | 'parentLedgerName'; label: string; isAdva
     { id: 'currentBalance', label: 'Current Balance', isAdvanced: false },
     { id: 'balanceType', label: 'Dr/Cr', isAdvanced: false },
     { id: 'gstApplicable', label: 'GST Applicable', isAdvanced: true },
-    { id: 'gstRate', label: 'GST Rate', isAdvanced: true },
+    { id: 'gstDetails.gstRate', label: 'GST Rate', isAdvanced: true },
     { id: 'status', label: 'Status', isAdvanced: false },
     { id: 'ledgerCode', label: 'Ledger Code', isAdvanced: true },
-    { id: 'contactPerson', label: 'Contact Person', isAdvanced: true },
-    { id: 'mobileNumber', label: 'Mobile Number', isAdvanced: true },
-    { id: 'email', label: 'Email', isAdvanced: true },
-    { id: 'address', label: 'Address', isAdvanced: true },
-    { id: 'pan', label: 'PAN', isAdvanced: true },
-    { id: 'gstin', label: 'GSTIN', isAdvanced: true },
-    { id: 'creditLimit', label: 'Credit Limit', isAdvanced: true },
-    { id: 'paymentTerms', label: 'Payment Terms', isAdvanced: true },
+    { id: 'contactDetails.contactPerson', label: 'Contact Person', isAdvanced: true },
+    { id: 'contactDetails.mobileNumber', label: 'Mobile Number', isAdvanced: true },
+    { id: 'contactDetails.email', label: 'Email', isAdvanced: true },
+    { id: 'contactDetails.addressLine1', label: 'Address', isAdvanced: true },
+    { id: 'contactDetails.pan', label: 'PAN', isAdvanced: true },
+    { id: 'gstDetails.gstin', label: 'GSTIN', isAdvanced: true },
+    { id: 'creditControl.creditLimit', label: 'Credit Limit', isAdvanced: true },
+    { id: 'creditControl.creditPeriod', label: 'Payment Terms (Days)', isAdvanced: true },
     { id: 'createdAt', label: 'Created Date', isAdvanced: true },
     { id: 'lastUpdatedAt', label: 'Last Updated', isAdvanced: true },
 ];
@@ -98,17 +99,17 @@ function LedgerRow({ ledger, visibleColumns, level, parentName }: { ledger: Ledg
         {visibleColumns.currentBalance && <TableCell className="text-right">{formatCurrency(ledger.currentBalance)}</TableCell>}
         {visibleColumns.balanceType && <TableCell>{ledger.balanceType}</TableCell>}
         {visibleColumns.gstApplicable && <TableCell>{ledger.gstApplicable ? 'Yes' : 'No'}</TableCell>}
-        {visibleColumns.gstRate && <TableCell>{ledger.gstRate ? `${ledger.gstRate}%` : '-'}</TableCell>}
+        {visibleColumns['gstDetails.gstRate'] && <TableCell>{ledger.gstDetails?.gstRate ? `${ledger.gstDetails.gstRate}%` : '-'}</TableCell>}
         {visibleColumns.status && <TableCell><Badge variant={ledger.status === 'Active' ? 'default' : 'secondary'} className={ledger.status === 'Active' ? 'bg-green-100 text-green-800' : ''}>{ledger.status}</Badge></TableCell>}
         {visibleColumns.ledgerCode && <TableCell>{ledger.ledgerCode || '-'}</TableCell>}
-        {visibleColumns.contactPerson && <TableCell>{ledger.contactPerson || '-'}</TableCell>}
-        {visibleColumns.mobileNumber && <TableCell>{ledger.mobileNumber || '-'}</TableCell>}
-        {visibleColumns.email && <TableCell>{ledger.email || '-'}</TableCell>}
-        {visibleColumns.address && <TableCell>{ledger.address || '-'}</TableCell>}
-        {visibleColumns.pan && <TableCell>{ledger.pan || '-'}</TableCell>}
-        {visibleColumns.gstin && <TableCell>{ledger.gstin || '-'}</TableCell>}
-        {visibleColumns.creditLimit && <TableCell>{ledger.creditLimit ? formatCurrency(ledger.creditLimit) : '-'}</TableCell>}
-        {visibleColumns.paymentTerms && <TableCell>{ledger.paymentTerms || '-'}</TableCell>}
+        {visibleColumns['contactDetails.contactPerson'] && <TableCell>{ledger.contactDetails?.contactPerson || '-'}</TableCell>}
+        {visibleColumns['contactDetails.mobileNumber'] && <TableCell>{ledger.contactDetails?.mobileNumber || '-'}</TableCell>}
+        {visibleColumns['contactDetails.email'] && <TableCell>{ledger.contactDetails?.email || '-'}</TableCell>}
+        {visibleColumns['contactDetails.addressLine1'] && <TableCell>{ledger.contactDetails?.addressLine1 || '-'}</TableCell>}
+        {visibleColumns['contactDetails.pan'] && <TableCell>{ledger.contactDetails?.pan || '-'}</TableCell>}
+        {visibleColumns['gstDetails.gstin'] && <TableCell>{ledger.gstDetails?.gstin || '-'}</TableCell>}
+        {visibleColumns['creditControl.creditLimit'] && <TableCell>{ledger.creditControl?.creditLimit ? formatCurrency(ledger.creditControl.creditLimit) : '-'}</TableCell>}
+        {visibleColumns['creditControl.creditPeriod'] && <TableCell>{ledger.creditControl?.creditPeriod || '-'}</TableCell>}
         {visibleColumns.createdAt && <TableCell>{new Date(ledger.createdAt).toLocaleDateString()}</TableCell>}
         {visibleColumns.lastUpdatedAt && <TableCell>{new Date(ledger.lastUpdatedAt).toLocaleDateString()}</TableCell>}
       </TableRow>
@@ -195,10 +196,12 @@ export default function LedgersPage() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Ledger
-            </Button>
+            <AddLedgerSheet ledgers={mockLedgers}>
+              <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Ledger
+              </Button>
+            </AddLedgerSheet>
         </div>
       </div>
 
@@ -212,7 +215,7 @@ export default function LedgersPage() {
             <TableHeader>
               <TableRow>
                 {allColumns.filter(col => visibleColumns[col.id]).map(column => 
-                    <TableHead key={column.id} className={['openingBalance', 'currentBalance', 'creditLimit'].includes(column.id) ? 'text-right' : ''}>
+                    <TableHead key={column.id} className={['openingBalance', 'currentBalance', 'creditControl.creditLimit'].includes(column.id) ? 'text-right' : ''}>
                         {column.label}
                     </TableHead>
                 )}

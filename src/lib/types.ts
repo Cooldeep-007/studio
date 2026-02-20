@@ -27,7 +27,7 @@ export type Company = {
   firmId: string;
 };
 
-export type LedgerGroup = 'Assets' | 'Liabilities' | 'Income' | 'Expense';
+export type LedgerGroup = 'Assets' | 'Liabilities' | 'Income' | 'Expense' | 'Sundry Debtor' | 'Sundry Creditor' | 'Bank Accounts';
 export type BalanceType = 'Dr' | 'Cr';
 
 export type Ledger = {
@@ -38,18 +38,43 @@ export type Ledger = {
   openingBalance: number;
   currentBalance: number;
   balanceType: BalanceType;
+  isGroup: boolean;
   gstApplicable: boolean;
-  gstRate?: number;
+  gstDetails?: {
+      gstType?: 'Regular' | 'Composition' | 'Unregistered' | 'Consumer' | 'SEZ' | 'Export';
+      gstin?: string;
+      gstRate?: number;
+      hsnCode?: string;
+      placeOfSupply?: string;
+      reverseCharge?: boolean;
+  };
+  contactDetails?: {
+    contactPerson?: string;
+    mobileNumber?: string;
+    email?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    country?: string;
+    pan?: string;
+  };
+   bankDetails?: {
+    bankName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    branch?: string;
+    upiId?: string;
+    micrCode?: string;
+  };
+  creditControl?: {
+    creditLimit?: number;
+    creditPeriod?: number; // in days
+    billByBill?: boolean;
+  };
   status: 'Active' | 'Inactive';
   ledgerCode?: string;
-  contactPerson?: string;
-  mobileNumber?: string;
-  email?: string;
-  address?: string;
-  pan?: string;
-  gstin?: string;
-  creditLimit?: number;
-  paymentTerms?: string;
   createdAt: Date;
   lastUpdatedAt: Date;
   firmId: string;
