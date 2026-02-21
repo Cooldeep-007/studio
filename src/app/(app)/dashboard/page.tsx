@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -221,11 +222,14 @@ export default function DashboardPage() {
   const sortedExpenses = Object.entries(expenseBreakdown).sort(
     ([, a], [, b]) => b - a
   );
-  const expenseChartData = sortedExpenses.map(([name, value], index) => ({
-    name,
-    value,
-    fill: `var(--color-${chartColors[index % chartColors.length]})`,
-  }));
+  const expenseChartData = sortedExpenses.map(([name, value]) => {
+    const key = name.toLowerCase().replace(/ & | /g, '-');
+    return {
+      name,
+      value,
+      fill: `var(--color-${key})`,
+    };
+  });
 
   const expenseChartConfig = {
     value: { label: 'Amount' },
@@ -239,10 +243,13 @@ export default function DashboardPage() {
     }, {} as any),
   } satisfies ChartConfig;
 
-  const tdsChartData = tdsBreakdown.map((item, index) => ({
-    ...item,
-    fill: `var(--color-${chartColors[(index + 2) % chartColors.length]})`,
-  }));
+  const tdsChartData = tdsBreakdown.map((item) => {
+    const key = item.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    return {
+      ...item,
+      fill: `var(--color-${key})`,
+    };
+  });
 
   const tdsChartConfig = {
     value: { label: 'Amount' },
