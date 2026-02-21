@@ -23,6 +23,8 @@ import { useToast } from '@/hooks/use-toast';
 import { AddLedgerSheet } from '../add-ledger-sheet';
 import { AddItemSheet } from '../add-item-sheet';
 import { Combobox } from '../ui/combobox';
+import { Label } from '@/components/ui/label';
+import { Switch } from '../ui/switch';
 
 const lineItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required.'),
@@ -31,6 +33,7 @@ const lineItemSchema = z.object({
   quantity: z.coerce.number().optional(),
   uqc: z.string().optional(),
   rate: z.coerce.number().min(0, 'Rate cannot be negative'),
+  discount: z.coerce.number().min(0).default(0),
   gstRate: z.coerce.number().default(0),
 }).superRefine((data, ctx) => {
     if (data.itemType === 'Goods') {
@@ -44,10 +47,17 @@ const proformaInvoiceSchema = z.object({
   proformaNumber: z.string().min(1, 'Proforma number is required.'),
   proformaDate: z.date(),
   partyLedgerId: z.string().min(1, "Customer is required."),
+  gstin: z.string().optional(),
   placeOfSupply: z.string().min(1, 'Place of supply is required.'),
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
   
-  terms: z.string().optional(),
+  tcsApplicable: z.boolean().default(false),
+  tcsRate: z.coerce.number().default(0),
+
+  adjustmentType: z.enum(['Add', 'Less']).default('Less'),
+  adjustmentAmount: z.coerce.number().default(0),
+  
+  narration: z.string().optional(),
 });
 
 type ProformaInvoiceFormValues = z.infer<typeof proformaInvoiceSchema>;
@@ -58,7 +68,8 @@ const newLineItemDefault = {
   hsnSacCode: '',
   quantity: 1, 
   uqc: '', 
-  rate: 0, 
+  rate: 0,
+  discount: 0,
   gstRate: 0,
 };
 
@@ -66,9 +77,14 @@ const defaultValues: Partial<ProformaInvoiceFormValues> = {
   proformaNumber: '',
   proformaDate: new Date(),
   partyLedgerId: '',
+  gstin: '',
   placeOfSupply: '',
   lineItems: [newLineItemDefault],
-  terms: '',
+  adjustmentType: 'Less',
+  adjustmentAmount: 0,
+  narration: '',
+  tcsApplicable: false,
+  tcsRate: 0,
 };
 
 export function ProformaInvoiceForm() {
@@ -91,7 +107,14 @@ export function ProformaInvoiceForm() {
 
     const companyState = "Karnataka";
 
-    const [lineItems, placeOfSupply] = watch(["lineItems", "placeOfSupply"]);
+    const [lineItems, placeOfSupply, partyLedgerId, adjustmentType, adjustmentAmount, tcsRate] = watch([
+        "lineItems",
+        "placeOfSupply",
+        "partyLedgerId",
+        "adjustmentType",
+        "adjustmentAmount",
+        "tcsRate"
+    ]);
 
      const handleItemCreated = (newItem: Item, index: number) => {
         setItems(prev => [...prev, newItem]);
@@ -106,8 +129,7 @@ export function ProformaInvoiceForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            update(index, {
-                ...lineItems[index],
+            const lineItemData = {
                 itemId: selectedItem.id,
                 itemType: selectedItem.type,
                 hsnSacCode: selectedItem.type === 'Services' ? selectedItem.sacCode : selectedItem.hsnCode,
@@ -115,28 +137,54 @@ export function ProformaInvoiceForm() {
                 gstRate: selectedItem.gstRate,
                 quantity: selectedItem.type === 'Goods' ? 1 : undefined,
                 uqc: selectedItem.type === 'Goods' ? selectedItem.uqc : undefined,
-            });
+                discount: 0,
+            };
+            update(index, lineItemData);
         }
     };
+    
+    React.useEffect(() => {
+        const party = customerLedgers.find(c => c.id === partyLedgerId);
+        if (party) {
+            setValue('gstin', party.gstDetails?.gstin || '');
+            if(party.contactDetails?.state) {
+              setValue('placeOfSupply', party.contactDetails.state, { shouldValidate: true });
+            }
+            if (party.tdsTcsConfig?.tcsEnabled) {
+                setValue('tcsApplicable', true);
+                setValue('tcsRate', party.tdsTcsConfig.tcsRate || 0);
+            } else {
+                setValue('tcsApplicable', false);
+                setValue('tcsRate', 0);
+            }
+        }
+    }, [partyLedgerId, setValue, customerLedgers]);
 
-    const { subtotal, totalGst, grandTotal } = React.useMemo(() => {
-        let subtotal = 0;
-        let totalGst = 0;
-
-        lineItems.forEach(item => {
+    const { subtotal, totalGst, grossTotal, finalAdjustment, netBeforeTcs, tcsAmount, grandTotal } = React.useMemo(() => {
+        const subtotal = lineItems.reduce((acc, item) => {
             const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
             const rate = Number(item.rate) || 0;
-            const taxableValue = quantity * rate;
-            const gstOnItem = taxableValue * (Number(item.gstRate) / 100);
+            const discount = Number(item.discount) || 0;
+            return acc + (quantity * rate) - discount;
+        }, 0);
+        
+        const totalGst = lineItems.reduce((acc, item) => {
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+            const rate = Number(item.rate) || 0;
+            const discount = Number(item.discount) || 0;
+            const taxableValue = (quantity * rate) - discount;
+            const gstRate = (Number(item.gstRate) || 0);
+            return acc + (taxableValue * (gstRate / 100));
+        }, 0);
 
-            subtotal += taxableValue;
-            totalGst += gstOnItem;
-        });
-        
-        const grandTotal = subtotal + totalGst;
-        
-        return { subtotal, totalGst, grandTotal };
-    }, [lineItems]);
+        const grossTotal = subtotal + totalGst;
+        const finalAdjustment = adjustmentType === 'Add' ? adjustmentAmount : -adjustmentAmount;
+        const netBeforeTcs = grossTotal + finalAdjustment;
+        const tcsAmount = watch("tcsApplicable") ? (subtotal * (tcsRate / 100)) : 0;
+        const grandTotal = netBeforeTcs + tcsAmount;
+
+        return { subtotal, totalGst, grossTotal, finalAdjustment, netBeforeTcs, tcsAmount, grandTotal };
+    }, [lineItems, adjustmentType, adjustmentAmount, tcsRate, watch]);
 
     const isIntraState = placeOfSupply === companyState;
     const cgst = isIntraState ? (totalGst || 0) / 2 : 0;
@@ -144,7 +192,7 @@ export function ProformaInvoiceForm() {
     const igst = !isIntraState ? (totalGst || 0) : 0;
 
     function onSubmit(data: ProformaInvoiceFormValues) {
-        const finalData = { ...data, subtotal, totalGst, grandTotal, cgst, sgst, igst };
+        const finalData = { ...data, subtotal, totalGst, grandTotal, cgst, sgst, igst, finalAdjustment, tcsAmount };
         console.log(finalData);
         toast({
             title: "Proforma Invoice Saved",
@@ -196,9 +244,10 @@ export function ProformaInvoiceForm() {
                                 <TableRow>
                                     <TableHead className="w-[25%]">Item</TableHead>
                                     <TableHead>HSN/SAC</TableHead>
-                                    <TableHead>Qty</TableHead>
-                                    <TableHead>UQC</TableHead>
+                                    {lineItems.some(item => item.itemType === 'Goods') && <TableHead>Qty</TableHead>}
+                                    {lineItems.some(item => item.itemType === 'Goods') && <TableHead>UQC</TableHead>}
                                     <TableHead>Rate</TableHead>
+                                    <TableHead>Discount</TableHead>
                                     <TableHead>GST%</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
@@ -206,11 +255,12 @@ export function ProformaInvoiceForm() {
                             </TableHeader>
                             <TableBody>
                                 {fields.map((field, index) => {
-                                    const currentItemType = lineItems[index]?.itemType;
+                                    const currentItemType = getValues(`lineItems.${index}.itemType`);
                                     const item = lineItems[index];
                                     const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
                                     const rate = Number(item.rate) || 0;
-                                    const taxableValue = quantity * rate;
+                                    const discount = Number(item.discount) || 0;
+                                    const taxableValue = (quantity * rate) - discount;
                                     const gstRate = Number(item.gstRate) || 0;
                                     const gstAmount = taxableValue * (gstRate / 100);
                                     const total = taxableValue + gstAmount;
@@ -241,23 +291,28 @@ export function ProformaInvoiceForm() {
                                             </div>
                                         </TableCell>
                                         <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} /> )} /></TableCell>
-                                        <TableCell>
-                                            {currentItemType === 'Goods' && (
-                                                <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
-                                                    <Input type="number" {...field} /> 
-                                                )} />
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {currentItemType === 'Goods' && (
-                                                <FormField control={control} name={`lineItems.${index}.uqc`} render={({ field }) => (
-                                                <Select onValueChange={field.onChange} value={field.value}>
-                                                    <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                                                    <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
-                                                </Select>)} />
-                                            )}
-                                        </TableCell>
+                                        {lineItems.some(item => item.itemType === 'Goods') && (
+                                            <TableCell>
+                                                {currentItemType === 'Goods' && (
+                                                    <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
+                                                        <Input type="number" {...field} /> 
+                                                    )} />
+                                                )}
+                                            </TableCell>
+                                        )}
+                                        {lineItems.some(item => item.itemType === 'Goods') && (
+                                            <TableCell>
+                                                {currentItemType === 'Goods' && (
+                                                    <FormField control={control} name={`lineItems.${index}.uqc`} render={({ field }) => (
+                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                        <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                                        <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
+                                                    </Select>)} />
+                                                )}
+                                            </TableCell>
+                                        )}
                                         <TableCell><FormField control={control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.discount`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
                                         <TableCell><FormField control={control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
                                         <TableCell className="text-right">
                                             {total.toFixed(2)}
@@ -273,14 +328,46 @@ export function ProformaInvoiceForm() {
                         </div>
                         <Separator />
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-                           <FormField control={control} name="terms" render={({ field }) => (<FormItem><FormLabel>Terms & Conditions</FormLabel><FormControl><Textarea placeholder="Payment terms, delivery schedule, etc." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                           <div className="w-full space-y-2 self-end">
+                            <div className="space-y-4">
+                               <FormField control={control} name="tcsApplicable" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>TCS Applicable?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
+                               <FormField control={control} name="narration" render={({ field }) => (<FormItem><FormLabel>Terms & Conditions</FormLabel><FormControl><Textarea placeholder="Payment terms, delivery schedule, etc." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                           </div>
+                           <div className="w-full space-y-4">
                                 <div className="flex justify-between"><span>Subtotal</span><span>{subtotal.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{cgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{sgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{igst.toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{grandTotal.toFixed(2)}</span></div>
+                                <div className="flex justify-between font-semibold"><span>Gross Total</span><span>{grossTotal.toFixed(2)}</span></div>
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <Label>Adjustment</Label>
+                                        <FormField control={control} name="adjustmentType" render={({ field }) => (
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl><SelectTrigger className="w-[80px] h-8"><SelectValue /></SelectTrigger></FormControl>
+                                                <SelectContent><SelectItem value="Add">Add</SelectItem><SelectItem value="Less">Less</SelectItem></SelectContent>
+                                            </Select>
+                                        )} />
+                                    </div>
+                                    <FormField control={control} name="adjustmentAmount" render={({ field }) => (
+                                        <Input type="number" {...field} className="w-24 h-8 text-right" />
+                                    )} />
+                                </div>
+                                <Separator/>
+                                <div className="flex justify-between font-semibold"><span>Net Before TCS</span><span>{netBeforeTcs.toFixed(2)}</span></div>
+                                {watch("tcsApplicable") && (
+                                    <div className="flex justify-between items-center">
+                                        <Label>TCS</Label>
+                                        <div className="flex items-center gap-2">
+                                            <FormField control={control} name="tcsRate" render={({ field }) => (
+                                                <Input type="number" {...field} className="w-20 h-8 text-right" placeholder="Rate %" />
+                                            )} />
+                                            <span>{tcsAmount.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                )}
+                                <Separator/>
+                                <div className="flex justify-between font-bold text-lg"><span>Grand Total</span><span>{grandTotal.toFixed(2)}</span></div>
                             </div>
                         </div>
                     </CardContent>

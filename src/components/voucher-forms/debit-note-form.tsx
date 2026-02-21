@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AddLedgerSheet } from '../add-ledger-sheet';
 import { AddItemSheet } from '../add-item-sheet';
 import { Combobox } from '../ui/combobox';
+import { Label } from '@/components/ui/label';
 
 const lineItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required.'),
@@ -31,6 +32,7 @@ const lineItemSchema = z.object({
   quantity: z.coerce.number().optional(),
   uqc: z.string().optional(),
   rate: z.coerce.number().min(0, 'Rate cannot be negative'),
+  discount: z.coerce.number().min(0).default(0),
   gstRate: z.coerce.number().default(0),
 }).superRefine((data, ctx) => {
     if (data.itemType === 'Goods') {
@@ -72,6 +74,7 @@ const newLineItemDefault = {
   quantity: 1, 
   uqc: '', 
   rate: 0, 
+  discount: 0,
   gstRate: 0,
 };
 
@@ -132,8 +135,7 @@ export function DebitNoteForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            update(index, {
-                ...lineItems[index],
+            const lineItemData = {
                 itemId: selectedItem.id,
                 itemType: selectedItem.type,
                 hsnSacCode: selectedItem.type === 'Services' ? selectedItem.sacCode : selectedItem.hsnCode,
@@ -141,7 +143,9 @@ export function DebitNoteForm() {
                 gstRate: selectedItem.gstRate,
                 quantity: selectedItem.type === 'Goods' ? 1 : undefined,
                 uqc: selectedItem.type === 'Goods' ? selectedItem.uqc : undefined,
-            });
+                discount: 0,
+            };
+            update(index, lineItemData);
         }
     };
 
@@ -156,18 +160,21 @@ export function DebitNoteForm() {
     }, [partyLedgerId, setValue, supplierLedgers]);
 
     const { subtotal, totalGst, grossTotal, finalAdjustment, grandTotal } = React.useMemo(() => {
-        let subtotal = 0;
-        let totalGst = 0;
-
-        lineItems.forEach(item => {
+        const subtotal = lineItems.reduce((acc, item) => {
             const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
             const rate = Number(item.rate) || 0;
-            const taxableValue = quantity * rate;
-            const gstOnItem = taxableValue * (Number(item.gstRate) / 100);
-
-            subtotal += taxableValue;
-            totalGst += gstOnItem;
-        });
+            const discount = Number(item.discount) || 0;
+            return acc + (quantity * rate) - discount;
+        }, 0);
+        
+        const totalGst = lineItems.reduce((acc, item) => {
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+            const rate = Number(item.rate) || 0;
+            const discount = Number(item.discount) || 0;
+            const taxableValue = (quantity * rate) - discount;
+            const gstRate = (Number(item.gstRate) || 0);
+            return acc + (taxableValue * (gstRate / 100));
+        }, 0);
         
         const grossTotal = subtotal + totalGst;
         const finalAdjustment = adjustmentType === 'Add' ? adjustmentAmount : -adjustmentAmount;
@@ -266,9 +273,10 @@ export function DebitNoteForm() {
                                 <TableRow>
                                     <TableHead className="w-[25%]">Item</TableHead>
                                     <TableHead>HSN/SAC</TableHead>
-                                    <TableHead>Qty</TableHead>
-                                    <TableHead>UQC</TableHead>
+                                    {lineItems.some(item => item.itemType === 'Goods') && <TableHead>Qty</TableHead>}
+                                    {lineItems.some(item => item.itemType === 'Goods') && <TableHead>UQC</TableHead>}
                                     <TableHead>Rate</TableHead>
+                                    <TableHead>Discount</TableHead>
                                     <TableHead>GST%</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
                                     <TableHead className="w-[50px]"></TableHead>
@@ -276,11 +284,12 @@ export function DebitNoteForm() {
                             </TableHeader>
                             <TableBody>
                                 {fields.map((field, index) => {
-                                    const currentItemType = lineItems[index]?.itemType;
+                                    const currentItemType = getValues(`lineItems.${index}.itemType`);
                                     const item = lineItems[index];
                                     const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
                                     const rate = Number(item.rate) || 0;
-                                    const taxableValue = quantity * rate;
+                                    const discount = Number(item.discount) || 0;
+                                    const taxableValue = (quantity * rate) - discount;
                                     const gstRate = Number(item.gstRate) || 0;
                                     const gstAmount = taxableValue * (gstRate / 100);
                                     const total = taxableValue + gstAmount;
@@ -311,23 +320,28 @@ export function DebitNoteForm() {
                                             </div>
                                         </TableCell>
                                         <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} /> )} /></TableCell>
-                                        <TableCell>
-                                            {currentItemType === 'Goods' && (
-                                                <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
-                                                    <Input type="number" {...field} /> 
-                                                )} />
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {currentItemType === 'Goods' && (
-                                                <FormField control={control} name={`lineItems.${index}.uqc`} render={({ field }) => (
-                                                <Select onValueChange={field.onChange} value={field.value}>
-                                                    <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                                                    <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
-                                                </Select>)} />
-                                            )}
-                                        </TableCell>
+                                        {lineItems.some(item => item.itemType === 'Goods') && (
+                                            <TableCell>
+                                                {currentItemType === 'Goods' && (
+                                                    <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
+                                                        <Input type="number" {...field} /> 
+                                                    )} />
+                                                )}
+                                            </TableCell>
+                                        )}
+                                        {lineItems.some(item => item.itemType === 'Goods') && (
+                                            <TableCell>
+                                                {currentItemType === 'Goods' && (
+                                                    <FormField control={control} name={`lineItems.${index}.uqc`} render={({ field }) => (
+                                                    <Select onValueChange={field.onChange} value={field.value}>
+                                                        <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                                        <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
+                                                    </Select>)} />
+                                                )}
+                                            </TableCell>
+                                        )}
                                         <TableCell><FormField control={control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.discount`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
                                         <TableCell><FormField control={control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
                                         <TableCell className="text-right">
                                             {total.toFixed(2)}
