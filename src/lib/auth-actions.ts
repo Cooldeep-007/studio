@@ -129,6 +129,8 @@ export async function signUpWithEmail(formData: {
 export async function completeGoogleSignup(formData: {
   companyName: string;
   mobile: string;
+  name: string;
+  email: string;
 }): Promise<AuthError | null> {
   try {
     const user = auth.currentUser;
@@ -148,8 +150,8 @@ export async function completeGoogleSignup(formData: {
     await createFirm(firmId, user.uid, formData.companyName);
 
     await createUserProfile(user.uid, {
-      name: user.displayName || 'New User',
-      email: user.email!,
+      name: formData.name,
+      email: formData.email,
       companyName: formData.companyName,
       mobile: formData.mobile,
       role: 'Owner',

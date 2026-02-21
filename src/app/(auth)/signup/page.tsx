@@ -48,10 +48,10 @@ const emailSignupSchema = z
 
 // Schema for completing Google signup
 const googleSignupSchema = z.object({
-  name: z.string(), // Will be pre-filled
+  name: z.string().min(2, 'Name must be at least 2 characters.'),
   companyName: z.string().min(2, 'Company name must be at least 2 characters.'),
   mobile: z.string().min(10, 'Mobile number must be at least 10 digits.'),
-  email: z.string(), // Will be pre-filled
+  email: z.string().email('Invalid email address.'),
   password: z.string().optional(),
   confirmPassword: z.string().optional(),
 });
@@ -98,6 +98,8 @@ export default function SignupPage() {
         error = await completeGoogleSignup({
             companyName: values.companyName,
             mobile: values.mobile,
+            name: values.name,
+            email: values.email,
         });
         if (!error) {
             toast({
@@ -161,7 +163,7 @@ export default function SignupPage() {
                 <FormItem>
                   <Label htmlFor="full-name">Full Name</Label>
                   <FormControl>
-                    <Input id="full-name" placeholder="Max Robinson" {...field} readOnly={isGoogleSignupFlow} />
+                    <Input id="full-name" placeholder="Max Robinson" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -200,7 +202,7 @@ export default function SignupPage() {
                 <FormItem>
                   <Label htmlFor="email">Email</Label>
                   <FormControl>
-                    <Input id="email" type="email" placeholder="m@example.com" {...field} readOnly={isGoogleSignupFlow}/>
+                    <Input id="email" type="email" placeholder="m@example.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
