@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter, redirect } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Building,
@@ -17,7 +17,6 @@ import {
   Percent,
   ChevronRight,
   LogOut,
-  Loader2,
 } from 'lucide-react';
 import { doc, serverTimestamp } from 'firebase/firestore';
 
@@ -79,15 +78,10 @@ const settingsMenuItem = {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, profile, isLoading } = useUser();
+  const { user, profile } = useUser();
   const { firestore } = useFirebase();
   const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = React.useState(false);
-
-  // New redirection logic
-  if (!isLoading && user && !profile) {
-    redirect('/signup?flow=g-register');
-  }
 
   React.useEffect(() => {
     if (profile?.firstLogin) {
@@ -118,9 +112,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return pathname === path;
   };
   const isGstActive = pathname.startsWith('/gst');
-
-  // This variable determines if we should show a loader inside the main content area.
-  const showContentLoader = isLoading || !profile;
 
   return (
     <SidebarProvider>
@@ -263,13 +254,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {profile && <UserMenu user={profile} avatarUrl={user?.photoURL || userAvatar?.imageUrl} />}
         </header>
         <main className="flex-1 p-4 sm:px-6 sm:pb-6">
-          {showContentLoader ? (
-            <div className="flex h-full w-full items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            children
-          )}
+          {children}
         </main>
       </SidebarInset>
       <WelcomeModal

@@ -2,15 +2,15 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFirebase } from '@/firebase';
+import { useUser } from '@/firebase/auth/use-user';
 import { Loader2 } from 'lucide-react';
 
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const { user, isUserLoading } = useFirebase();
+  const { user, profile, isLoading } = useUser();
   const router = useRouter();
 
   useEffect(() => {
-    if (isUserLoading) {
+    if (isLoading) {
       return; // Still checking, do nothing.
     }
 
@@ -19,10 +19,17 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       router.push('/login');
       return;
     }
-  }, [user, isUserLoading, router]);
 
-  // While loading auth, or if no user (and about to redirect), show a loader.
-  if (isUserLoading || !user) {
+    if (!profile) {
+      // Authenticated but no profile, send to signup completion.
+      router.push('/signup?flow=g-register');
+      return;
+    }
+  }, [user, profile, isLoading, router]);
+
+  // While loading auth OR if we are about to redirect, show a full-screen loader.
+  // This prevents the flicker by not rendering children until we are sure they should be seen.
+  if (isLoading || !user || !profile) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -30,6 +37,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // If authenticated, render the children (AppShell), which will handle the profile check.
+  // If authenticated and profile exists, render the protected content.
   return <>{children}</>;
 }
