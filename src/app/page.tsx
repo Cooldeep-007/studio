@@ -2,29 +2,36 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { IndianRupee, Loader2 } from 'lucide-react';
-import { useUser } from '@/firebase/auth/use-user';
+import { IndianRupee } from 'lucide-react';
+import { useFirebase } from '@/firebase';
 
 export default function SplashScreen() {
   const router = useRouter();
-  const { user, isLoading } = useUser();
+  const { user, isUserLoading: isLoading } = useFirebase();
 
   useEffect(() => {
-    if (isLoading) {
-      // Still loading, do nothing
-      return;
+    const animationDuration = 3000;
+    const startTime = Date.now();
+
+    const performRedirect = () => {
+      const elapsedTime = Date.now() - startTime;
+      const remainingTime = animationDuration - elapsedTime;
+
+      setTimeout(() => {
+        if (user) {
+          router.push('/dashboard');
+        } else {
+          router.push('/login');
+        }
+      }, Math.max(0, remainingTime));
+    };
+
+    if (!isLoading) {
+      performRedirect();
     }
-
-    const timer = setTimeout(() => {
-      if (user) {
-        router.push('/dashboard');
-      } else {
-        router.push('/login');
-      }
-    }, 2000); // Keep splash for 2 seconds before redirect
-
-    return () => clearTimeout(timer);
-  }, [user, isLoading, router]);
+    // This effect will re-run when `isLoading` changes from true to false,
+    // at which point `performRedirect` will be called.
+  }, [isLoading, user, router]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full text-white bg-gradient-to-br from-[#1E3A8A] to-[#2563EB] relative overflow-hidden">
@@ -41,9 +48,9 @@ export default function SplashScreen() {
       </main>
 
       <div className="absolute bottom-20 left-4 right-4 md:left-20 md:right-20">
-         <div className="flex justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-white" />
-         </div>
+         <div className="w-full bg-white/20 rounded-full h-1.5">
+          <div className="bg-accent h-1.5 rounded-full animate-loading-bar"></div>
+        </div>
       </div>
 
       <footer className="absolute bottom-2 text-center text-xs text-white opacity-50">

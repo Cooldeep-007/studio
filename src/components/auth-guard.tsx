@@ -2,11 +2,11 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/firebase/auth/use-user';
+import { useFirebase } from '@/firebase';
 import { Loader2 } from 'lucide-react';
 
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const { user, isLoading } = useUser();
+  const { user, isUserLoading: isLoading } = useFirebase();
   const router = useRouter();
 
   useEffect(() => {
