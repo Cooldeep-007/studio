@@ -1,6 +1,3 @@
-
-'use server';
-
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
@@ -168,5 +165,3 @@ export async function signOut(): Promise<AuthError | null> {
     return handleAuthError(error);
   }
 }
-
-  
