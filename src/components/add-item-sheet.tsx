@@ -50,6 +50,9 @@ const defaultValues: Partial<ItemFormValues> = {
     type: 'Goods',
     unitPrice: 0,
     gstRate: 18,
+    hsnCode: '',
+    sacCode: '',
+    uqc: '',
 };
 
 export function AddItemSheet({
