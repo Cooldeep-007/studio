@@ -238,218 +238,248 @@ export function SalesInvoiceForm() {
                     <CardHeader>
                         <CardTitle>Sales Invoice</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                           <FormField control={form.control} name="invoiceNumber" render={({ field }) => (<FormItem><FormLabel>Invoice No.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                           <FormField control={form.control} name="invoiceDate" render={({ field }) => (
-                               <FormItem className="flex flex-col pt-2"><FormLabel className='mb-2'>Invoice Date</FormLabel>
-                                   <Popover><PopoverTrigger asChild>
-                                           <FormControl>
-                                               <Button variant={"outline"} className={cn("pl-3 font-normal", !field.value && "text-muted-foreground")}>
-                                                   {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                                   <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                               </Button>
-                                           </FormControl>
-                                       </PopoverTrigger>
-                                       <PopoverContent className="w-auto p-0" align="start">
-                                           <Calendar mode="single" selected={field.value} onSelect={field.onChange} />
-                                       </PopoverContent>
-                                   </Popover>
-                               <FormMessage /></FormItem>
-                           )} />
-                            <FormField control={form.control} name="dueDate" render={({ field }) => (
-                               <FormItem className="flex flex-col pt-2"><FormLabel className='mb-2'>Due Date</FormLabel>
-                                   <Popover><PopoverTrigger asChild>
-                                           <FormControl>
-                                               <Button variant={"outline"} className={cn("pl-3 font-normal",!field.value && "text-muted-foreground")}>
-                                                   {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                                   <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                               </Button>
-                                           </FormControl>
-                                       </PopoverTrigger>
-                                       <PopoverContent className="w-auto p-0" align="start">
-                                           <Calendar mode="single" selected={field.value} onSelect={field.onChange} />
-                                       </PopoverContent>
-                                   </Popover>
-                               <FormMessage /></FormItem>
-                           )} />
-                             <FormField control={form.control} name="placeOfSupply" render={({ field }) => (
-                                <FormItem><FormLabel>Place of Supply</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger></FormControl>
-                                    <SelectContent>{indianStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                <FormMessage /></FormItem>)} />
-                        </div>
-                        <Separator />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <FormField control={form.control} name="partyLedgerId" render={({ field }) => (
-                                <FormItem><FormLabel>Customer</FormLabel>
-                                    <div className="flex gap-2">
-                                        <Combobox
-                                            options={customerLedgers.map(l => ({ value: l.id, label: l.ledgerName }))}
-                                            value={field.value}
-                                            onChange={field.onChange}
-                                            placeholder="Select customer"
-                                            searchPlaceholder="Search customer..."
-                                            emptyText="No customer found."
-                                        />
-                                        <AddLedgerSheet ledgers={mockLedgers} onLedgerCreated={handleLedgerCreated}>
-                                            <Button type="button" variant="outline" size="icon" aria-label="Add new ledger"><PlusCircle className="h-4 w-4" /></Button>
-                                        </AddLedgerSheet>
-                                    </div>
-                                <FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="gstin" render={({ field }) => (<FormItem><FormLabel>GSTIN</FormLabel><FormControl><Input {...field} readOnly /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="billingAddress" render={({ field }) => (<FormItem><FormLabel>Billing Address</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="shippingAddress" render={({ field }) => (<FormItem><FormLabel>Shipping Address</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
-                        </div>
-                        <Separator />
-                        <div>
-                          <h3 className="text-lg font-medium mb-2">Item Details</h3>
-                          <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[25%]">Item</TableHead>
-                                    <TableHead>HSN/SAC</TableHead>
-                                    {lineItems.some(item => item.itemType === 'Goods') && <TableHead>Qty</TableHead>}
-                                    {lineItems.some(item => item.itemType === 'Goods') && <TableHead>UQC</TableHead>}
-                                    <TableHead>Rate</TableHead>
-                                    <TableHead>Discount</TableHead>
-                                    <TableHead>GST%</TableHead>
-                                    <TableHead className="text-right">Total</TableHead>
-                                    <TableHead className="w-[50px]"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {fields.map((field, index) => {
-                                    const currentItemType = getValues(`lineItems.${index}.itemType`);
-                                    const item = lineItems[index];
-                                    const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
-                                    const rate = Number(item.rate) || 0;
-                                    const discount = Number(item.discount) || 0;
-                                    const taxableValue = (quantity * rate) - discount;
-                                    const gstRate = Number(item.gstRate) || 0;
-                                    const gstAmount = taxableValue * (gstRate / 100);
-                                    const total = taxableValue + gstAmount;
-
-                                    return (
-                                    <TableRow key={field.id}>
-                                        <TableCell>
-                                            <div className="flex gap-2">
-                                                <FormField
-                                                    control={control}
-                                                    name={`lineItems.${index}.itemId`}
-                                                    render={({ field: itemField }) => (
-                                                        <FormItem className='w-full'>
-                                                        <Combobox
-                                                            options={items.map(item => ({ value: item.id, label: item.name }))}
-                                                            value={itemField.value}
-                                                            onChange={(value) => handleItemSelect(value, index)}
-                                                            placeholder="Select Item"
-                                                            searchPlaceholder="Search item..."
-                                                            emptyText="No item found."
-                                                        />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <AddItemSheet onItemCreated={(newItem) => handleItemCreated(newItem, index)}>
-                                                    <Button type="button" variant="outline" size="icon" aria-label="Add new item"><PlusCircle className="h-4 w-4" /></Button>
-                                                </AddItemSheet>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} /> )} /></TableCell>
-                                        {lineItems.some(item => item.itemType === 'Goods') && (
-                                            <TableCell>
-                                                {currentItemType === 'Goods' && (
-                                                    <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
-                                                        <Input type="number" {...field} /> 
-                                                    )} />
-                                                )}
-                                            </TableCell>
-                                        )}
-                                        {lineItems.some(item => item.itemType === 'Goods') && (
-                                            <TableCell>
-                                                {currentItemType === 'Goods' && (
-                                                    <FormField control={control} name={`lineItems.${index}.uqc`} render={({ field }) => (
-                                                    <Select onValueChange={field.onChange} value={field.value}>
-                                                        <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                                                        <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
-                                                    </Select>)} />
-                                                )}
-                                            </TableCell>
-                                        )}
-                                        <TableCell><FormField control={control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
-                                        <TableCell><FormField control={control} name={`lineItems.${index}.discount`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
-                                        <TableCell><FormField control={control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
-                                        <TableCell className="text-right">
-                                            {total.toFixed(2)}
-                                        </TableCell>
-                                        <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
-                                    </TableRow>
-                                )})}
-                            </TableBody>
-                          </Table>
-                          <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => append(newLineItemDefault)}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Add Item
-                          </Button>
-                        </div>
-                        
-                        <Separator />
-
-                        <div className="flex justify-end">
-                             <div className="w-full max-w-sm space-y-4">
-                                <div className="flex justify-between"><span>Subtotal</span><span>{subtotal.toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{cgst.toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{sgst.toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{igst.toFixed(2)}</span></div>
-                                <Separator />
-                                <div className="flex justify-between font-semibold"><span>Gross Total</span><span>{grossTotal.toFixed(2)}</span></div>
-                                <div className="flex justify-between items-center">
-                                    <div className="flex items-center gap-2">
-                                        <Label>Adjustment</Label>
-                                        <FormField control={control} name="adjustmentType" render={({ field }) => (
-                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                <FormControl><SelectTrigger className="w-[80px] h-8"><SelectValue /></SelectTrigger></FormControl>
-                                                <SelectContent><SelectItem value="Add">Add</SelectItem><SelectItem value="Less">Less</SelectItem></SelectContent>
+                    <CardContent className="p-0 sm:p-6">
+                        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 p-6 sm:p-0">
+                            {/* --- Main Form --- */}
+                            <div className="lg:col-span-3 space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                   <FormField control={form.control} name="invoiceNumber" render={({ field }) => (<FormItem><FormLabel>Invoice No.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                   <FormField control={form.control} name="invoiceDate" render={({ field }) => (
+                                       <FormItem className="flex flex-col"><FormLabel className='mb-2'>Invoice Date</FormLabel>
+                                           <Popover><PopoverTrigger asChild>
+                                                   <FormControl>
+                                                       <Button variant={"outline"} className={cn("pl-3 font-normal", !field.value && "text-muted-foreground")}>
+                                                           {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                       </Button>
+                                                   </FormControl>
+                                               </PopoverTrigger>
+                                               <PopoverContent className="w-auto p-0" align="start">
+                                                   <Calendar mode="single" selected={field.value} onSelect={field.onChange} />
+                                               </PopoverContent>
+                                           </Popover>
+                                       <FormMessage /></FormItem>
+                                   )} />
+                                    <FormField control={form.control} name="dueDate" render={({ field }) => (
+                                       <FormItem className="flex flex-col"><FormLabel className='mb-2'>Due Date</FormLabel>
+                                           <Popover><PopoverTrigger asChild>
+                                                   <FormControl>
+                                                       <Button variant={"outline"} className={cn("pl-3 font-normal",!field.value && "text-muted-foreground")}>
+                                                           {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                       </Button>
+                                                   </FormControl>
+                                               </PopoverTrigger>
+                                               <PopoverContent className="w-auto p-0" align="start">
+                                                   <Calendar mode="single" selected={field.value} onSelect={field.onChange} />
+                                               </PopoverContent>
+                                           </Popover>
+                                       <FormMessage /></FormItem>
+                                   )} />
+                                     <FormField control={form.control} name="placeOfSupply" render={({ field }) => (
+                                        <FormItem><FormLabel>Place of Supply</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger></FormControl>
+                                            <SelectContent>{indianStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                                             </Select>
-                                        )} />
-                                    </div>
-                                    <FormField control={control} name="adjustmentAmount" render={({ field }) => (
-                                        <Input type="number" {...field} className="w-24 h-8 text-right" />
-                                    )} />
+                                        <FormMessage /></FormItem>)} />
                                 </div>
-                                <Separator/>
-                                <div className="flex justify-between font-semibold"><span>Net Before TDS/TCS</span><span>{netBeforeTds.toFixed(2)}</span></div>
+                                <Separator />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                   <FormField control={form.control} name="partyLedgerId" render={({ field }) => (
+                                        <FormItem><FormLabel>Customer</FormLabel>
+                                            <div className="flex gap-2">
+                                                <Combobox
+                                                    options={customerLedgers.map(l => ({ value: l.id, label: l.ledgerName }))}
+                                                    value={field.value}
+                                                    onChange={field.onChange}
+                                                    placeholder="Select customer"
+                                                    searchPlaceholder="Search customer..."
+                                                    emptyText="No customer found."
+                                                />
+                                                <AddLedgerSheet ledgers={mockLedgers} onLedgerCreated={handleLedgerCreated}>
+                                                    <Button type="button" variant="outline" size="icon" aria-label="Add new ledger"><PlusCircle className="h-4 w-4" /></Button>
+                                                </AddLedgerSheet>
+                                            </div>
+                                        <FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="gstin" render={({ field }) => (<FormItem><FormLabel>GSTIN</FormLabel><FormControl><Input {...field} readOnly /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="billingAddress" render={({ field }) => (<FormItem><FormLabel>Billing Address</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
+                                    <FormField control={form.control} name="shippingAddress" render={({ field }) => (<FormItem><FormLabel>Shipping Address</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
+                                </div>
+                                <Separator />
+                                <div>
+                                  <h3 className="text-lg font-medium mb-2">Item Details</h3>
+                                  <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[25%]">Item</TableHead>
+                                            <TableHead>HSN/SAC</TableHead>
+                                            {lineItems.some(item => item.itemType === 'Goods') && <TableHead>Qty</TableHead>}
+                                            {lineItems.some(item => item.itemType === 'Goods') && <TableHead>UQC</TableHead>}
+                                            <TableHead>Rate</TableHead>
+                                            <TableHead>Discount</TableHead>
+                                            <TableHead>GST%</TableHead>
+                                            <TableHead className="text-right">Total</TableHead>
+                                            <TableHead className="w-[50px]"></TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {fields.map((field, index) => {
+                                            const currentItemType = getValues(`lineItems.${index}.itemType`);
+                                            const item = lineItems[index];
+                                            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+                                            const rate = Number(item.rate) || 0;
+                                            const discount = Number(item.discount) || 0;
+                                            const taxableValue = (quantity * rate) - discount;
+                                            const gstRate = Number(item.gstRate) || 0;
+                                            const gstAmount = taxableValue * (gstRate / 100);
+                                            const total = taxableValue + gstAmount;
 
-                                {watch("tcsApplicable") && (
-                                    <div className="flex justify-between items-center">
-                                        <Label>TCS</Label>
-                                        <div className="flex items-center gap-2">
-                                            <FormField control={control} name="tcsRate" render={({ field }) => (
-                                                <Input type="number" {...field} className="w-20 h-8 text-right" placeholder="Rate %" />
-                                            )} />
-                                            <span>{tcsAmount.toFixed(2)}</span>
-                                        </div>
+                                            return (
+                                            <TableRow key={field.id}>
+                                                <TableCell>
+                                                    <div className="flex gap-2">
+                                                        <FormField
+                                                            control={control}
+                                                            name={`lineItems.${index}.itemId`}
+                                                            render={({ field: itemField }) => (
+                                                                <FormItem className='w-full'>
+                                                                <Combobox
+                                                                    options={items.map(item => ({ value: item.id, label: item.name }))}
+                                                                    value={itemField.value}
+                                                                    onChange={(value) => handleItemSelect(value, index)}
+                                                                    placeholder="Select Item"
+                                                                    searchPlaceholder="Search item..."
+                                                                    emptyText="No item found."
+                                                                />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                        <AddItemSheet onItemCreated={(newItem) => handleItemCreated(newItem, index)}>
+                                                            <Button type="button" variant="outline" size="icon" aria-label="Add new item"><PlusCircle className="h-4 w-4" /></Button>
+                                                        </AddItemSheet>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} /> )} /></TableCell>
+                                                {lineItems.some(item => item.itemType === 'Goods') && (
+                                                    <TableCell>
+                                                        {currentItemType === 'Goods' && (
+                                                            <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
+                                                                <Input type="number" {...field} /> 
+                                                            )} />
+                                                        )}
+                                                    </TableCell>
+                                                )}
+                                                {lineItems.some(item => item.itemType === 'Goods') && (
+                                                    <TableCell>
+                                                        {currentItemType === 'Goods' && (
+                                                            <FormField control={control} name={`lineItems.${index}.uqc`} render={({ field }) => (
+                                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                                <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                                                <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
+                                                            </Select>)} />
+                                                        )}
+                                                    </TableCell>
+                                                )}
+                                                <TableCell><FormField control={control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
+                                                <TableCell><FormField control={control} name={`lineItems.${index}.discount`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
+                                                <TableCell><FormField control={control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
+                                                <TableCell className="text-right">
+                                                    {total.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
+                                            </TableRow>
+                                        )})}
+                                    </TableBody>
+                                  </Table>
+                                  <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => append(newLineItemDefault)}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+                                  </Button>
+                                </div>
+                                <Separator />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                         <FormField control={form.control} name="eWayBillRequired" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>E-Way Bill Required?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
+                                         <FormField control={form.control} name="eInvoiceRequired" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>E-Invoice Required?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
+                                         <FormField control={form.control} name="reverseCharge" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>Reverse Charge?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
+                                         <FormField control={form.control} name="tcsApplicable" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>TCS Applicable?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
                                     </div>
-                                )}
-                                <Separator/>
-                                <div className="flex justify-between font-bold text-lg"><span>Grand Total</span><span>{grandTotal.toFixed(2)}</span></div>
+                                     <FormField control={form.control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being sales made..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                </div>
                             </div>
-                        </div>
+                            {/* --- Sticky Summary --- */}
+                            <div className="lg:col-span-2">
+                                <div className="sticky top-24 space-y-6">
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle>Summary</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">Subtotal</span>
+                                                <span>{subtotal.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">CGST</span>
+                                                <span>{cgst.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">SGST</span>
+                                                <span>{sgst.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">IGST</span>
+                                                <span>{igst.toFixed(2)}</span>
+                                            </div>
+                                            <Separator />
+                                            <div className="flex justify-between font-semibold">
+                                                <span>Gross Total</span>
+                                                <span>{grossTotal.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <div className="flex items-center gap-2">
+                                                    <Label className="text-muted-foreground">Adjustment</Label>
+                                                    <FormField control={control} name="adjustmentType" render={({ field }) => (
+                                                        <Select onValueChange={field.onChange} value={field.value}>
+                                                            <FormControl><SelectTrigger className="w-[80px] h-8"><SelectValue /></SelectTrigger></FormControl>
+                                                            <SelectContent><SelectItem value="Add">Add</SelectItem><SelectItem value="Less">Less</SelectItem></SelectContent>
+                                                        </Select>
+                                                    )} />
+                                                </div>
+                                                <FormField control={control} name="adjustmentAmount" render={({ field }) => (
+                                                    <Input type="number" {...field} className="w-24 h-8 text-right" />
+                                                )} />
+                                            </div>
+                                            <Separator/>
+                                            <div className="flex justify-between font-semibold">
+                                                <span>Net Before TDS/TCS</span>
+                                                <span>{netBeforeTds.toFixed(2)}</span>
+                                            </div>
 
-                         <Separator />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-4">
-                                 <FormField control={form.control} name="eWayBillRequired" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>E-Way Bill Required?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
-                                 <FormField control={form.control} name="eInvoiceRequired" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>E-Invoice Required?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
-                                 <FormField control={form.control} name="reverseCharge" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>Reverse Charge?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
-                                 <FormField control={form.control} name="tcsApplicable" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>TCS Applicable?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
+                                            {watch("tcsApplicable") && (
+                                                <div className="flex justify-between items-center text-accent">
+                                                    <Label>TCS</Label>
+                                                    <div className="flex items-center gap-2">
+                                                        <FormField control={control} name="tcsRate" render={({ field }) => (
+                                                            <Input type="number" {...field} className="w-20 h-8 text-right" placeholder="Rate %" />
+                                                        )} />
+                                                        <span>{tcsAmount.toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <Separator className="my-2"/>
+                                            <div className="flex justify-between font-bold text-lg text-accent">
+                                                <span>Grand Total</span>
+                                                <span>{grandTotal.toFixed(2)}</span>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                    <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                                        Save Invoice
+                                    </Button>
+                                </div>
                             </div>
-                             <FormField control={form.control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being sales made..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </div>
                     </CardContent>
-                    <CardFooter>
-                         <Button type="submit" disabled={form.formState.isSubmitting}>Save Invoice</Button>
-                    </CardFooter>
                 </Card>
             </form>
         </Form>
