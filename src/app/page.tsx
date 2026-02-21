@@ -2,18 +2,29 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { IndianRupee } from 'lucide-react';
+import { IndianRupee, Loader2 } from 'lucide-react';
+import { useUser } from '@/firebase/auth/use-user';
 
 export default function SplashScreen() {
   const router = useRouter();
+  const { user, isUserLoading } = useUser();
 
   useEffect(() => {
+    if (isUserLoading) {
+      // Still loading, do nothing
+      return;
+    }
+
     const timer = setTimeout(() => {
-      router.push('/login');
-    }, 3000);
+      if (user) {
+        router.push('/dashboard');
+      } else {
+        router.push('/login');
+      }
+    }, 2000); // Keep splash for 2 seconds before redirect
 
     return () => clearTimeout(timer);
-  }, [router]);
+  }, [user, isUserLoading, router]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full text-white bg-gradient-to-br from-[#1E3A8A] to-[#2563EB] relative overflow-hidden">
@@ -29,10 +40,10 @@ export default function SplashScreen() {
         </p>
       </main>
 
-      <div className="absolute bottom-10 left-4 right-4 md:left-20 md:right-20">
-        <div className="h-1.5 rounded-full bg-white/20 overflow-hidden">
-             <div className="h-full rounded-full bg-[#10B981] animate-loading-bar"></div>
-        </div>
+      <div className="absolute bottom-20 left-4 right-4 md:left-20 md:right-20">
+         <div className="flex justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-white" />
+         </div>
       </div>
 
       <footer className="absolute bottom-2 text-center text-xs text-white opacity-50">

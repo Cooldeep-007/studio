@@ -1,13 +1,17 @@
 export type UserRole = 'SuperAdmin' | 'FirmAdmin' | 'Staff' | 'ClientUser';
 
-export type User = {
-  userId: string;
+export type UserProfile = {
+  uid: string;
   firmId: string;
   role: UserRole;
   name: string;
   email: string;
   avatarUrl?: string;
+  companyName: string;
+  mobile: string;
+  createdAt: any; // Firestore ServerTimestamp
 };
+
 
 export type Firm = {
   firmId: string;

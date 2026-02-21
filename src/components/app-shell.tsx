@@ -1,10 +1,9 @@
 
-"use client";
+'use client';
 
-import * as React from "react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import Image from "next/image";
+import * as React from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Building,
@@ -17,15 +16,16 @@ import {
   Notebook,
   Percent,
   ChevronRight,
-} from "lucide-react";
+  LogOut,
+} from 'lucide-react';
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from '@/components/ui/collapsible';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,7 +33,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
   SidebarProvider,
   Sidebar,
@@ -48,34 +48,36 @@ import {
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
-} from "@/components/ui/sidebar";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
-import type { User } from "@/lib/types";
-import { mockUser } from "@/lib/data";
+} from '@/components/ui/sidebar';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
+import type { UserProfile } from '@/lib/types';
+import { useUser } from '@/firebase/auth/use-user';
+import { signOut } from '@/lib/auth-actions';
 
 const menuItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/companies", label: "Companies", icon: Building },
-  { href: "/ledgers", label: "Masters", icon: BookCopy },
-  { href: "/vouchers", label: "Vouchers", icon: Receipt },
-  { href: "/bank", label: "Bank", icon: Landmark },
-  { href: "/cash", label: "Cash", icon: Wallet },
-  { href: "/notepad", label: "Notepad", icon: Notebook },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/companies', label: 'Companies', icon: Building },
+  { href: '/ledgers', label: 'Masters', icon: BookCopy },
+  { href: '/vouchers', label: 'Vouchers', icon: Receipt },
+  { href: '/bank', label: 'Bank', icon: Landmark },
+  { href: '/cash', label: 'Cash', icon: Wallet },
+  { href: '/notepad', label: 'Notepad', icon: Notebook },
+  { href: '/reports', label: 'Reports', icon: BarChart3 },
 ];
 
 const settingsMenuItem = {
-  href: "/settings",
-  label: "Settings",
+  href: '/settings',
+  label: 'Settings',
   icon: Settings,
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const userAvatar = PlaceHolderImages.find((img) => img.id === "user-avatar");
+  const { user, profile } = useUser();
+  const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
 
   const isActive = (path: string) => {
-    if (path === "/settings") {
+    if (path === '/settings') {
       return pathname.startsWith(path);
     }
     // For ledgers, which is under /ledgers, but label is Masters
@@ -84,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     return pathname === path;
   };
-  const isGstActive = pathname.startsWith("/gst");
+  const isGstActive = pathname.startsWith('/gst');
 
   return (
     <SidebarProvider>
@@ -150,7 +152,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SidebarMenuItem>
               <Collapsible>
                 <CollapsibleTrigger className="w-full" asChild>
-                  <SidebarMenuButton isActive={isGstActive} tooltip={{ children: "GST" }}>
+                  <SidebarMenuButton isActive={isGstActive} tooltip={{ children: 'GST' }}>
                     <Percent />
                     <span className="group-data-[collapsible=icon]:hidden w-full text-left">
                       GST
@@ -163,7 +165,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton
                         asChild
-                        isActive={pathname === "/gst/gstr-1"}
+                        isActive={pathname === '/gst/gstr-1'}
                       >
                         <Link href="/gst/gstr-1">GSTR-1</Link>
                       </SidebarMenuSubButton>
@@ -171,7 +173,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton
                         asChild
-                        isActive={pathname === "/gst/gstr-2b"}
+                        isActive={pathname === '/gst/gstr-2b'}
                       >
                         <Link href="/gst/gstr-2b">GSTR-2B</Link>
                       </SidebarMenuSubButton>
@@ -179,7 +181,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton
                         asChild
-                        isActive={pathname === "/gst/gstr-3b"}
+                        isActive={pathname === '/gst/gstr-3b'}
                       >
                         <Link href="/gst/gstr-3b">GSTR-3B</Link>
                       </SidebarMenuSubButton>
@@ -212,7 +214,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 py-2">
           <SidebarTrigger className="sm:hidden" />
           <div className="relative ml-auto flex-1 md:grow-0"></div>
-          <UserMenu user={mockUser} avatarUrl={userAvatar?.imageUrl} />
+          {profile && <UserMenu user={profile} avatarUrl={user?.photoURL || userAvatar?.imageUrl} />}
         </header>
         <main className="flex-1 p-4 sm:px-6 sm:pb-6">{children}</main>
       </SidebarInset>
@@ -220,8 +222,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function UserMenu({ user, avatarUrl }: { user: User; avatarUrl?: string }) {
+function UserMenu({ user, avatarUrl }: { user: UserProfile; avatarUrl?: string }) {
   const router = useRouter();
+
+  const handleLogout = async () => {
+    await signOut();
+    router.push('/login');
+  };
 
   return (
     <DropdownMenu>
@@ -238,7 +245,7 @@ function UserMenu({ user, avatarUrl }: { user: User; avatarUrl?: string }) {
                 data-ai-hint="person avatar"
               />
             )}
-            <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+            <AvatarFallback>{user.name?.charAt(0)}</AvatarFallback>
           </Avatar>
           <div className="hidden md:flex flex-col items-start">
             <span className="text-sm font-medium">{user.name}</span>
@@ -250,12 +257,14 @@ function UserMenu({ user, avatarUrl }: { user: User; avatarUrl?: string }) {
         <DropdownMenuLabel>My Account</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push('/settings/custom-fields')}>
-          Settings
+          <Settings className="mr-2 h-4 w-4" />
+          <span>Settings</span>
         </DropdownMenuItem>
         <DropdownMenuItem>Support</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => router.push('/login')}>
-          Logout
+        <DropdownMenuItem onSelect={handleLogout}>
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Logout</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

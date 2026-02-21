@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -6,9 +7,9 @@
       "type": "object",
       "description": "Represents a user's profile within a multi-tenant firm, including their role and association with specific companies. Does not store sensitive authentication data like passwords.",
       "properties": {
-        "id": {
+        "uid": {
           "type": "string",
-          "description": "Unique identifier for the UserProfile entity."
+          "description": "Unique identifier for the UserProfile entity, matching Firebase Auth UID."
         },
         "name": {
           "type": "string",
@@ -22,6 +23,10 @@
         "mobile": {
           "type": "string",
           "description": "The mobile number of the user."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "The name of the user's company."
         },
         "role": {
           "type": "string",
@@ -56,15 +61,12 @@
         }
       },
       "required": [
-        "id",
+        "uid",
         "name",
         "email",
         "role",
-        "isActive",
         "firmId",
-        "isDeleted",
-        "createdAt",
-        "updatedAt"
+        "createdAt"
       ]
     },
     "Firm": {
@@ -979,7 +981,7 @@
   "auth": {
     "providers": [
       "password",
-      "anonymous"
+      "google.com"
     ]
   },
   "firestore": {
