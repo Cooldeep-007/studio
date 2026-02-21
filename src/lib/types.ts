@@ -11,6 +11,8 @@ export type UserProfile = {
   companyName: string;
   mobile: string;
   createdAt: any; // Firestore ServerTimestamp
+  firstLogin?: boolean;
+  welcomeTimestamp?: any; // Firestore ServerTimestamp
 };
 
 

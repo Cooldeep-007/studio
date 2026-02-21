@@ -18,6 +18,7 @@ import {
   ChevronRight,
   LogOut,
 } from 'lucide-react';
+import { doc, serverTimestamp } from 'firebase/firestore';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,8 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import type { UserProfile } from '@/lib/types';
 import { useUser } from '@/firebase/auth/use-user';
 import { signOut } from '@/lib/auth-actions';
+import { useFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { WelcomeModal } from '@/components/welcome-modal';
 
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Owner', 'Admin', 'Accountant', 'Staff'] },
@@ -75,9 +78,29 @@ const settingsMenuItem = {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, profile } = useUser();
+  const { firestore } = useFirebase();
   const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
+  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = React.useState(false);
 
   const userRole = profile?.role;
+
+  React.useEffect(() => {
+    if (profile?.firstLogin) {
+      setIsWelcomeModalOpen(true);
+    }
+  }, [profile]);
+
+  const handleWelcomeModalClose = () => {
+    setIsWelcomeModalOpen(false);
+    if (profile && firestore) {
+      const userRef = doc(firestore, 'users', profile.uid);
+      updateDocumentNonBlocking(userRef, {
+        firstLogin: false,
+        welcomeTimestamp: serverTimestamp(),
+      });
+    }
+  };
+
 
   const isActive = (path: string) => {
     if (path === '/settings/custom-fields') {
@@ -227,6 +250,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <main className="flex-1 p-4 sm:px-6 sm:pb-6">{children}</main>
       </SidebarInset>
+      <WelcomeModal
+        open={isWelcomeModalOpen}
+        onOpenChange={handleWelcomeModalClose}
+        userName={profile?.name}
+      />
     </SidebarProvider>
   );
 }
@@ -279,5 +307,3 @@ function UserMenu({ user, avatarUrl }: { user: UserProfile; avatarUrl?: string }
     </DropdownMenu>
   );
 }
-
-  

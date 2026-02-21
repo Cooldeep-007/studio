@@ -47,6 +47,10 @@ function handleAuthError(error: any): AuthError {
       case 'auth/operation-not-allowed':
         errorMessage = 'Operation not allowed. Please enable Email/Password and Google sign-in methods in your Firebase Console -> Authentication -> Sign-in method tab.';
         break;
+      case 'auth/popup-closed-by-user':
+        // This is not a "failure" error, so we can handle it gracefully.
+        errorMessage = 'Sign-in process was cancelled.';
+        break;
       default:
         errorMessage = error.message;
         break;
@@ -63,6 +67,7 @@ async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid' | 'c
     firmId,
     ...data,
     role: 'Owner', // Default role for new sign-ups
+    firstLogin: true,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
