@@ -18,6 +18,7 @@ import {
   AlarmClock,
 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
+import { format } from 'date-fns';
 import {
   Card,
   CardContent,
@@ -146,6 +147,49 @@ export default function DashboardPage() {
 
   const netProfit = totalIncome - totalExpenses;
 
+  // --- TDS Calculation Logic ---
+  const expenseLedgerTdsMap = React.useMemo(() => new Map(
+      mockLedgers
+          .filter(l => l.group === 'Expense' && l.tdsTcsConfig?.tdsEnabled && l.tdsTcsConfig.tdsRate)
+          .map(l => [l.id, l.tdsTcsConfig])
+  ), []);
+
+  const { totalTdsDeducted, tdsBreakdown } = React.useMemo(() => {
+      let totalTds = 0;
+      const breakdown: Record<string, { name: string; value: number; section: string }> = {};
+
+      filteredVouchers.forEach(v => {
+          if ((v.voucherType === 'Payment' || v.voucherType === 'Journal')) {
+              const partyLedgerId = v.partyLedger;
+              const tdsConfig = expenseLedgerTdsMap.get(partyLedgerId);
+              if (tdsConfig?.tdsRate) {
+                  // Assuming totalAmount is the base for TDS as per mock data structure
+                  const tdsAmount = v.totalAmount * (tdsConfig.tdsRate / 100);
+                  totalTds += tdsAmount;
+                  const section = tdsConfig.tdsSection || 'Unknown';
+                  const sectionName = `Sec ${section}`;
+                  if (!breakdown[sectionName]) {
+                      breakdown[sectionName] = { name: sectionName, value: 0, section };
+                  }
+                  breakdown[sectionName].value += tdsAmount;
+              }
+          }
+      });
+      return { totalTdsDeducted: totalTds, tdsBreakdown: Object.values(breakdown) };
+  }, [filteredVouchers, expenseLedgerTdsMap]);
+
+  const upcomingTdsDueDate = React.useMemo(() => {
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    if (currentDay <= 7) {
+        return new Date(currentYear, currentMonth, 7);
+    } else {
+        return new Date(currentYear, currentMonth + 1, 7);
+    }
+  }, []);
+
   // --- Static Snapshot Data ---
   const bankBalance = mockLedgers
     .filter((l) => l.group === 'Bank Accounts' && !l.isGroup)
@@ -171,15 +215,6 @@ export default function DashboardPage() {
     (n) => n.status === 'Pending'
   ).length;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todaysReminders = mockNotes.filter((n) => {
-    if (!n.reminderDate) return false;
-    const reminderDate = new Date(n.reminderDate);
-    reminderDate.setHours(0, 0, 0, 0);
-    return reminderDate.getTime() === today.getTime();
-  }).length;
-
   // --- Chart Configurations ---
   const chartColors = ['chart-1', 'chart-2', 'chart-3', 'chart-4', 'chart-5'];
 
@@ -203,6 +238,24 @@ export default function DashboardPage() {
       return acc;
     }, {} as any),
   } satisfies ChartConfig;
+
+  const tdsChartData = tdsBreakdown.map((item, index) => ({
+    ...item,
+    fill: `var(--color-${chartColors[(index + 2) % chartColors.length]})`,
+  }));
+
+  const tdsChartConfig = {
+    value: { label: 'Amount' },
+    ...tdsBreakdown.reduce((acc, item, index) => {
+      const key = item.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      acc[key] = {
+        label: item.name,
+        color: `hsl(var(--${chartColors[(index + 2) % chartColors.length]}))`,
+      };
+      return acc;
+    }, {} as any),
+  } satisfies ChartConfig;
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -278,14 +331,16 @@ export default function DashboardPage() {
         <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Today&apos;s Reminders
+              Upcoming TDS Due Date
             </CardTitle>
-            <AlarmClock className="h-4 w-4 text-muted-foreground" />
+            <CalendarCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{todaysReminders}</div>
+            <div className="text-2xl font-bold">
+                {format(upcomingTdsDueDate, 'dd MMM yyyy')}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Notes marked for today
+              For TDS deducted in {format(new Date(upcomingTdsDueDate.getFullYear(), upcomingTdsDueDate.getMonth() - 1, 1), 'MMMM')}
             </p>
           </CardContent>
         </Card>
@@ -363,6 +418,66 @@ export default function DashboardPage() {
               </ScrollArea>
             </div>
           </CardContent>
+        </Card>
+        <Card className="lg:col-span-7">
+            <CardHeader>
+                <CardTitle>TDS Deduction Summary</CardTitle>
+                <CardDescription>
+                    Section-wise TDS deducted in the selected period.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-6">
+                <DashboardChart
+                    data={tdsChartData}
+                    config={tdsChartConfig}
+                    totalValue={totalTdsDeducted}
+                />
+                 <div className="space-y-2">
+                  <ScrollArea className="h-40">
+                    <div className="space-y-4 pr-4">
+                      {tdsChartData.length > 0 ? (
+                        tdsChartData.map((item) => {
+                          const key = item.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                          const percentage =
+                            totalTdsDeducted > 0
+                              ? (item.value / totalTdsDeducted) * 100
+                              : 0;
+                          return (
+                            <div
+                              key={item.name}
+                              className="flex items-center group cursor-pointer rounded-md p-1 -m-1 hover:bg-muted/50"
+                            >
+                              <div className="flex items-center gap-2 flex-1">
+                                <span
+                                  className="h-2 w-2 rounded-full"
+                                  style={{
+                                    backgroundColor: tdsChartConfig[key]?.color,
+                                  }}
+                                />
+                                <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
+                                  {item.name}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-semibold text-sm">
+                                  {formatCurrency(item.value)}
+                                </span>
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  {percentage.toFixed(0)}%
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-center text-sm text-muted-foreground">
+                          No TDS deducted in this period.
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+            </CardContent>
         </Card>
       </div>
     </div>
