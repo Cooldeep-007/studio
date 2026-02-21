@@ -1,8 +1,9 @@
+
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -25,11 +26,12 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { signUpWithEmail } from '@/lib/auth-actions';
+import { signUpWithEmail, completeGoogleSignup } from '@/lib/auth-actions';
 import { Loader2 } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 
-const signupSchema = z
+// Schema for the full email signup
+const emailSignupSchema = z
   .object({
     name: z.string().min(2, 'Name must be at least 2 characters.'),
     companyName: z.string().min(2, 'Company name must be at least 2 characters.'),
@@ -43,16 +45,29 @@ const signupSchema = z
     path: ['confirmPassword'],
   });
 
-type SignupFormValues = z.infer<typeof signupSchema>;
+// Schema for completing Google signup
+const googleSignupSchema = z.object({
+  name: z.string(), // Will be pre-filled
+  companyName: z.string().min(2, 'Company name must be at least 2 characters.'),
+  mobile: z.string().min(10, 'Mobile number must be at least 10 digits.'),
+  email: z.string(), // Will be pre-filled
+  password: z.string().optional(),
+  confirmPassword: z.string().optional(),
+});
+
 
 export default function SignupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user, isLoading } = useUser();
+  const { user, isLoading: isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  
+  const flow = searchParams.get('flow');
+  const isGoogleSignupFlow = flow === 'g-register';
 
-  const form = useForm<SignupFormValues>({
-    resolver: zodResolver(signupSchema),
+  const form = useForm({
+    resolver: zodResolver(isGoogleSignupFlow ? googleSignupSchema : emailSignupSchema),
     defaultValues: {
       name: '',
       companyName: '',
@@ -64,26 +79,47 @@ export default function SignupPage() {
   });
 
   React.useEffect(() => {
-    if (!isLoading && user) {
-      router.push('/dashboard');
+    if (isGoogleSignupFlow && user) {
+      form.reset({
+        name: user.displayName || '',
+        email: user.email || '',
+      });
     }
-  }, [user, isLoading, router]);
-
-  const onSubmit = async (values: SignupFormValues) => {
+  }, [isGoogleSignupFlow, user, form]);
+  
+  const onSubmit = async (values: z.infer<typeof emailSignupSchema | typeof googleSignupSchema>) => {
     setIsSubmitting(true);
-    const error = await signUpWithEmail(values);
+    let error;
+    
+    if (isGoogleSignupFlow) {
+        error = await completeGoogleSignup({
+            companyName: values.companyName,
+            mobile: values.mobile,
+        });
+        if (!error) {
+            toast({
+                title: 'Profile Complete',
+                description: 'Welcome! Your account is now fully set up.',
+            });
+            router.push('/dashboard');
+        }
+    } else {
+        error = await signUpWithEmail(values as z.infer<typeof emailSignupSchema>);
+        if (!error) {
+            toast({
+                title: 'Account Created',
+                description: 'You have been successfully signed up.',
+            });
+            router.push('/dashboard');
+        }
+    }
+    
     if (error) {
       toast({
         variant: 'destructive',
-        title: 'Sign-up Failed',
+        title: 'An Error Occurred',
         description: error.message,
       });
-    } else {
-      toast({
-        title: 'Account Created',
-        description: 'You have been successfully signed up.',
-      });
-      router.push('/dashboard');
     }
     setIsSubmitting(false);
   };
@@ -91,9 +127,9 @@ export default function SignupPage() {
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="text-2xl">Sign Up</CardTitle>
+        <CardTitle className="text-2xl">{isGoogleSignupFlow ? 'Complete Your Profile' : 'Sign Up'}</CardTitle>
         <CardDescription>
-          Enter your information to create an account.
+          {isGoogleSignupFlow ? 'Just a few more details to get you started.' : 'Enter your information to create an account.'}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -106,7 +142,7 @@ export default function SignupPage() {
                 <FormItem>
                   <Label htmlFor="full-name">Full Name</Label>
                   <FormControl>
-                    <Input id="full-name" placeholder="Max Robinson" {...field} />
+                    <Input id="full-name" placeholder="Max Robinson" {...field} readOnly={isGoogleSignupFlow} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -145,50 +181,56 @@ export default function SignupPage() {
                 <FormItem>
                   <Label htmlFor="email">Email</Label>
                   <FormControl>
-                    <Input id="email" type="email" placeholder="m@example.com" {...field} />
+                    <Input id="email" type="email" placeholder="m@example.com" {...field} readOnly={isGoogleSignupFlow}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <Label htmlFor="password">Password</Label>
-                  <FormControl>
-                    <Input id="password" type="password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <FormControl>
-                    <Input id="confirmPassword" type="password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {!isGoogleSignupFlow && (
+                <>
+                    <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                        <FormItem>
+                        <Label htmlFor="password">Password</Label>
+                        <FormControl>
+                            <Input id="password" type="password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                        <FormItem>
+                        <Label htmlFor="confirmPassword">Confirm Password</Label>
+                        <FormControl>
+                            <Input id="confirmPassword" type="password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </>
+            )}
+            <Button type="submit" className="w-full" disabled={isSubmitting || isUserLoading}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create an account
+              {isGoogleSignupFlow ? 'Complete Registration' : 'Create an account'}
             </Button>
           </form>
         </Form>
-        <div className="mt-4 text-center text-sm">
-          Already have an account?{' '}
-          <Link href="/login" className="underline">
-            Sign in
-          </Link>
-        </div>
+        {!isGoogleSignupFlow && (
+            <div className="mt-4 text-center text-sm">
+            Already have an account?{' '}
+            <Link href="/login" className="underline">
+                Sign in
+            </Link>
+            </div>
+        )}
       </CardContent>
     </Card>
   );

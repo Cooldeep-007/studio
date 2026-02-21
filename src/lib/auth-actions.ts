@@ -126,6 +126,41 @@ export async function signUpWithEmail(formData: {
   }
 }
 
+export async function completeGoogleSignup(formData: {
+  companyName: string;
+  mobile: string;
+}): Promise<AuthError | null> {
+  try {
+    const user = auth.currentUser;
+    if (!user) {
+      return { code: 'auth/no-user', message: 'No authenticated user found. Please sign in again.' };
+    }
+
+    // Check if profile already exists, just in case.
+    const userProfileRef = doc(firestore, `users/${user.uid}`);
+    const docSnap = await getDoc(userProfileRef);
+    if (docSnap.exists()) {
+        return { code: 'auth/profile-exists', message: 'A profile for this user already exists.' };
+    }
+
+    const firmId = `firm-${user.uid}`;
+    
+    await createFirm(firmId, user.uid, formData.companyName);
+
+    await createUserProfile(user.uid, {
+      name: user.displayName || 'New User',
+      email: user.email!,
+      companyName: formData.companyName,
+      mobile: formData.mobile,
+      role: 'Owner',
+    }, firmId);
+
+    return null;
+  } catch (error) {
+    return handleAuthError(error);
+  }
+}
+
 // Sign in with Email and Password
 export async function signInWithEmail(email: string, password: string): Promise<AuthError | null> {
   try {
@@ -140,31 +175,13 @@ export async function signInWithEmail(email: string, password: string): Promise<
 export async function signInWithGoogle(): Promise<AuthError | null> {
   const provider = new GoogleAuthProvider();
   try {
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
-
-    const userProfileRef = doc(firestore, `users/${user.uid}`);
-    const docSnap = await getDoc(userProfileRef);
-
-    if (!docSnap.exists()) {
-      // New Google sign-in user becomes an Owner of their own new firm
-      const firmId = `firm-${user.uid}`;
-      const companyName = `${user.displayName}'s Company`;
-
-      await createFirm(firmId, user.uid, companyName);
-
-      await createUserProfile(user.uid, {
-        name: user.displayName || 'Google User',
-        email: user.email!,
-        companyName: companyName,
-        mobile: user.phoneNumber || '',
-        role: 'Owner',
-      }, firmId);
-    }
+    await signInWithPopup(auth, provider);
+    // After popup, the onAuthStateChanged listener will trigger.
+    // Our AuthGuard will then detect if it's a new user (auth object exists, but no firestore profile)
+    // and redirect them to the completion step.
     return null;
   } catch (error: any) {
     // If the user closes the popup, it's not a true "error" we need to display.
-    // We can just ignore it and let the user try again if they want.
     if (error.code === 'auth/popup-closed-by-user') {
       return null;
     }
