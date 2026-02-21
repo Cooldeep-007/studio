@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -26,9 +25,11 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { signUpWithEmail, completeGoogleSignup } from '@/lib/auth-actions';
-import { Loader2 } from 'lucide-react';
+import { signUpWithEmail, completeGoogleSignup, type AuthError } from '@/lib/auth-actions';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
 
 // Schema for the full email signup
 const emailSignupSchema = z
@@ -62,6 +63,7 @@ export default function SignupPage() {
   const { toast } = useToast();
   const { user, isLoading: isUserLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [authError, setAuthError] = React.useState<AuthError | null>(null);
   
   const flow = searchParams.get('flow');
   const isGoogleSignupFlow = flow === 'g-register';
@@ -89,6 +91,7 @@ export default function SignupPage() {
   
   const onSubmit = async (values: z.infer<typeof emailSignupSchema | typeof googleSignupSchema>) => {
     setIsSubmitting(true);
+    setAuthError(null);
     let error;
     
     if (isGoogleSignupFlow) {
@@ -115,11 +118,15 @@ export default function SignupPage() {
     }
     
     if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'An Error Occurred',
-        description: error.message,
-      });
+      if (error.code === 'auth/email-already-in-use') {
+        setAuthError(error);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'An Error Occurred',
+          description: error.message,
+        });
+      }
     }
     setIsSubmitting(false);
   };
@@ -133,6 +140,18 @@ export default function SignupPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {authError && authError.code === 'auth/email-already-in-use' && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Account Already Exists</AlertTitle>
+            <AlertDescription>
+              An account with this email already exists.
+              <Button asChild variant="link" className="p-0 h-auto ml-1 font-semibold">
+                <Link href="/login">Log in instead.</Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
             <FormField
