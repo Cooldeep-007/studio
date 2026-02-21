@@ -7,10 +7,10 @@ import { useUser } from '@/firebase/auth/use-user';
 
 export default function SplashScreen() {
   const router = useRouter();
-  const { user, isUserLoading } = useUser();
+  const { user, isLoading } = useUser();
 
   useEffect(() => {
-    if (isUserLoading) {
+    if (isLoading) {
       // Still loading, do nothing
       return;
     }
@@ -24,7 +24,7 @@ export default function SplashScreen() {
     }, 2000); // Keep splash for 2 seconds before redirect
 
     return () => clearTimeout(timer);
-  }, [user, isUserLoading, router]);
+  }, [user, isLoading, router]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen w-full text-white bg-gradient-to-br from-[#1E3A8A] to-[#2563EB] relative overflow-hidden">
