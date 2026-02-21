@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { redirect, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -58,7 +58,6 @@ const googleSignupSchema = z.object({
 
 
 export default function SignupPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user, profile, isLoading: isAuthLoading } = useUser();
@@ -81,15 +80,8 @@ export default function SignupPage() {
   });
 
   React.useEffect(() => {
-    // If user and profile are loaded, and both exist, user shouldn't be here.
-    // Redirect them to the dashboard. This handles cases where a logged-in user
-    // with a complete profile navigates to the signup page.
-    if (!isAuthLoading && user && profile) {
-      router.push('/dashboard');
-    }
-  }, [isAuthLoading, user, profile, router]);
-
-  React.useEffect(() => {
+    // This effect now only runs if the flow is for Google signup and we have a user object.
+    // The redirection logic is handled outside of useEffect.
     if (isGoogleSignupFlow && user) {
       form.reset({
         name: user.displayName || '',
@@ -115,7 +107,8 @@ export default function SignupPage() {
                 title: 'Profile Complete',
                 description: 'Welcome! Your account is now fully set up.',
             });
-            router.push('/dashboard');
+            // After successful completion, redirect to dashboard.
+            redirect('/dashboard');
         }
     } else {
         error = await signUpWithEmail(values as z.infer<typeof emailSignupSchema>);
@@ -124,7 +117,8 @@ export default function SignupPage() {
                 title: 'Account Created',
                 description: 'You have been successfully signed up.',
             });
-            router.push('/dashboard');
+            // After successful signup, redirect to dashboard.
+            redirect('/dashboard');
         }
     }
     
@@ -132,12 +126,11 @@ export default function SignupPage() {
       if (error.code === 'auth/email-already-in-use') {
         setAuthError(error);
       } else if (error.code === 'auth/profile-exists') {
-        // The profile exists, so just take them to the dashboard.
         toast({
           title: 'Profile Found',
           description: 'Your profile already exists. Redirecting you to the dashboard.',
         });
-        router.push('/dashboard');
+        redirect('/dashboard');
       }
       else {
         toast({
@@ -157,6 +150,19 @@ export default function SignupPage() {
         </div>
     );
   }
+
+  // --- NEW REDIRECTION LOGIC ---
+  if (!isAuthLoading && user && profile) {
+    // A fully signed-in user with a profile should not be on this page.
+    redirect('/dashboard');
+  }
+
+  // A logged-in Google user without a profile should be on the g-register flow.
+  // If they somehow land on the regular signup, redirect them.
+  if (!isAuthLoading && user && !profile && !isGoogleSignupFlow) {
+    redirect('/signup?flow=g-register');
+  }
+
 
   return (
     <Card className="w-full">

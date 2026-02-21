@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, redirect } from 'next/navigation';
 import {
   LayoutDashboard,
   Building,
@@ -84,15 +84,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = React.useState(false);
 
-  React.useEffect(() => {
-    if (isLoading) {
-      return; // Wait until user and profile status is confirmed
-    }
-    if (user && !profile) {
-      // User is authenticated but has no profile, redirect to complete signup
-      router.push('/signup?flow=g-register');
-    }
-  }, [user, profile, isLoading, router]);
+  // New redirection logic
+  if (!isLoading && user && !profile) {
+    redirect('/signup?flow=g-register');
+  }
 
   React.useEffect(() => {
     if (profile?.firstLogin) {
@@ -125,8 +120,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isGstActive = pathname.startsWith('/gst');
 
   // This variable determines if we should show a loader inside the main content area.
-  // It's true if we're still loading the profile OR if we've determined a redirect is necessary.
-  const showContentLoader = isLoading || (user && !profile);
+  const showContentLoader = isLoading || !profile;
 
   return (
     <SidebarProvider>
