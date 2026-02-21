@@ -98,33 +98,35 @@ export function ProformaInvoiceForm() {
         name: 'lineItems',
     });
 
+    const { watch, setValue, getValues, trigger, reset } = form;
+
     const customerLedgers = React.useMemo(() => mockLedgers.filter(l => l.group === 'Sundry Debtor'), []);
     const companyState = "Karnataka";
 
-    const lineItems = form.watch('lineItems');
-    const placeOfSupply = form.watch('placeOfSupply');
+    const lineItems = watch('lineItems');
+    const placeOfSupply = watch('placeOfSupply');
 
     const showGoodsColumns = lineItems.some(item => item.itemType === 'Goods');
 
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = mockItems.find(item => item.id === itemId);
         if (selectedItem) {
-            form.setValue(`lineItems.${index}.itemType`, selectedItem.type);
-            form.setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
-            form.setValue(`lineItems.${index}.rate`, selectedItem.unitPrice);
-            form.setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
+            setValue(`lineItems.${index}.itemType`, selectedItem.type);
+            setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
+            setValue(`lineItems.${index}.rate`, selectedItem.unitPrice);
+            setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
             
             if (selectedItem.type === 'Goods') {
-                form.setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
-                const currentQty = form.getValues(`lineItems.${index}.quantity`);
+                setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
+                const currentQty = getValues(`lineItems.${index}.quantity`);
                 if (currentQty === undefined || currentQty === 0) {
-                  form.setValue(`lineItems.${index}.quantity`, 1);
+                  setValue(`lineItems.${index}.quantity`, 1);
                 }
             } else {
-                form.setValue(`lineItems.${index}.quantity`, 1);
-                form.setValue(`lineItems.${index}.uqc`, undefined);
+                setValue(`lineItems.${index}.quantity`, 1);
+                setValue(`lineItems.${index}.uqc`, undefined);
             }
-            form.trigger(`lineItems.${index}`);
+            trigger(`lineItems.${index}`);
         }
     };
 
@@ -153,13 +155,13 @@ export function ProformaInvoiceForm() {
         });
 
         if (JSON.stringify(updatedLineItems) !== JSON.stringify(lineItems)) {
-            form.setValue('lineItems', updatedLineItems, { shouldValidate: true });
+            setValue('lineItems', updatedLineItems, { shouldValidate: true });
         }
         
-        form.setValue('totalTaxableAmount', subTotal);
-        form.setValue('totalGst', totalGst);
-        form.setValue('grandTotal', subTotal + totalGst);
-    }, [lineItems, placeOfSupply, form, companyState]);
+        setValue('totalTaxableAmount', subTotal);
+        setValue('totalGst', totalGst);
+        setValue('grandTotal', subTotal + totalGst);
+    }, [lineItems, placeOfSupply, companyState, setValue]);
     
     function onSubmit(data: ProformaInvoiceFormValues) {
         console.log(data);
@@ -167,6 +169,7 @@ export function ProformaInvoiceForm() {
             title: "Proforma Invoice Saved",
             description: `Proforma Invoice ${data.proformaNumber} has been saved as a draft.`,
         });
+        reset();
     }
     
     return (
@@ -252,12 +255,12 @@ export function ProformaInvoiceForm() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                            <FormField control={form.control} name="terms" render={({ field }) => (<FormItem><FormLabel>Terms & Conditions</FormLabel><FormControl><Textarea placeholder="Payment terms, delivery schedule, etc." {...field} /></FormControl><FormMessage /></FormItem>)} />
                            <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Subtotal</span><span>{form.getValues('totalTaxableAmount').toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Subtotal</span><span>{getValues('totalTaxableAmount').toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{lineItems.reduce((acc, item) => acc + item.cgst, 0).toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{lineItems.reduce((acc, item) => acc + item.sgst, 0).toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{lineItems.reduce((acc, item) => acc + item.igst, 0).toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{form.getValues('grandTotal').toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{getValues('grandTotal').toFixed(2)}</span></div>
                             </div>
                         </div>
                     </CardContent>

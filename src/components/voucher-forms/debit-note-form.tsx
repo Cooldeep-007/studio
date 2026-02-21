@@ -113,47 +113,49 @@ export function DebitNoteForm() {
         name: 'lineItems',
     });
 
+    const { watch, setValue, getValues, trigger, reset } = form;
+
     const supplierLedgers = React.useMemo(() => mockLedgers.filter(l => l.group === 'Sundry Creditor'), []);
     const reasonLedgers = React.useMemo(() => mockLedgers.filter(l => l.parentLedgerId === 'group-purchase-accounts' || l.parentLedgerId === 'group-indirect-expenses'), []);
     const companyState = "Karnataka";
 
-    const lineItems = form.watch('lineItems');
-    const placeOfSupply = form.watch('placeOfSupply');
-    const partyLedgerId = form.watch('supplierLedgerId');
+    const lineItems = watch('lineItems');
+    const placeOfSupply = watch('placeOfSupply');
+    const partyLedgerId = watch('supplierLedgerId');
 
     const showGoodsColumns = lineItems.some(item => item.itemType === 'Goods');
 
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = mockItems.find(item => item.id === itemId);
         if (selectedItem) {
-            form.setValue(`lineItems.${index}.itemType`, selectedItem.type);
-            form.setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
-            form.setValue(`lineItems.${index}.rate`, selectedItem.unitPrice);
-            form.setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
+            setValue(`lineItems.${index}.itemType`, selectedItem.type);
+            setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
+            setValue(`lineItems.${index}.rate`, selectedItem.unitPrice);
+            setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
             
             if (selectedItem.type === 'Goods') {
-                form.setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
-                const currentQty = form.getValues(`lineItems.${index}.quantity`);
+                setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
+                const currentQty = getValues(`lineItems.${index}.quantity`);
                 if (currentQty === undefined || currentQty === 0) {
-                  form.setValue(`lineItems.${index}.quantity`, 1);
+                  setValue(`lineItems.${index}.quantity`, 1);
                 }
             } else {
-                form.setValue(`lineItems.${index}.quantity`, 1);
-                form.setValue(`lineItems.${index}.uqc`, undefined);
+                setValue(`lineItems.${index}.quantity`, 1);
+                setValue(`lineItems.${index}.uqc`, undefined);
             }
-            form.trigger(`lineItems.${index}`);
+            trigger(`lineItems.${index}`);
         }
     };
 
      React.useEffect(() => {
         const party = supplierLedgers.find(c => c.id === partyLedgerId);
         if (party) {
-            form.setValue('gstin', party.gstDetails?.gstin || '');
+            setValue('gstin', party.gstDetails?.gstin || '');
             if(party.contactDetails?.state) {
-              form.setValue('placeOfSupply', party.contactDetails.state, { shouldValidate: true });
+              setValue('placeOfSupply', party.contactDetails.state, { shouldValidate: true });
             }
         }
-    }, [partyLedgerId, form, supplierLedgers]);
+    }, [partyLedgerId, setValue, supplierLedgers]);
 
      React.useEffect(() => {
         let subTotal = 0;
@@ -185,15 +187,15 @@ export function DebitNoteForm() {
         });
 
         if (JSON.stringify(updatedLineItems) !== JSON.stringify(lineItems)) {
-            form.setValue('lineItems', updatedLineItems, { shouldValidate: true });
+            setValue('lineItems', updatedLineItems, { shouldValidate: true });
         }
         
         const grandTotal = subTotal + totalGst;
-        form.setValue('totalTaxableAmount', subTotal);
-        form.setValue('totalGst', totalGst);
-        form.setValue('grandTotal', grandTotal);
+        setValue('totalTaxableAmount', subTotal);
+        setValue('totalGst', totalGst);
+        setValue('grandTotal', grandTotal);
 
-    }, [lineItems, placeOfSupply, form, companyState]);
+    }, [lineItems, placeOfSupply, companyState, setValue]);
 
 
     function onSubmit(data: DebitNoteFormValues) {
@@ -202,7 +204,7 @@ export function DebitNoteForm() {
             title: "Debit Note Created",
             description: `Debit Note against invoice ${data.originalInvoiceNo} has been saved.`,
         });
-        form.reset();
+        reset();
     }
 
     return (
@@ -343,12 +345,12 @@ export function DebitNoteForm() {
                                 <FormField control={form.control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being debit note raised for goods returned..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                             </div>
                             <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Taxable Value</span><span>{form.getValues('totalTaxableAmount').toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Taxable Value</span><span>{getValues('totalTaxableAmount').toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Input CGST Reversal</span><span>{lineItems.reduce((acc, item) => acc + item.cgst, 0).toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Input SGST Reversal</span><span>{lineItems.reduce((acc, item) => acc + item.sgst, 0).toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Input IGST Reversal</span><span>{lineItems.reduce((acc, item) => acc + item.igst, 0).toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total Debit Note Value</span><span>{form.getValues('grandTotal').toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Total Debit Note Value</span><span>{getValues('grandTotal').toFixed(2)}</span></div>
                             </div>
                         </div>
                     </CardContent>
