@@ -6,7 +6,7 @@ import type { UserProfile } from '@/lib/types';
 import { doc } from 'firebase/firestore';
 
 export function useUser() {
-  const { firestore, user, isUserLoading, userError } = useFirebase();
+  const { firestore, user, isUserLoading: isLoading, userError } = useFirebase();
 
   const userProfileRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -23,10 +23,10 @@ export function useUser() {
     () => ({
       user,
       profile,
-      isLoading: isUserLoading || isProfileLoading,
+      isLoading: isLoading || isProfileLoading,
       error: userError || profileError,
     }),
-    [user, profile, isUserLoading, isProfileLoading, userError, profileError]
+    [user, profile, isLoading, isProfileLoading, userError, profileError]
   );
 
   return value;

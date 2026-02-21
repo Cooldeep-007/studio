@@ -54,7 +54,7 @@ function GoogleIcon() {
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user, isUserLoading } = useUser();
+  const { user, isLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const form = useForm<LoginFormValues>({
@@ -63,10 +63,10 @@ export default function LoginPage() {
   });
 
   React.useEffect(() => {
-    if (!isUserLoading && user) {
+    if (!isLoading && user) {
       router.push('/dashboard');
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isLoading, router]);
 
   const handleGoogleSignIn = async () => {
     setIsSubmitting(true);
@@ -97,14 +97,6 @@ export default function LoginPage() {
     }
     setIsSubmitting(false);
   };
-
-  if (isUserLoading || user) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
 
   return (
     <Card className="w-full">
