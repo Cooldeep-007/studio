@@ -183,10 +183,10 @@ export function PurchaseInvoiceForm() {
         let totalGst = 0;
 
         const updatedLineItems = lineItems.map(item => {
-            const quantity = item.itemType === 'Goods' ? (item.quantity || 0) : 1;
-            const rate = item.rate || 0;
-            const discount = item.discount || 0;
-            const gstRate = item.gstRate || 0;
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+            const rate = Number(item.rate) || 0;
+            const discount = Number(item.discount) || 0;
+            const gstRate = Number(item.gstRate) || 0;
             
             const taxableValue = quantity * rate - discount;
             const gstAmount = taxableValue * (gstRate / 100);

@@ -135,9 +135,9 @@ export function ProformaInvoiceForm() {
         let totalGst = 0;
 
         const updatedLineItems = lineItems.map(item => {
-            const quantity = item.itemType === 'Goods' ? (item.quantity || 0) : 1;
-            const rate = item.rate || 0;
-            const gstRate = item.gstRate || 0;
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+            const rate = Number(item.rate) || 0;
+            const gstRate = Number(item.gstRate) || 0;
             const taxableValue = quantity * rate;
             const gstAmount = taxableValue * (gstRate / 100);
             let cgst = 0, sgst = 0, igst = 0;
