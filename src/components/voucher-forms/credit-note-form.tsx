@@ -116,28 +116,27 @@ export function CreditNoteForm() {
     const placeOfSupply = watch('placeOfSupply');
     const partyLedgerId = watch('customerLedgerId');
     
-    const showGoodsColumns = lineItems.some(item => item.itemType === 'Goods');
-
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = mockItems.find(item => item.id === itemId);
         if (selectedItem) {
-            const lineItems = getValues('lineItems');
-            lineItems[index].itemType = selectedItem.type;
-            lineItems[index].hsnSacCode = selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode;
-            lineItems[index].rate = selectedItem.unitPrice;
-            lineItems[index].gstRate = selectedItem.gstRate;
+            const currentLineItems = getValues('lineItems');
+            const currentItem = currentLineItems[index];
+
+            currentItem.itemType = selectedItem.type;
+            currentItem.hsnSacCode = selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode;
+            currentItem.rate = selectedItem.unitPrice;
+            currentItem.gstRate = selectedItem.gstRate;
             
             if (selectedItem.type === 'Goods') {
-                lineItems[index].uqc = selectedItem.uqc;
-                const currentQty = getValues(`lineItems.${index}.quantity`);
-                if (currentQty === undefined || currentQty === 0) {
-                  lineItems[index].quantity = 1;
+                currentItem.uqc = selectedItem.uqc;
+                if (currentItem.quantity === undefined || currentItem.quantity === 0) {
+                  currentItem.quantity = 1;
                 }
-            } else {
-                lineItems[index].quantity = 1;
-                lineItems[index].uqc = undefined;
+            } else { // It's a service
+                currentItem.quantity = 1;
+                currentItem.uqc = undefined;
             }
-            setValue('lineItems', lineItems);
+            setValue('lineItems', currentLineItems);
             trigger('lineItems');
         }
     };
@@ -153,11 +152,11 @@ export function CreditNoteForm() {
     }, [partyLedgerId, setValue, customerLedgers]);
 
     const calculateTotals = React.useCallback(() => {
-        const lineItems = getValues('lineItems');
+        const currentLineItems = getValues('lineItems');
         let subTotal = 0;
         let totalGst = 0;
 
-        lineItems.forEach(item => {
+        currentLineItems.forEach(item => {
             const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
             const rate = Number(item.rate) || 0;
             const gstRate = Number(item.gstRate) || 0;
@@ -296,8 +295,8 @@ export function CreditNoteForm() {
                                 <TableRow>
                                     <TableHead className="w-[25%]">Item</TableHead>
                                     <TableHead>HSN/SAC</TableHead>
-                                    {showGoodsColumns && <TableHead>Qty</TableHead>}
-                                    {showGoodsColumns && <TableHead>UQC</TableHead>}
+                                    <TableHead>Qty</TableHead>
+                                    <TableHead>UQC</TableHead>
                                     <TableHead>Rate</TableHead>
                                     <TableHead>GST%</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
@@ -318,24 +317,18 @@ export function CreditNoteForm() {
                                             )} />
                                         </TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
-                                        
-                                        {showGoodsColumns && (
-                                            <TableCell>
-                                                <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
-                                                    <Input type="number" {...field} style={{visibility: currentItemType === 'Goods' ? 'visible' : 'hidden'}} /> 
-                                                )} />
-                                            </TableCell>
-                                        )}
-                                        {showGoodsColumns && (
-                                            <TableCell>
-                                                <FormField control={form.control} name={`lineItems.${index}.uqc`} render={({ field }) => (
-                                                <Select onValueChange={field.onChange} value={field.value} disabled={currentItemType !== 'Goods'}>
-                                                    <FormControl><SelectTrigger style={{visibility: currentItemType === 'Goods' ? 'visible' : 'hidden'}}><SelectValue/></SelectTrigger></FormControl>
-                                                    <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
-                                                </Select>)} />
-                                            </TableCell>
-                                        )}
-
+                                        <TableCell>
+                                            <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
+                                                <Input type="number" {...field} disabled={currentItemType !== 'Goods'} /> 
+                                            )} />
+                                        </TableCell>
+                                        <TableCell>
+                                            <FormField control={form.control} name={`lineItems.${index}.uqc`} render={({ field }) => (
+                                            <Select onValueChange={field.onChange} value={field.value} disabled={currentItemType !== 'Goods'}>
+                                                <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                                <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
+                                            </Select>)} />
+                                        </TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
                                         <TableCell className="text-right">
