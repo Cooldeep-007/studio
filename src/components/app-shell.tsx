@@ -1,8 +1,9 @@
+
 "use client";
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   LayoutDashboard,
@@ -220,6 +221,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 function UserMenu({ user, avatarUrl }: { user: User; avatarUrl?: string }) {
+  const router = useRouter();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -246,13 +249,15 @@ function UserMenu({ user, avatarUrl }: { user: User; avatarUrl?: string }) {
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>My Account</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>Settings</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => router.push('/settings/custom-fields')}>
+          Settings
+        </DropdownMenuItem>
         <DropdownMenuItem>Support</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>Logout</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => router.push('/login')}>
+          Logout
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
-
-    
