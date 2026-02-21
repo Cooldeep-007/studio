@@ -71,6 +71,20 @@ export default function DashboardPage() {
     to: new Date(2023, 11, 31),
   });
 
+  const [upcomingTdsDueDate, setUpcomingTdsDueDate] = React.useState<Date | null>(null);
+
+  React.useEffect(() => {
+    const today = new Date();
+    const currentDay = today.getDate();
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+    if (currentDay <= 7) {
+        setUpcomingTdsDueDate(new Date(currentYear, currentMonth, 7));
+    } else {
+        setUpcomingTdsDueDate(new Date(currentYear, currentMonth + 1, 7));
+    }
+  }, []);
+
   // --- Data Filtering Logic ---
   const filteredVouchers = mockVouchers.filter((v) => {
     const voucherDate = new Date(v.date);
@@ -178,18 +192,6 @@ export default function DashboardPage() {
       });
       return { totalTdsDeducted: totalTds, tdsBreakdown: Object.values(breakdown) };
   }, [filteredVouchers, expenseLedgerTdsMap]);
-
-  const upcomingTdsDueDate = React.useMemo(() => {
-    const today = new Date();
-    const currentDay = today.getDate();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-    if (currentDay <= 7) {
-        return new Date(currentYear, currentMonth, 7);
-    } else {
-        return new Date(currentYear, currentMonth + 1, 7);
-    }
-  }, []);
 
   // --- Static Snapshot Data ---
   const bankBalance = mockLedgers
@@ -344,11 +346,17 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-                {format(upcomingTdsDueDate, 'dd MMM yyyy')}
+                {upcomingTdsDueDate ? (
+                    format(upcomingTdsDueDate, 'dd MMM yyyy')
+                ) : (
+                    <span className="text-muted-foreground text-lg">Loading...</span>
+                )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              For TDS deducted in {format(new Date(upcomingTdsDueDate.getFullYear(), upcomingTdsDueDate.getMonth() - 1, 1), 'MMMM')}
-            </p>
+            {upcomingTdsDueDate && (
+                <p className="text-xs text-muted-foreground">
+                    For TDS deducted in {format(new Date(upcomingTdsDueDate.getFullYear(), upcomingTdsDueDate.getMonth() - 1, 1), 'MMMM')}
+                </p>
+            )}
           </CardContent>
         </Card>
       </div>
