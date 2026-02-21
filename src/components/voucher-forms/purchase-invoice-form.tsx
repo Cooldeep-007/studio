@@ -23,6 +23,7 @@ import { Textarea } from '../ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { AddLedgerSheet } from '../add-ledger-sheet';
 import { AddItemSheet } from '../add-item-sheet';
+import { Combobox } from '../ui/combobox';
 
 const lineItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required.'),
@@ -178,7 +179,7 @@ export function PurchaseInvoiceForm() {
     
     const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
         let subTotal = 0;
-        let totalGst = 0;
+        let totalGstAmount = 0;
 
         lineItems.forEach(item => {
             const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
@@ -190,13 +191,13 @@ export function PurchaseInvoiceForm() {
             const gstAmount = taxableValue * (gstRate / 100);
 
             subTotal += taxableValue;
-            totalGst += gstAmount;
+            totalGstAmount += gstAmount;
         });
         
         return {
             totalTaxableAmount: subTotal,
-            totalGst: totalGst,
-            grandTotal: subTotal + totalGst
+            totalGst: totalGstAmount,
+            grandTotal: subTotal + totalGstAmount
         };
     }, [lineItems]);
     
@@ -279,9 +280,14 @@ export function PurchaseInvoiceForm() {
                            <FormField control={form.control} name="partyLedgerId" render={({ field }) => (
                                 <FormItem><FormLabel>Supplier</FormLabel>
                                     <div className="flex gap-2">
-                                        <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Supplier"/></SelectTrigger></FormControl>
-                                        <SelectContent>{supplierLedgers.map(c => <SelectItem key={c.id} value={c.id}>{c.ledgerName}</SelectItem>)}</SelectContent>
-                                        </Select>
+                                        <Combobox
+                                            options={supplierLedgers.map(l => ({ value: l.id, label: l.ledgerName }))}
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                            placeholder="Select supplier"
+                                            searchPlaceholder="Search supplier..."
+                                            emptyText="No supplier found."
+                                        />
                                         <AddLedgerSheet ledgers={mockLedgers} onLedgerCreated={handleLedgerCreated}>
                                             <Button type="button" variant="outline" size="icon" aria-label="Add new ledger"><PlusCircle className="h-4 w-4" /></Button>
                                         </AddLedgerSheet>
@@ -314,12 +320,25 @@ export function PurchaseInvoiceForm() {
                                     <TableRow key={field.id}>
                                         <TableCell>
                                             <div className="flex gap-2">
-                                                <FormField control={form.control} name={`lineItems.${index}.itemId`} render={({ field }) => (
-                                                    <Select onValueChange={(value) => { field.onChange(value); handleItemSelect(value, index); }} value={field.value}>
-                                                        <FormControl><SelectTrigger><SelectValue placeholder="Select Item" /></SelectTrigger></FormControl>
-                                                        <SelectContent>{items.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
-                                                    </Select>
-                                                )} />
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`lineItems.${index}.itemId`}
+                                                    render={({ field: itemField }) => (
+                                                        <FormItem className='w-full'>
+                                                        <Combobox
+                                                            options={items.map(item => ({ value: item.id, label: item.name }))}
+                                                            value={itemField.value}
+                                                            onChange={(value) => {
+                                                                itemField.onChange(value);
+                                                                handleItemSelect(value, index);
+                                                            }}
+                                                            placeholder="Select Item"
+                                                            searchPlaceholder="Search item..."
+                                                            emptyText="No item found."
+                                                        />
+                                                        </FormItem>
+                                                    )}
+                                                />
                                                 <AddItemSheet onItemCreated={(newItem) => handleItemCreated(newItem, index)}>
                                                     <Button type="button" variant="outline" size="icon" aria-label="Add new item"><PlusCircle className="h-4 w-4" /></Button>
                                                 </AddItemSheet>
@@ -328,12 +347,12 @@ export function PurchaseInvoiceForm() {
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
                                         <TableCell>
                                             <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
-                                                <Input type="number" {...field} disabled={currentItemType !== 'Goods'} /> 
+                                                <Input type="number" {...field} disabled={currentItemType === 'Services'} /> 
                                             )} />
                                         </TableCell>
                                         <TableCell>
                                             <FormField control={form.control} name={`lineItems.${index}.uqc`} render={({ field }) => (
-                                            <Select onValueChange={field.onChange} value={field.value} disabled={currentItemType !== 'Goods'}>
+                                            <Select onValueChange={field.onChange} value={field.value} disabled={currentItemType === 'Services'}>
                                                 <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
                                                 <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
                                             </Select>)} />

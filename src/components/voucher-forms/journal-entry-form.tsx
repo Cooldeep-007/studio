@@ -20,6 +20,7 @@ import { Textarea } from '../ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { AddLedgerSheet } from '../add-ledger-sheet';
+import { Combobox } from '../ui/combobox';
 
 const lineItemSchema = z.object({
   ledgerId: z.string().min(1, 'Ledger is required.'),
@@ -129,11 +130,22 @@ export function JournalEntryForm() {
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex gap-2">
-                                                <FormField control={form.control} name={`lineItems.${index}.ledgerId`} render={({ field }) => (
-                                                    <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Ledger" /></SelectTrigger></FormControl>
-                                                    <SelectContent>{ledgers.map(l => <SelectItem key={l.id} value={l.id}>{l.ledgerName}</SelectItem>)}</SelectContent>
-                                                    </Select>
-                                                )} />
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`lineItems.${index}.ledgerId`}
+                                                    render={({ field: ledgerField }) => (
+                                                        <FormItem className='w-full'>
+                                                        <Combobox
+                                                            options={ledgers.map(l => ({ value: l.id, label: l.ledgerName }))}
+                                                            value={ledgerField.value}
+                                                            onChange={ledgerField.onChange}
+                                                            placeholder="Select ledger"
+                                                            searchPlaceholder="Search ledger..."
+                                                            emptyText="No ledger found."
+                                                        />
+                                                        </FormItem>
+                                                    )}
+                                                />
                                                 <AddLedgerSheet ledgers={mockLedgers} onLedgerCreated={(ledger) => handleLedgerCreated(ledger, index)}>
                                                     <Button type="button" variant="outline" size="icon" aria-label="Add new ledger"><PlusCircle className="h-4 w-4" /></Button>
                                                 </AddLedgerSheet>

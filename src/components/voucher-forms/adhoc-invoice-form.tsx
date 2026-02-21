@@ -11,7 +11,6 @@ import { indianStates, gstRates } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
@@ -21,6 +20,9 @@ import { format } from 'date-fns';
 import { Textarea } from '../ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { AddLedgerSheet } from '../add-ledger-sheet';
+import { Combobox } from '../ui/combobox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+
 
 const lineItemSchema = z.object({
   description: z.string().min(1, 'Description is required.'),
@@ -68,7 +70,7 @@ export function AdhocInvoiceForm() {
 
     const companyState = "Karnataka";
 
-    const watchedLineItems = watch('lineItems');
+    const lineItems = watch('lineItems');
     const placeOfSupply = watch('placeOfSupply');
 
     const handleLedgerCreated = (newLedger: Ledger) => {
@@ -78,23 +80,23 @@ export function AdhocInvoiceForm() {
 
     const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
         let subTotal = 0;
-        let totalGst = 0;
+        let totalGstAmount = 0;
         
-        watchedLineItems.forEach(item => {
+        lineItems.forEach(item => {
             const amount = Number(item.amount) || 0;
             const gstRate = Number(item.gstRate) || 0;
             const gstAmount = amount * (gstRate / 100);
             
             subTotal += amount;
-            totalGst += gstAmount;
+            totalGstAmount += gstAmount;
         });
 
         return {
             totalTaxableAmount: subTotal,
-            totalGst: totalGst,
-            grandTotal: subTotal + totalGst,
+            totalGst: totalGstAmount,
+            grandTotal: subTotal + totalGstAmount,
         };
-    }, [watchedLineItems]);
+    }, [lineItems]);
 
     const isIntraState = placeOfSupply === companyState;
     const cgst = isIntraState ? totalGst / 2 : 0;
@@ -140,9 +142,14 @@ export function AdhocInvoiceForm() {
                              <FormField control={form.control} name="partyLedgerId" render={({ field }) => (
                                 <FormItem><FormLabel>Party</FormLabel>
                                     <div className="flex gap-2">
-                                        <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Party"/></SelectTrigger></FormControl>
-                                        <SelectContent>{partyLedgers.map(c => <SelectItem key={c.id} value={c.id}>{c.ledgerName}</SelectItem>)}</SelectContent>
-                                        </Select>
+                                        <Combobox
+                                            options={partyLedgers.map(l => ({ value: l.id, label: l.ledgerName }))}
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                            placeholder="Select party"
+                                            searchPlaceholder="Search party..."
+                                            emptyText="No party found."
+                                        />
                                         <AddLedgerSheet ledgers={mockLedgers} onLedgerCreated={handleLedgerCreated}>
                                             <Button type="button" variant="outline" size="icon" aria-label="Add new ledger"><PlusCircle className="h-4 w-4" /></Button>
                                         </AddLedgerSheet>
@@ -169,7 +176,7 @@ export function AdhocInvoiceForm() {
                                         </TableCell>
                                         <TableCell className="text-right">
                                             {(() => {
-                                                const item = watchedLineItems[index];
+                                                const item = lineItems[index];
                                                 const amount = Number(item?.amount) || 0;
                                                 const gstRate = Number(item?.gstRate) || 0;
                                                 const total = amount + (amount * (gstRate / 100));
