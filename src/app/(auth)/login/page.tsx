@@ -30,8 +30,10 @@ import {
   signInWithEmail,
   AuthError,
 } from '@/lib/auth-actions';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address.'),
@@ -56,6 +58,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const { user, isLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [authError, setAuthError] = React.useState<string | null>(null);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -68,15 +71,25 @@ export default function LoginPage() {
     }
   }, [user, isLoading, router]);
 
-  const handleGoogleSignIn = async () => {
-    setIsSubmitting(true);
-    const error = await signInWithGoogle();
-    if (error) {
+  const handleError = (error: AuthError) => {
+    if (error.code === 'auth/operation-not-allowed') {
+      setAuthError(error.message);
+    } else {
+      setAuthError(null);
       toast({
         variant: 'destructive',
         title: 'Sign-in Failed',
         description: error.message,
       });
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsSubmitting(true);
+    setAuthError(null);
+    const error = await signInWithGoogle();
+    if (error) {
+      handleError(error);
     } else {
       router.push('/dashboard');
     }
@@ -85,13 +98,10 @@ export default function LoginPage() {
 
   const handleEmailSignIn = async (values: LoginFormValues) => {
     setIsSubmitting(true);
+    setAuthError(null);
     const error = await signInWithEmail(values.email, values.password);
     if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Sign-in Failed',
-        description: error.message,
-      });
+      handleError(error);
     } else {
       router.push('/dashboard');
     }
@@ -107,6 +117,15 @@ export default function LoginPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {authError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Configuration Required</AlertTitle>
+              <AlertDescription>
+                {authError}
+              </AlertDescription>
+            </Alert>
+        )}
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleEmailSignIn)} className="grid gap-4">
             <FormField
