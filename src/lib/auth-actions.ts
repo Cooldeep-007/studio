@@ -1,14 +1,14 @@
+
 'use server';
 
 import {
-  getAuth,
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
   signInWithEmailAndPassword,
   signInWithPopup,
-  GoogleAuthProvider,
   signOut as firebaseSignOut,
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
 import type { UserProfile } from './types';
 
@@ -55,13 +55,33 @@ function handleAuthError(error: any): AuthError {
 }
 
 // Create User Profile in Firestore
-async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid' | 'createdAt'>) {
+async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid' | 'createdAt' | 'firmId'>, firmId: string) {
   const userProfileRef = doc(firestore, `users/${uid}`);
   await setDoc(userProfileRef, {
     uid,
+    firmId,
     ...data,
     createdAt: serverTimestamp(),
   });
+}
+
+// Create Firm document in Firestore
+async function createFirm(firmId: string, ownerId: string, firmName: string) {
+    const firmRef = doc(firestore, `firms/${firmId}`);
+    await setDoc(firmRef, {
+        id: firmId,
+        firmName: firmName,
+        ownerId: ownerId,
+        planType: 'Free',
+        subscriptionStatus: 'Trial',
+        maxUsers: 5,
+        maxVouchersPerMonth: 100,
+        renewalDate: new Date(new Date().setDate(new Date().getDate() + 30)), // 30-day trial
+        isActive: true,
+        isDeleted: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    });
 }
 
 // Sign up with Email and Password
@@ -76,15 +96,21 @@ export async function signUpWithEmail(formData: {
     const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
     const user = userCredential.user;
 
-    // Create user profile
+    // This user is the first one, so they are the Owner.
+    // Their company becomes the firm.
+    const firmId = `firm-${user.uid}`;
+    
+    // Create the Firm document
+    await createFirm(firmId, user.uid, formData.companyName);
+
+    // Create user profile and link it to the new firm
     await createUserProfile(user.uid, {
       name: formData.name,
       email: user.email!,
       companyName: formData.companyName,
       mobile: formData.mobile,
-      role: 'FirmAdmin', // Default role
-      firmId: `firm-${user.uid}`, // Simple firm ID generation
-    });
+      role: 'Owner', // First user is the Owner
+    }, firmId);
 
     return null;
   } catch (error) {
@@ -109,20 +135,23 @@ export async function signInWithGoogle(): Promise<AuthError | null> {
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
 
-    // Check if user profile already exists, if not, create one
     const userProfileRef = doc(firestore, `users/${user.uid}`);
-    const { getDoc } = await import('firebase/firestore');
     const docSnap = await getDoc(userProfileRef);
 
     if (!docSnap.exists()) {
+      // New Google sign-in user becomes an Owner of their own new firm
+      const firmId = `firm-${user.uid}`;
+      const companyName = `${user.displayName}'s Company`;
+
+      await createFirm(firmId, user.uid, companyName);
+
       await createUserProfile(user.uid, {
         name: user.displayName || 'Google User',
         email: user.email!,
-        companyName: `${user.displayName}'s Company`,
+        companyName: companyName,
         mobile: user.phoneNumber || '',
-        role: 'FirmAdmin',
-        firmId: `firm-${user.uid}`,
-      });
+        role: 'Owner',
+      }, firmId);
     }
     return null;
   } catch (error) {
@@ -139,3 +168,5 @@ export async function signOut(): Promise<AuthError | null> {
     return handleAuthError(error);
   }
 }
+
+  

@@ -55,20 +55,21 @@ import { useUser } from '@/firebase/auth/use-user';
 import { signOut } from '@/lib/auth-actions';
 
 const menuItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/companies', label: 'Companies', icon: Building },
-  { href: '/ledgers', label: 'Masters', icon: BookCopy },
-  { href: '/vouchers', label: 'Vouchers', icon: Receipt },
-  { href: '/bank', label: 'Bank', icon: Landmark },
-  { href: '/cash', label: 'Cash', icon: Wallet },
-  { href: '/notepad', label: 'Notepad', icon: Notebook },
-  { href: '/reports', label: 'Reports', icon: BarChart3 },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['Owner', 'Admin', 'Accountant', 'Staff'] },
+  { href: '/companies', label: 'Companies', icon: Building, roles: ['Owner', 'Admin'] },
+  { href: '/ledgers', label: 'Masters', icon: BookCopy, roles: ['Owner', 'Admin', 'Accountant'] },
+  { href: '/vouchers', label: 'Vouchers', icon: Receipt, roles: ['Owner', 'Admin', 'Accountant', 'Staff'] },
+  { href: '/bank', label: 'Bank', icon: Landmark, roles: ['Owner', 'Admin', 'Accountant'] },
+  { href: '/cash', label: 'Cash', icon: Wallet, roles: ['Owner', 'Admin', 'Accountant'] },
+  { href: '/notepad', label: 'Notepad', icon: Notebook, roles: ['Owner', 'Admin', 'Accountant', 'Staff'] },
+  { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['Owner', 'Admin', 'Accountant'] },
 ];
 
 const settingsMenuItem = {
-  href: '/settings',
+  href: '/settings/custom-fields',
   label: 'Settings',
   icon: Settings,
+  roles: ['Owner', 'Admin'],
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -76,9 +77,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, profile } = useUser();
   const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
 
+  const userRole = profile?.role;
+
   const isActive = (path: string) => {
-    if (path === '/settings') {
-      return pathname.startsWith(path);
+    if (path === '/settings/custom-fields') {
+      return pathname.startsWith('/settings');
     }
     // For ledgers, which is under /ledgers, but label is Masters
     if (path === '/ledgers') {
@@ -135,78 +138,84 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <SidebarContent>
           <SidebarMenu>
             {menuItems.map((item) => (
-              <SidebarMenuItem key={item.label}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={isActive(item.href)}
-                  tooltip={{ children: item.label }}
-                  className="justify-start"
-                >
-                  <Link href={item.href}>
-                    <item.icon />
-                    <span>{item.label}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-            <SidebarMenuItem>
-              <Collapsible>
-                <CollapsibleTrigger className="w-full" asChild>
-                  <SidebarMenuButton isActive={isGstActive} tooltip={{ children: 'GST' }}>
-                    <Percent />
-                    <span className="group-data-[collapsible=icon]:hidden w-full text-left">
-                      GST
-                    </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden ml-auto" />
+              userRole && item.roles.includes(userRole) && (
+                <SidebarMenuItem key={item.label}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive(item.href)}
+                    tooltip={{ children: item.label }}
+                    className="justify-start"
+                  >
+                    <Link href={item.href}>
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </Link>
                   </SidebarMenuButton>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <SidebarMenuSub>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton
-                        asChild
-                        isActive={pathname === '/gst/gstr-1'}
-                      >
-                        <Link href="/gst/gstr-1">GSTR-1</Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton
-                        asChild
-                        isActive={pathname === '/gst/gstr-2b'}
-                      >
-                        <Link href="/gst/gstr-2b">GSTR-2B</Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton
-                        asChild
-                        isActive={pathname === '/gst/gstr-3b'}
-                      >
-                        <Link href="/gst/gstr-3b">GSTR-3B</Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  </SidebarMenuSub>
-                </CollapsibleContent>
-              </Collapsible>
-            </SidebarMenuItem>
+                </SidebarMenuItem>
+              )
+            ))}
+            {(userRole === 'Owner' || userRole === 'Admin' || userRole === 'Accountant') && (
+              <SidebarMenuItem>
+                <Collapsible>
+                  <CollapsibleTrigger className="w-full" asChild>
+                    <SidebarMenuButton isActive={isGstActive} tooltip={{ children: 'GST' }}>
+                      <Percent />
+                      <span className="group-data-[collapsible=icon]:hidden w-full text-left">
+                        GST
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90 group-data-[collapsible=icon]:hidden ml-auto" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          asChild
+                          isActive={pathname === '/gst/gstr-1'}
+                        >
+                          <Link href="/gst/gstr-1">GSTR-1</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          asChild
+                          isActive={pathname === '/gst/gstr-2b'}
+                        >
+                          <Link href="/gst/gstr-2b">GSTR-2B</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          asChild
+                          isActive={pathname === '/gst/gstr-3b'}
+                        >
+                          <Link href="/gst/gstr-3b">GSTR-3B</Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </Collapsible>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-4">
           <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={isActive(settingsMenuItem.href)}
-                tooltip={{ children: settingsMenuItem.label }}
-                className="justify-start"
-              >
-                <Link href="/settings/custom-fields">
-                  <settingsMenuItem.icon />
-                  <span>{settingsMenuItem.label}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            {userRole && settingsMenuItem.roles.includes(userRole) && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive(settingsMenuItem.href)}
+                  tooltip={{ children: settingsMenuItem.label }}
+                  className="justify-start"
+                >
+                  <Link href={settingsMenuItem.href}>
+                    <settingsMenuItem.icon />
+                    <span>{settingsMenuItem.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
@@ -270,3 +279,5 @@ function UserMenu({ user, avatarUrl }: { user: UserProfile; avatarUrl?: string }
     </DropdownMenu>
   );
 }
+
+  

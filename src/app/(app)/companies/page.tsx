@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -38,8 +39,13 @@ import { DeleteCompanyDialog } from '@/components/delete-company-dialog';
 import { ArchiveCompanyDialog } from '@/components/archive-company-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from "@/components/ui/badge";
+import { useUser } from '@/firebase/auth/use-user';
 
 export default function CompaniesPage() {
+  const { profile } = useUser();
+  const userRole = profile?.role;
+  const canManage = userRole === 'Owner' || userRole === 'Admin';
+
   const [companies, setCompanies] = React.useState<Company[]>(mockCompanies);
   const [activeTab, setActiveTab] = React.useState("active");
   const [isAddSheetOpen, setIsAddSheetOpen] = React.useState(false);
@@ -127,6 +133,8 @@ export default function CompaniesPage() {
   }
 
   const renderCompanyActions = (company: Company, isArchived: boolean) => {
+    if (!canManage) return null;
+
     if (isArchived) {
       return (
         <DropdownMenuItem onClick={() => handleRestoreCompany(company)}>
@@ -156,9 +164,7 @@ export default function CompaniesPage() {
               <TableHead>Company Name</TableHead>
               <TableHead>Financial Year</TableHead>
               <TableHead>GST Status</TableHead>
-              <TableHead className="w-[50px] text-right">
-                Actions
-              </TableHead>
+              {canManage && <TableHead className="w-[50px] text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -180,30 +186,32 @@ export default function CompaniesPage() {
                     <Badge variant="secondary">Unregistered</Badge>
                   )}
                 </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Open menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {renderCompanyActions(company, isArchived)}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => openDeleteDialog(company)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+                {canManage && (
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Open menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {renderCompanyActions(company, isArchived)}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => openDeleteDialog(company)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                )}
               </TableRow>
             )) : (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
+                <TableCell colSpan={canManage ? 4 : 3} className="h-24 text-center">
                   No {isArchived ? 'archived' : 'active'} companies.
                 </TableCell>
               </TableRow>
@@ -219,16 +227,18 @@ export default function CompaniesPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Companies</h1>
-          <AddCompanySheet
-            open={isAddSheetOpen}
-            onOpenChange={setIsAddSheetOpen}
-            onCompanyCreated={handleAddCompany}
-          >
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Add Company
-            </Button>
-          </AddCompanySheet>
+          {canManage && (
+            <AddCompanySheet
+              open={isAddSheetOpen}
+              onOpenChange={setIsAddSheetOpen}
+              onCompanyCreated={handleAddCompany}
+            >
+              <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Company
+              </Button>
+            </AddCompanySheet>
+          )}
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -262,3 +272,5 @@ export default function CompaniesPage() {
     </>
   );
 }
+
+  

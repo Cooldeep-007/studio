@@ -1,4 +1,5 @@
-export type UserRole = 'SuperAdmin' | 'FirmAdmin' | 'Staff' | 'ClientUser';
+
+export type UserRole = 'Owner' | 'Admin' | 'Accountant' | 'Staff';
 
 export type UserProfile = {
   uid: string;
@@ -186,3 +187,5 @@ export type Item = {
   salesLedgerId: string;
   purchaseLedgerId: string;
 };
+
+  

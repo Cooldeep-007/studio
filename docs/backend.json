@@ -30,7 +30,13 @@
         },
         "role": {
           "type": "string",
-          "description": "The assigned role of the user (e.g., SuperAdmin, FirmAdmin, Staff, ClientUser)."
+          "description": "The assigned role of the user, defining their access level.",
+          "enum": [
+            "Owner",
+            "Admin",
+            "Accountant",
+            "Staff"
+          ]
         },
         "isActive": {
           "type": "boolean",
@@ -83,13 +89,40 @@
           "type": "string",
           "description": "The legal name of the firm."
         },
-        "subscriptionPlan": {
+        "ownerId": {
           "type": "string",
-          "description": "The current subscription plan of the firm (e.g., Basic, Premium, Enterprise)."
+          "description": "The UID of the user who owns this firm."
         },
-        "subscriptionExpiry": {
+        "planType": {
           "type": "string",
-          "description": "The date and time when the firm's subscription plan expires.",
+          "description": "The current subscription plan (e.g., Free, Basic, Pro).",
+          "enum": [
+            "Free",
+            "Basic",
+            "Pro"
+          ]
+        },
+        "maxUsers": {
+          "type": "number",
+          "description": "The maximum number of users allowed under the current plan."
+        },
+        "maxVouchersPerMonth": {
+          "type": "number",
+          "description": "The maximum number of vouchers that can be created per month."
+        },
+        "subscriptionStatus": {
+          "type": "string",
+          "description": "The status of the subscription (e.g., Active, Expired, Canceled).",
+          "enum": [
+            "Active",
+            "Expired",
+            "Canceled",
+            "Trial"
+          ]
+        },
+        "renewalDate": {
+          "type": "string",
+          "description": "The date and time when the firm's subscription plan is due for renewal.",
           "format": "date-time"
         },
         "isActive": {
@@ -115,6 +148,9 @@
       "required": [
         "id",
         "firmName",
+        "ownerId",
+        "planType",
+        "subscriptionStatus",
         "isActive",
         "isDeleted",
         "createdAt",
@@ -1282,3 +1318,5 @@
     "reasoning": "The recommended Firestore structure is designed to strictly adhere to the core principles of Authorization Independence, Structural Segregation, and Access Modeling, ensuring a secure, scalable, and debuggable multi-tenant SaaS accounting application.\n\n**Authorization Independence (via Denormalization):**\nEach document that represents data within a specific `Firm` or `Company` context explicitly includes the `firmId` and, where applicable, the `companyId` as direct fields. This denormalization is crucial for `Authorization Independence`. For example, a `Ledger` document stored at `/firms/{firmId}/companies/{companyId}/ledgers/{ledgerId}` will contain `ledger.firmId` and `ledger.companyId`. This eliminates the need for security rules to perform expensive and non-atomic `get()` operations on parent documents (e.g., to retrieve `companyId` from a `Company` document before authorizing access to a `Ledger`). Instead, rules can directly compare the `firmId` and `companyId` extracted from the `request.auth.uid`'s `UserProfile` (which stores the user's `firmId` and `companyId`) with the `firmId` and `companyId` present in the document itself. This design allows for atomic writes and reads and greatly simplifies rule logic, making it robust against race conditions and easier to debug.\n\n**Support for QAPs (Queries as Authorization Policies):**\n1.  **Path-Based Ownership:** The `/users/{userId}` path for `UserProfile` documents inherently supports QAPs by enforcing that `request.auth.uid` must match `{userId}`. This makes `list` operations on user profiles trivially secure, as a user can only query their own profile.\n2.  **Denormalized `firmId` and `companyId`:** For all firm- and company-scoped data, the explicit inclusion of `firmId` and `companyId` in every document enables QAPs at a broader scale. Security rules will mandate that any `list` query must include `where('firmId', '==', request.auth.firmId)` and/or `where('companyId', '==', request.auth.companyId)`. The rules then merely *validate* that the query's filters match the authenticated user's access scope (derived from their `UserProfile`), rather than attempting to filter results themselves. This ensures that clients can only ever request data they are authorized to see, making `list` operations efficient and secure.\n3.  **Structural Segregation:** Data is hierarchically organized (`/firms/{firmId}/companies/{companyId}/...`). This ensures that all documents within a given collection (e.g., `/firms/{firmId}/companies/{companyId}/ledgers`) share a homogeneous security posture. Rules can be written concisely for each collection, relying on the `firmId` and `companyId` within the document and path to grant access based on the user's role, thus facilitating strong QAPs.\n\n**Access Modeling:**\n*   **Private User Data:** `UserProfile` data is stored under `/users/{userId}`, directly tied to the Firebase `auth.uid`.\n*   **Hierarchical Multi-Tenant Data:** All firm-specific data (e.g., `Firm` details, `Company` details, `Ledgers`, `Vouchers`, etc.) is structured under `/firms/{firmId}` and further under `/firms/{firmId}/companies/{companyId}`. This clear hierarchy provides natural scoping for multi-tenancy.\n*   **DBAC (Database Access Control):** User roles (`SuperAdmin`, `FirmAdmin`, `Staff`, `ClientUser`) and their primary `firmId` and `companyId` are stored directly within their `UserProfile` document. Security rules will `get()` the user's *own* `UserProfile` (`/users/$(request.auth.uid)`) to ascertain their role and scope for authorizing access to other data within the system. This avoids custom claims and keeps role management within Firestore. SuperAdmins will have a `role` field allowing broad access, while other roles will be restricted by their associated `firmId` and `companyId` fields.\n\nThis design establishes a robust foundation for implementing fine-grained security rules, supporting efficient data retrieval, and simplifying debugging in a multi-tenant environment."
   }
 }
+
+  
