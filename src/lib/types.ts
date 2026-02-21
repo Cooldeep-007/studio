@@ -170,4 +170,15 @@ export type Note = {
   attachmentUrl?: string;
 };
 
-    
+export type Item = {
+  id: string;
+  name: string;
+  type: 'Goods' | 'Services';
+  hsnCode?: string;
+  sacCode?: string;
+  unitPrice: number;
+  uqc?: string;
+  gstRate: number;
+  salesLedgerId: string;
+  purchaseLedgerId: string;
+};

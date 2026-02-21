@@ -1,4 +1,4 @@
-import type { Company, Ledger, User, Voucher, Note } from './types';
+import type { Company, Ledger, User, Voucher, Note, Item } from './types';
 
 export const mockUser: User = {
   userId: 'user-123',
@@ -35,6 +35,14 @@ export const mockCompanies: Company[] = [
     firmId: 'firm-abc',
     status: 'Archived',
   },
+];
+
+export const mockItems: Item[] = [
+  { id: 'item-001', name: 'Laptop Pro 15"', type: 'Goods', hsnCode: '84713010', unitPrice: 80000, uqc: 'NOS', gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
+  { id: 'item-002', name: 'Wireless Mouse', type: 'Goods', hsnCode: '84716060', unitPrice: 1500, uqc: 'NOS', gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
+  { id: 'item-003', name: 'Accounting Services', type: 'Services', sacCode: '998222', unitPrice: 20000, gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
+  { id: 'item-004', name: 'IT Support (AMC)', type: 'Services', sacCode: '998314', unitPrice: 50000, gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
+  { id: 'item-005', name: 'Office Chairs', type: 'Goods', hsnCode: '94013000', unitPrice: 7500, uqc: 'NOS', gstRate: 28, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
 ];
 
 export const mockLedgers: Ledger[] = [
