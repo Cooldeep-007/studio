@@ -115,7 +115,7 @@ export function SalesInvoiceForm() {
         name: 'lineItems',
     });
 
-    const { watch, setValue, getValues, reset, trigger, control } = form;
+    const { watch, setValue, getValues, reset, control } = form;
 
     const companyState = "Karnataka";
 
@@ -136,17 +136,15 @@ export function SalesInvoiceForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            const currentLineItem = getValues(`lineItems.${index}`);
             const isService = selectedItem.type === 'Services';
-
             setValue(`lineItems.${index}`, {
-                ...currentLineItem,
+                ...getValues(`lineItems.${index}`),
                 itemId: selectedItem.id,
                 itemType: selectedItem.type,
                 hsnSacCode: isService ? selectedItem.sacCode : selectedItem.hsnCode,
                 rate: selectedItem.unitPrice,
                 gstRate: selectedItem.gstRate,
-                quantity: isService ? 1 : (currentLineItem.quantity || 1),
+                quantity: isService ? 1 : (getValues(`lineItems.${index}.quantity`) || 1),
                 uqc: isService ? '' : selectedItem.uqc,
             }, { shouldValidate: true });
         }
@@ -179,12 +177,15 @@ export function SalesInvoiceForm() {
         let totalGstAmount = 0;
 
         lineItems.forEach(item => {
-            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
+            const quantity = Number(item.quantity) || 0;
             const rate = Number(item.rate) || 0;
             const discount = Number(item.discount) || 0;
             const gstRate = Number(item.gstRate) || 0;
             
-            const taxableValue = (quantity * rate) - discount;
+            const taxableValue = item.itemType === 'Goods' 
+                ? (quantity * rate) - discount
+                : rate - discount;
+
             const gstAmount = taxableValue * (gstRate / 100);
 
             subTotal += taxableValue;
@@ -304,10 +305,10 @@ export function SalesInvoiceForm() {
                                 {fields.map((field, index) => {
                                     const currentItemType = watch(`lineItems.${index}.itemType`);
                                     const item = lineItems[index];
-                                    const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
+                                    const quantity = Number(item.quantity) || 0;
                                     const rate = Number(item.rate) || 0;
                                     const discount = Number(item.discount) || 0;
-                                    const taxableValue = (quantity * rate) - discount;
+                                    const taxableValue = item.itemType === 'Goods' ? (quantity * rate) - discount : rate - discount;
                                     const gstRate = Number(item.gstRate) || 0;
                                     const gstAmount = taxableValue * (gstRate / 100);
                                     const total = taxableValue + gstAmount;
@@ -339,7 +340,7 @@ export function SalesInvoiceForm() {
                                                 </AddItemSheet>
                                             </div>
                                         </TableCell>
-                                        <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} /> )} /></TableCell>
                                         <TableCell>
                                             {currentItemType === 'Goods' && (
                                                 <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 

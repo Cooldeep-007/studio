@@ -110,17 +110,15 @@ export function ProformaInvoiceForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            const currentLineItem = getValues(`lineItems.${index}`);
             const isService = selectedItem.type === 'Services';
-
             setValue(`lineItems.${index}`, {
-                ...currentLineItem,
+                ...getValues(`lineItems.${index}`),
                 itemId: selectedItem.id,
                 itemType: selectedItem.type,
                 hsnSacCode: isService ? selectedItem.sacCode : selectedItem.hsnCode,
                 rate: selectedItem.unitPrice,
                 gstRate: selectedItem.gstRate,
-                quantity: isService ? 1 : (currentLineItem.quantity || 1),
+                quantity: isService ? 1 : (getValues(`lineItems.${index}.quantity`) || 1),
                 uqc: isService ? '' : selectedItem.uqc,
             }, { shouldValidate: true });
         }
@@ -131,10 +129,12 @@ export function ProformaInvoiceForm() {
         let totalGstAmount = 0;
 
         lineItems.forEach(item => {
-            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
+            const quantity = Number(item.quantity) || 0;
             const rate = Number(item.rate) || 0;
             const gstRate = Number(item.gstRate) || 0;
-            const taxableValue = quantity * rate;
+            const taxableValue = item.itemType === 'Goods' 
+                ? (quantity * rate)
+                : rate;
             const gstAmount = taxableValue * (gstRate / 100);
             subTotal += taxableValue;
             totalGstAmount += gstAmount;
@@ -171,7 +171,7 @@ export function ProformaInvoiceForm() {
                         <CardDescription>Create a quotation or preliminary bill. No accounting entries will be made.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                            <FormField control={control} name="proformaNumber" render={({ field }) => (<FormItem><FormLabel>Proforma No.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                            <FormField control={control} name="proformaDate" render={({ field }) => (
                                <FormItem className="flex flex-col pt-2"><FormLabel className='mb-2'>Date</FormLabel>
@@ -195,6 +195,7 @@ export function ProformaInvoiceForm() {
                                     </AddLedgerSheet>
                                 </div>
                                 <FormMessage /></FormItem>)} />
+                             <FormField control={form.control} name="placeOfSupply" render={({ field }) => (<FormItem><FormLabel>Place of Supply</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger></FormControl><SelectContent>{indianStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                         <Separator />
                         <div>
@@ -216,9 +217,9 @@ export function ProformaInvoiceForm() {
                                 {fields.map((field, index) => {
                                     const currentItemType = watch(`lineItems.${index}.itemType`);
                                     const item = lineItems[index];
-                                    const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
+                                    const quantity = Number(item.quantity) || 0;
                                     const rate = Number(item.rate) || 0;
-                                    const taxableValue = quantity * rate;
+                                    const taxableValue = item.itemType === 'Goods' ? (quantity * rate) : rate;
                                     const gstRate = Number(item.gstRate) || 0;
                                     const gstAmount = taxableValue * (gstRate / 100);
                                     const total = taxableValue + gstAmount;
@@ -250,7 +251,7 @@ export function ProformaInvoiceForm() {
                                                 </AddItemSheet>
                                             </div>
                                         </TableCell>
-                                        <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} /> )} /></TableCell>
                                         <TableCell>
                                             {currentItemType === 'Goods' && (
                                                 <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 

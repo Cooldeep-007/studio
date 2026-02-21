@@ -66,7 +66,7 @@ export function AdhocInvoiceForm() {
         name: 'lineItems',
     });
 
-    const { watch, getValues, reset } = form;
+    const { watch, reset } = form;
 
     const companyState = "Karnataka";
 
