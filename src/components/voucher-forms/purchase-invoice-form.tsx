@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { PlusCircle, Trash2, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mockLedgers, mockItems } from '@/lib/data';
+import type { Ledger, Item } from '@/lib/types';
 import { indianStates, uqcList, gstRates } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -20,6 +21,8 @@ import { format } from 'date-fns';
 import { Switch } from '../ui/switch';
 import { Textarea } from '../ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { AddLedgerSheet } from '../add-ledger-sheet';
+import { AddItemSheet } from '../add-item-sheet';
 
 const lineItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required.'),
@@ -29,6 +32,7 @@ const lineItemSchema = z.object({
   uqc: z.string().optional(),
   rate: z.coerce.number().min(0, 'Rate cannot be negative'),
   discount: z.coerce.number().min(0).default(0),
+  gstRate: z.coerce.number().default(0),
 }).superRefine((data, ctx) => {
     if (data.itemType === 'Goods') {
         if (!data.quantity || data.quantity <= 0) {
@@ -92,6 +96,9 @@ const defaultValues: Partial<PurchaseInvoiceFormValues> = {
 
 export function PurchaseInvoiceForm() {
     const { toast } = useToast();
+    const [supplierLedgers, setSupplierLedgers] = React.useState(() => mockLedgers.filter(l => l.group === 'Sundry Creditor'));
+    const [items, setItems] = React.useState(() => [...mockItems]);
+
     const form = useForm<PurchaseInvoiceFormValues>({
         resolver: zodResolver(purchaseInvoiceSchema),
         defaultValues,
@@ -105,15 +112,25 @@ export function PurchaseInvoiceForm() {
 
     const { watch, setValue, getValues, reset, trigger } = form;
 
-    const supplierLedgers = React.useMemo(() => mockLedgers.filter(l => l.group === 'Sundry Creditor'), []);
     const companyState = "Karnataka";
 
     const lineItems = watch('lineItems');
     const placeOfSupply = watch('placeOfSupply');
     const partyLedgerId = watch('partyLedgerId');
 
+    const handleItemCreated = (newItem: Item, index: number) => {
+        setItems(prev => [...prev, newItem]);
+        setValue(`lineItems.${index}.itemId`, newItem.id, { shouldDirty: true, shouldTouch: true });
+        handleItemSelect(newItem.id, index);
+    };
+
+    const handleLedgerCreated = (newLedger: Ledger) => {
+        setSupplierLedgers(prev => [...prev, newLedger]);
+        setValue('partyLedgerId', newLedger.id, { shouldValidate: true });
+    };
+
     const handleItemSelect = (itemId: string, index: number) => {
-        const selectedItem = mockItems.find(item => item.id === itemId);
+        const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
             const currentLineItems = getValues('lineItems');
             const currentItem = currentLineItems[index];
@@ -121,7 +138,7 @@ export function PurchaseInvoiceForm() {
             currentItem.itemType = selectedItem.type;
             currentItem.hsnSacCode = selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode;
             currentItem.rate = selectedItem.unitPrice;
-            (currentItem as any).gstRate = selectedItem.gstRate;
+            currentItem.gstRate = selectedItem.gstRate;
             
             if (selectedItem.type === 'Goods') {
                 currentItem.uqc = selectedItem.uqc;
@@ -167,9 +184,9 @@ export function PurchaseInvoiceForm() {
             const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
             const rate = Number(item.rate) || 0;
             const discount = Number(item.discount) || 0;
-            const gstRate = Number((item as any).gstRate) || 0;
+            const gstRate = Number(item.gstRate) || 0;
             
-            const taxableValue = quantity * rate - discount;
+            const taxableValue = (quantity * rate) - discount;
             const gstAmount = taxableValue * (gstRate / 100);
 
             subTotal += taxableValue;
@@ -261,9 +278,14 @@ export function PurchaseInvoiceForm() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                            <FormField control={form.control} name="partyLedgerId" render={({ field }) => (
                                 <FormItem><FormLabel>Supplier</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Supplier"/></SelectTrigger></FormControl>
-                                    <SelectContent>{supplierLedgers.map(c => <SelectItem key={c.id} value={c.id}>{c.ledgerName}</SelectItem>)}</SelectContent>
-                                    </Select>
+                                    <div className="flex gap-2">
+                                        <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Supplier"/></SelectTrigger></FormControl>
+                                        <SelectContent>{supplierLedgers.map(c => <SelectItem key={c.id} value={c.id}>{c.ledgerName}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                        <AddLedgerSheet ledgers={mockLedgers} onLedgerCreated={handleLedgerCreated}>
+                                            <Button type="button" variant="outline" size="icon" aria-label="Add new ledger"><PlusCircle className="h-4 w-4" /></Button>
+                                        </AddLedgerSheet>
+                                    </div>
                                 <FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="gstin" render={({ field }) => (<FormItem><FormLabel>GSTIN</FormLabel><FormControl><Input {...field} readOnly /></FormControl><FormMessage /></FormItem>)} />
                             <FormField control={form.control} name="billingAddress" render={({ field }) => (<FormItem><FormLabel>Billing Address</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
@@ -291,12 +313,17 @@ export function PurchaseInvoiceForm() {
                                     return (
                                     <TableRow key={field.id}>
                                         <TableCell>
-                                            <FormField control={form.control} name={`lineItems.${index}.itemId`} render={({ field }) => (
-                                                <Select onValueChange={(value) => { field.onChange(value); handleItemSelect(value, index); }} value={field.value}>
-                                                    <FormControl><SelectTrigger><SelectValue placeholder="Select Item" /></SelectTrigger></FormControl>
-                                                    <SelectContent>{mockItems.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
-                                                </Select>
-                                            )} />
+                                            <div className="flex gap-2">
+                                                <FormField control={form.control} name={`lineItems.${index}.itemId`} render={({ field }) => (
+                                                    <Select onValueChange={(value) => { field.onChange(value); handleItemSelect(value, index); }} value={field.value}>
+                                                        <FormControl><SelectTrigger><SelectValue placeholder="Select Item" /></SelectTrigger></FormControl>
+                                                        <SelectContent>{items.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
+                                                    </Select>
+                                                )} />
+                                                <AddItemSheet onItemCreated={(newItem) => handleItemCreated(newItem, index)}>
+                                                    <Button type="button" variant="outline" size="icon" aria-label="Add new item"><PlusCircle className="h-4 w-4" /></Button>
+                                                </AddItemSheet>
+                                            </div>
                                         </TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
                                         <TableCell>
@@ -312,7 +339,7 @@ export function PurchaseInvoiceForm() {
                                             </Select>)} />
                                         </TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={(field.value as any)?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
+                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
                                         <TableCell className="text-right">
                                             {(() => {
                                                 const item = lineItems[index];
@@ -320,8 +347,8 @@ export function PurchaseInvoiceForm() {
                                                 const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
                                                 const rate = Number(item.rate) || 0;
                                                 const discount = Number(item.discount) || 0;
-                                                const taxableValue = quantity * rate - discount;
-                                                const gstRate = Number((item as any).gstRate) || 0;
+                                                const taxableValue = (quantity * rate) - discount;
+                                                const gstRate = Number(item.gstRate) || 0;
                                                 const gstAmount = taxableValue * (gstRate / 100);
                                                 const total = taxableValue + gstAmount;
                                                 return total.toFixed(2);

@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { PlusCircle, Trash2, CalendarIcon, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mockLedgers } from '@/lib/data';
+import type { Ledger } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -18,6 +19,7 @@ import { format } from 'date-fns';
 import { Textarea } from '../ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
+import { AddLedgerSheet } from '../add-ledger-sheet';
 
 const lineItemSchema = z.object({
   ledgerId: z.string().min(1, 'Ledger is required.'),
@@ -53,6 +55,8 @@ const defaultValues: JournalEntryFormValues = {
 
 export function JournalEntryForm() {
     const { toast } = useToast();
+    const [ledgers, setLedgers] = React.useState(() => mockLedgers.filter(l => !l.isGroup));
+
     const form = useForm<JournalEntryFormValues>({
         resolver: zodResolver(journalEntrySchema),
         defaultValues,
@@ -64,12 +68,15 @@ export function JournalEntryForm() {
         name: 'lineItems',
     });
     
-    const transactionalLedgers = React.useMemo(() => mockLedgers.filter(l => !l.isGroup), []);
+    const handleLedgerCreated = (newLedger: Ledger, index: number) => {
+        setLedgers(prev => [...prev, newLedger]);
+        form.setValue(`lineItems.${index}.ledgerId`, newLedger.id, { shouldValidate: true });
+    };
 
     const watchedLineItems = form.watch('lineItems');
 
-    const totalDebit = watchedLineItems.filter(li => li.type === 'Dr').reduce((sum, li) => sum + (Number(li.amount) || 0), 0);
-    const totalCredit = watchedLineItems.filter(li => li.type === 'Cr').reduce((sum, li) => sum + (Number(li.amount) || 0), 0);
+    const totalDebit = watchedLineItems.reduce((sum, li) => sum + (li.type === 'Dr' ? (Number(li.amount) || 0) : 0), 0);
+    const totalCredit = watchedLineItems.reduce((sum, li) => sum + (li.type === 'Cr' ? (Number(li.amount) || 0) : 0), 0);
     const difference = totalDebit - totalCredit;
 
     function onSubmit(data: JournalEntryFormValues) {
@@ -121,20 +128,25 @@ export function JournalEntryForm() {
                                              )} />
                                         </TableCell>
                                         <TableCell>
-                                            <FormField control={form.control} name={`lineItems.${index}.ledgerId`} render={({ field }) => (
-                                                <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Ledger" /></SelectTrigger></FormControl>
-                                                <SelectContent>{transactionalLedgers.map(l => <SelectItem key={l.id} value={l.id}>{l.ledgerName}</SelectItem>)}</SelectContent>
-                                                </Select>
-                                            )} />
+                                            <div className="flex gap-2">
+                                                <FormField control={form.control} name={`lineItems.${index}.ledgerId`} render={({ field }) => (
+                                                    <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Ledger" /></SelectTrigger></FormControl>
+                                                    <SelectContent>{ledgers.map(l => <SelectItem key={l.id} value={l.id}>{l.ledgerName}</SelectItem>)}</SelectContent>
+                                                    </Select>
+                                                )} />
+                                                <AddLedgerSheet ledgers={mockLedgers} onLedgerCreated={(ledger) => handleLedgerCreated(ledger, index)}>
+                                                    <Button type="button" variant="outline" size="icon" aria-label="Add new ledger"><PlusCircle className="h-4 w-4" /></Button>
+                                                </AddLedgerSheet>
+                                            </div>
                                         </TableCell>
                                         <TableCell>
                                             <FormField control={form.control} name={`lineItems.${index}.amount`} render={({ field }) => (
-                                                <Input type="number" {...field} className="text-right" disabled={form.getValues(`lineItems.${index}.type`) === 'Cr'} />
+                                                <Input type="number" {...field} className="text-right" disabled={form.getValues(`lineItems.${index}.type`) === 'Cr'} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
                                             )} />
                                         </TableCell>
                                          <TableCell>
                                             <FormField control={form.control} name={`lineItems.${index}.amount`} render={({ field }) => (
-                                                <Input type="number" {...field} className="text-right" disabled={form.getValues(`lineItems.${index}.type`) === 'Dr'} />
+                                                <Input type="number" {...field} className="text-right" disabled={form.getValues(`lineItems.${index}.type`) === 'Dr'} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
                                             )} />
                                         </TableCell>
                                         <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
@@ -159,7 +171,10 @@ export function JournalEntryForm() {
                                 )}
                             </TableFooter>
                           </Table>
-                          <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => append({ ledgerId: '', type: 'Dr', amount: Math.abs(difference) > 0.01 && difference < 0 ? Math.abs(difference) : 0 })}>
+                          <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => {
+                            const newType = difference > 0 ? 'Cr' : 'Dr';
+                            append({ ledgerId: '', type: newType, amount: Math.abs(difference) || 0 })
+                          }}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Add Line
                           </Button>
                         </div>

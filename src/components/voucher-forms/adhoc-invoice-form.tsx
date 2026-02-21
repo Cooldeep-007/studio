@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { PlusCircle, Trash2, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mockLedgers } from '@/lib/data';
+import type { Ledger } from '@/lib/types';
 import { indianStates, gstRates } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -19,6 +20,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';
 import { Textarea } from '../ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { AddLedgerSheet } from '../add-ledger-sheet';
 
 const lineItemSchema = z.object({
   description: z.string().min(1, 'Description is required.'),
@@ -49,6 +51,8 @@ const defaultValues: Partial<AdhocInvoiceFormValues> = {
 
 export function AdhocInvoiceForm() {
     const { toast } = useToast();
+    const [partyLedgers, setPartyLedgers] = React.useState(() => mockLedgers.filter(l => l.group === 'Sundry Debtor' || l.group === 'Sundry Creditor'));
+
     const form = useForm<AdhocInvoiceFormValues>({
         resolver: zodResolver(adhocInvoiceSchema),
         defaultValues,
@@ -62,11 +66,15 @@ export function AdhocInvoiceForm() {
 
     const { watch, getValues, reset } = form;
 
-    const partyLedgers = React.useMemo(() => mockLedgers.filter(l => l.group === 'Sundry Debtor' || l.group === 'Sundry Creditor'), []);
     const companyState = "Karnataka";
 
     const watchedLineItems = watch('lineItems');
     const placeOfSupply = watch('placeOfSupply');
+
+    const handleLedgerCreated = (newLedger: Ledger) => {
+        setPartyLedgers(prev => [...prev, newLedger]);
+        form.setValue('partyLedgerId', newLedger.id, { shouldValidate: true });
+    };
 
     const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
         let subTotal = 0;
@@ -129,7 +137,17 @@ export function AdhocInvoiceForm() {
                                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent>
                                    </Popover><FormMessage /></FormItem>
                            )} />
-                             <FormField control={form.control} name="partyLedgerId" render={({ field }) => (<FormItem><FormLabel>Party</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Party"/></SelectTrigger></FormControl><SelectContent>{partyLedgers.map(c => <SelectItem key={c.id} value={c.id}>{c.ledgerName}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
+                             <FormField control={form.control} name="partyLedgerId" render={({ field }) => (
+                                <FormItem><FormLabel>Party</FormLabel>
+                                    <div className="flex gap-2">
+                                        <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Party"/></SelectTrigger></FormControl>
+                                        <SelectContent>{partyLedgers.map(c => <SelectItem key={c.id} value={c.id}>{c.ledgerName}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                        <AddLedgerSheet ledgers={mockLedgers} onLedgerCreated={handleLedgerCreated}>
+                                            <Button type="button" variant="outline" size="icon" aria-label="Add new ledger"><PlusCircle className="h-4 w-4" /></Button>
+                                        </AddLedgerSheet>
+                                    </div>
+                                <FormMessage /></FormItem>)} />
                              <FormField control={form.control} name="placeOfSupply" render={({ field }) => (<FormItem><FormLabel>Place of Supply</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger></FormControl><SelectContent>{indianStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
                         </div>
                         <Separator />
@@ -145,7 +163,7 @@ export function AdhocInvoiceForm() {
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.amount`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
                                          <TableCell>
                                             <FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (
-                                                <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                                <Select onValueChange={(v) => field.onChange(Number(v))} value={field.value.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
                                                 <SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent>
                                                 </Select>)} />
                                         </TableCell>

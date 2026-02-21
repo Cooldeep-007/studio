@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { PlusCircle, Trash2, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mockLedgers, mockItems } from '@/lib/data';
+import type { Ledger, Item } from '@/lib/types';
 import { indianStates, uqcList, gstRates } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -19,6 +20,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';
 import { Textarea } from '../ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { AddLedgerSheet } from '../add-ledger-sheet';
+import { AddItemSheet } from '../add-item-sheet';
 
 const lineItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required.'),
@@ -27,6 +30,7 @@ const lineItemSchema = z.object({
   quantity: z.coerce.number().optional(),
   uqc: z.string().optional(),
   rate: z.coerce.number().min(0, 'Rate cannot be negative'),
+  gstRate: z.coerce.number().default(0),
 }).superRefine((data, ctx) => {
     if (data.itemType === 'Goods') {
         if (!data.quantity || data.quantity <= 0) {
@@ -84,6 +88,9 @@ const defaultValues: DebitNoteFormValues = {
 
 export function DebitNoteForm() {
     const { toast } = useToast();
+    const [supplierLedgers, setSupplierLedgers] = React.useState(() => mockLedgers.filter(l => l.group === 'Sundry Creditor'));
+    const [items, setItems] = React.useState(() => [...mockItems]);
+
     const form = useForm<DebitNoteFormValues>({
         resolver: zodResolver(debitNoteSchema),
         defaultValues,
@@ -97,7 +104,6 @@ export function DebitNoteForm() {
 
     const { watch, setValue, getValues, trigger, reset } = form;
 
-    const supplierLedgers = React.useMemo(() => mockLedgers.filter(l => l.group === 'Sundry Creditor'), []);
     const reasonLedgers = React.useMemo(() => mockLedgers.filter(l => l.parentLedgerId === 'group-purchase-accounts' || l.parentLedgerId === 'group-indirect-expenses'), []);
     const companyState = "Karnataka";
 
@@ -105,8 +111,19 @@ export function DebitNoteForm() {
     const placeOfSupply = watch('placeOfSupply');
     const partyLedgerId = watch('supplierLedgerId');
 
+    const handleItemCreated = (newItem: Item, index: number) => {
+        setItems(prev => [...prev, newItem]);
+        setValue(`lineItems.${index}.itemId`, newItem.id, { shouldDirty: true, shouldTouch: true });
+        handleItemSelect(newItem.id, index);
+    };
+
+    const handleLedgerCreated = (newLedger: Ledger) => {
+        setSupplierLedgers(prev => [...prev, newLedger]);
+        setValue('supplierLedgerId', newLedger.id, { shouldValidate: true });
+    };
+
     const handleItemSelect = (itemId: string, index: number) => {
-        const selectedItem = mockItems.find(item => item.id === itemId);
+        const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
             const currentLineItems = getValues('lineItems');
             const currentItem = currentLineItems[index];
@@ -114,7 +131,7 @@ export function DebitNoteForm() {
             currentItem.itemType = selectedItem.type;
             currentItem.hsnSacCode = selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode;
             currentItem.rate = selectedItem.unitPrice;
-            (currentItem as any).gstRate = selectedItem.gstRate;
+            currentItem.gstRate = selectedItem.gstRate;
             
             if (selectedItem.type === 'Goods') {
                 currentItem.uqc = selectedItem.uqc;
@@ -147,7 +164,7 @@ export function DebitNoteForm() {
         lineItems.forEach(item => {
             const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
             const rate = Number(item.rate) || 0;
-            const gstRate = Number((item as any).gstRate) || 0;
+            const gstRate = Number(item.gstRate) || 0;
             
             const taxableValue = quantity * rate;
             const gstAmount = taxableValue * (gstRate / 100);
@@ -203,10 +220,15 @@ export function DebitNoteForm() {
                                 render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Supplier (To Debit)</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue placeholder="Select Supplier" /></SelectTrigger></FormControl>
-                                    <SelectContent>{supplierLedgers.map(c => <SelectItem key={c.id} value={c.id}>{c.ledgerName}</SelectItem>)}</SelectContent>
-                                    </Select>
+                                    <div className="flex gap-2">
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="Select Supplier" /></SelectTrigger></FormControl>
+                                        <SelectContent>{supplierLedgers.map(c => <SelectItem key={c.id} value={c.id}>{c.ledgerName}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                        <AddLedgerSheet ledgers={mockLedgers} onLedgerCreated={handleLedgerCreated}>
+                                            <Button type="button" variant="outline" size="icon" aria-label="Add new ledger"><PlusCircle className="h-4 w-4" /></Button>
+                                        </AddLedgerSheet>
+                                    </div>
                                     <FormMessage />
                                 </FormItem>
                                 )}
@@ -267,12 +289,17 @@ export function DebitNoteForm() {
                                     return (
                                     <TableRow key={field.id}>
                                         <TableCell>
-                                            <FormField control={form.control} name={`lineItems.${index}.itemId`} render={({ field }) => (
-                                                <Select onValueChange={(value) => { field.onChange(value); handleItemSelect(value, index); }} value={field.value}>
-                                                    <FormControl><SelectTrigger><SelectValue placeholder="Select Item" /></SelectTrigger></FormControl>
-                                                    <SelectContent>{mockItems.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
-                                                </Select>
-                                            )} />
+                                            <div className="flex gap-2">
+                                                <FormField control={form.control} name={`lineItems.${index}.itemId`} render={({ field }) => (
+                                                    <Select onValueChange={(value) => { field.onChange(value); handleItemSelect(value, index); }} value={field.value}>
+                                                        <FormControl><SelectTrigger><SelectValue placeholder="Select Item" /></SelectTrigger></FormControl>
+                                                        <SelectContent>{items.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
+                                                    </Select>
+                                                )} />
+                                                <AddItemSheet onItemCreated={(newItem) => handleItemCreated(newItem, index)}>
+                                                    <Button type="button" variant="outline" size="icon" aria-label="Add new item"><PlusCircle className="h-4 w-4" /></Button>
+                                                </AddItemSheet>
+                                            </div>
                                         </TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
                                         <TableCell>
@@ -288,7 +315,7 @@ export function DebitNoteForm() {
                                             </Select>)} />
                                         </TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={(field.value as any)?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
+                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
                                         <TableCell className="text-right">
                                             {(() => {
                                                 const item = lineItems[index];
@@ -296,7 +323,7 @@ export function DebitNoteForm() {
                                                 const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
                                                 const rate = Number(item.rate) || 0;
                                                 const taxableValue = quantity * rate;
-                                                const gstRate = Number((item as any).gstRate) || 0;
+                                                const gstRate = Number(item.gstRate) || 0;
                                                 const gstAmount = taxableValue * (gstRate / 100);
                                                 const total = taxableValue + gstAmount;
                                                 return total.toFixed(2);
