@@ -37,9 +37,6 @@ const lineItemSchema = z.object({
         if (!data.quantity || data.quantity <= 0) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Qty > 0 required", path: ["quantity"] });
         }
-        if (!data.uqc) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "UQC required", path: ["uqc"] });
-        }
     }
 });
 
@@ -55,6 +52,9 @@ const creditNoteSchema = z.object({
   reasonLedgerId: z.string().min(1, "A reason account (e.g. Sales Return) is required."),
   
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
+
+  adjustmentType: z.enum(['Add', 'Less']).default('Less'),
+  adjustmentAmount: z.coerce.number().default(0),
   
   narration: z.string().optional(),
 
@@ -85,6 +85,8 @@ const defaultValues: CreditNoteFormValues = {
   creditNoteDate: new Date(),
   originalInvoiceDate: new Date(),
   lineItems: [newLineItemDefault],
+  adjustmentType: 'Less',
+  adjustmentAmount: 0,
   narration: '',
 };
 
@@ -99,7 +101,7 @@ export function CreditNoteForm() {
         mode: 'onChange',
     });
 
-    const { fields, append, remove } = useFieldArray({
+    const { fields, append, remove, update } = useFieldArray({
         control: form.control,
         name: 'lineItems',
     });
@@ -110,9 +112,14 @@ export function CreditNoteForm() {
 
     const companyState = "Karnataka";
 
-    const lineItems = watch('lineItems');
-    const placeOfSupply = watch('placeOfSupply');
-    const partyLedgerId = watch('customerLedgerId');
+    const watchedFields = watch([
+        "lineItems",
+        "placeOfSupply",
+        "partyLedgerId",
+        "adjustmentType",
+        "adjustmentAmount",
+    ]);
+    const [lineItems, placeOfSupply, partyLedgerId, adjustmentType, adjustmentAmount] = watchedFields;
 
      const handleItemCreated = (newItem: Item, index: number) => {
         setItems(prev => [...prev, newItem]);
@@ -127,17 +134,16 @@ export function CreditNoteForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            const isService = selectedItem.type === 'Services';
-            setValue(`lineItems.${index}`, {
-                ...getValues(`lineItems.${index}`),
+            update(index, {
+                ...lineItems[index],
                 itemId: selectedItem.id,
                 itemType: selectedItem.type,
-                hsnSacCode: isService ? selectedItem.sacCode : selectedItem.hsnCode,
+                hsnSacCode: selectedItem.type === 'Services' ? selectedItem.sacCode : selectedItem.hsnCode,
                 rate: selectedItem.unitPrice,
                 gstRate: selectedItem.gstRate,
-                quantity: isService ? 1 : (getValues(`lineItems.${index}.quantity`) || 1),
-                uqc: isService ? '' : selectedItem.uqc,
-            }, { shouldValidate: true });
+                quantity: selectedItem.type === 'Goods' ? 1 : undefined,
+                uqc: selectedItem.type === 'Goods' ? selectedItem.uqc : undefined,
+            });
         }
     };
 
@@ -151,30 +157,26 @@ export function CreditNoteForm() {
         }
     }, [partyLedgerId, setValue, customerLedgers]);
 
-    const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
-        let subTotal = 0;
-        let totalGstAmount = 0;
+    const { subtotal, totalGst, grossTotal, finalAdjustment, grandTotal } = React.useMemo(() => {
+        let subtotal = 0;
+        let totalGst = 0;
 
         lineItems.forEach(item => {
-            const quantity = Number(item.quantity) || 0;
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
             const rate = Number(item.rate) || 0;
-            const gstRate = Number(item.gstRate) || 0;
-            
-            const taxableValue = item.itemType === 'Goods' 
-                ? (quantity * rate)
-                : rate;
-            const gstAmount = taxableValue * (gstRate / 100);
+            const taxableValue = quantity * rate;
+            const gstOnItem = taxableValue * (Number(item.gstRate) / 100);
 
-            subTotal += taxableValue;
-            totalGstAmount += gstAmount;
+            subtotal += taxableValue;
+            totalGst += gstOnItem;
         });
-        
-        return {
-            totalTaxableAmount: subTotal,
-            totalGst: totalGstAmount,
-            grandTotal: subTotal + totalGstAmount,
-        };
-    }, [lineItems]);
+
+        const grossTotal = subtotal + totalGst;
+        const finalAdjustment = adjustmentType === 'Add' ? adjustmentAmount : -adjustmentAmount;
+        const grandTotal = grossTotal + finalAdjustment;
+
+        return { subtotal, totalGst, grossTotal, finalAdjustment, grandTotal };
+    }, [lineItems, adjustmentType, adjustmentAmount]);
     
     const isIntraState = placeOfSupply === companyState;
     const cgst = isIntraState ? (totalGst || 0) / 2 : 0;
@@ -182,7 +184,7 @@ export function CreditNoteForm() {
     const igst = !isIntraState ? (totalGst || 0) : 0;
 
     function onSubmit(data: CreditNoteFormValues) {
-        const finalData = { ...data, totalTaxableAmount, totalGst, grandTotal, cgst, sgst, igst };
+        const finalData = { ...data, subtotal, totalGst, grandTotal, cgst, sgst, igst, finalAdjustment };
         console.log(finalData);
         toast({
             title: "Credit Note Created",
@@ -276,11 +278,11 @@ export function CreditNoteForm() {
                             </TableHeader>
                             <TableBody>
                                 {fields.map((field, index) => {
-                                    const currentItemType = watch(`lineItems.${index}.itemType`);
+                                    const currentItemType = lineItems[index]?.itemType;
                                     const item = lineItems[index];
-                                    const quantity = Number(item.quantity) || 0;
+                                    const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
                                     const rate = Number(item.rate) || 0;
-                                    const taxableValue = item.itemType === 'Goods' ? (quantity * rate) : rate;
+                                    const taxableValue = quantity * rate;
                                     const gstRate = Number(item.gstRate) || 0;
                                     const gstAmount = taxableValue * (gstRate / 100);
                                     const total = taxableValue + gstAmount;
@@ -297,9 +299,7 @@ export function CreditNoteForm() {
                                                         <Combobox
                                                             options={items.map(item => ({ value: item.id, label: item.name }))}
                                                             value={itemField.value}
-                                                            onChange={(value) => {
-                                                                handleItemSelect(value, index);
-                                                            }}
+                                                            onChange={(value) => handleItemSelect(value, index)}
                                                             placeholder="Select Item"
                                                             searchPlaceholder="Search item..."
                                                             emptyText="No item found."
@@ -366,11 +366,27 @@ export function CreditNoteForm() {
                                 />
                                 <FormField control={control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being credit note raised for goods returned..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                             </div>
-                           <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Taxable Value</span><span>{totalTaxableAmount.toFixed(2)}</span></div>
+                           <div className="w-full space-y-4">
+                                <div className="flex justify-between"><span>Subtotal</span><span>{subtotal.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Output CGST Reversal</span><span>{cgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Output SGST Reversal</span><span>{sgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Output IGST Reversal</span><span>{igst.toFixed(2)}</span></div>
+                                <Separator />
+                                <div className="flex justify-between font-semibold"><span>Gross Value</span><span>{grossTotal.toFixed(2)}</span></div>
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <Label>Adjustment</Label>
+                                        <FormField control={control} name="adjustmentType" render={({ field }) => (
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl><SelectTrigger className="w-[80px] h-8"><SelectValue /></SelectTrigger></FormControl>
+                                                <SelectContent><SelectItem value="Add">Add</SelectItem><SelectItem value="Less">Less</SelectItem></SelectContent>
+                                            </Select>
+                                        )} />
+                                    </div>
+                                    <FormField control={control} name="adjustmentAmount" render={({ field }) => (
+                                        <Input type="number" {...field} className="w-24 h-8 text-right" />
+                                    )} />
+                                </div>
                                 <Separator />
                                 <div className="flex justify-between font-bold text-lg"><span>Total Credit Note Value</span><span>{grandTotal.toFixed(2)}</span></div>
                             </div>

@@ -37,6 +37,10 @@ const adhocInvoiceSchema = z.object({
   partyLedgerId: z.string().min(1, "Customer/Party is required."),
   placeOfSupply: z.string().min(1, 'Place of supply is required.'),
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
+  
+  adjustmentType: z.enum(['Add', 'Less']).default('Less'),
+  adjustmentAmount: z.coerce.number().default(0),
+
   narration: z.string().optional(),
 });
 
@@ -48,6 +52,8 @@ const defaultValues: Partial<AdhocInvoiceFormValues> = {
   partyLedgerId: '',
   placeOfSupply: '',
   lineItems: [{ description: '', sacCode: '', amount: 0, gstRate: 0 }],
+  adjustmentType: 'Less',
+  adjustmentAmount: 0,
   narration: '',
 };
 
@@ -66,37 +72,41 @@ export function AdhocInvoiceForm() {
         name: 'lineItems',
     });
 
-    const { watch, reset } = form;
+    const { watch, reset, control } = form;
 
     const companyState = "Karnataka";
 
-    const lineItems = watch('lineItems');
-    const placeOfSupply = watch('placeOfSupply');
+    const [lineItems, placeOfSupply, adjustmentType, adjustmentAmount] = watch([
+        "lineItems",
+        "placeOfSupply",
+        "adjustmentType",
+        "adjustmentAmount",
+    ]);
 
     const handleLedgerCreated = (newLedger: Ledger) => {
         setPartyLedgers(prev => [...prev, newLedger]);
         form.setValue('partyLedgerId', newLedger.id, { shouldValidate: true });
     };
 
-    const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
-        let subTotal = 0;
-        let totalGstAmount = 0;
+    const { subtotal, totalGst, grandTotal, finalAdjustment, grossTotal } = React.useMemo(() => {
+        let subtotal = 0;
+        let totalGst = 0;
         
         lineItems.forEach(item => {
             const amount = Number(item.amount) || 0;
             const gstRate = Number(item.gstRate) || 0;
             const gstAmount = amount * (gstRate / 100);
             
-            subTotal += amount;
-            totalGstAmount += gstAmount;
+            subtotal += amount;
+            totalGst += gstAmount;
         });
 
-        return {
-            totalTaxableAmount: subTotal,
-            totalGst: totalGstAmount,
-            grandTotal: subTotal + totalGstAmount,
-        };
-    }, [lineItems]);
+        const grossTotal = subtotal + totalGst;
+        const finalAdjustment = adjustmentType === 'Add' ? adjustmentAmount : -adjustmentAmount;
+        const grandTotal = grossTotal + finalAdjustment;
+
+        return { subtotal, totalGst, grandTotal, finalAdjustment, grossTotal };
+    }, [lineItems, adjustmentType, adjustmentAmount]);
 
     const isIntraState = placeOfSupply === companyState;
     const cgst = isIntraState ? totalGst / 2 : 0;
@@ -104,16 +114,7 @@ export function AdhocInvoiceForm() {
     const igst = !isIntraState ? totalGst : 0;
 
     function onSubmit(data: AdhocInvoiceFormValues) {
-        const finalData = {
-            ...data,
-            totalTaxableAmount,
-            totalGst,
-            cgst,
-            sgst,
-            igst,
-            grandTotal,
-        };
-        
+        const finalData = { ...data, subtotal, totalGst, grandTotal, cgst, sgst, igst, finalAdjustment, grossTotal };
         console.log(finalData);
         toast({
             title: "Adhoc Invoice Created",
@@ -195,11 +196,27 @@ export function AdhocInvoiceForm() {
                         <Separator />
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                            <FormField control={form.control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being services rendered..." {...field} /></FormControl><FormMessage /></FormItem>)} />
-                           <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Taxable Amount</span><span>{totalTaxableAmount.toFixed(2)}</span></div>
+                           <div className="w-full space-y-4">
+                                <div className="flex justify-between"><span>Subtotal</span><span>{subtotal.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{cgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{sgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{igst.toFixed(2)}</span></div>
+                                <Separator />
+                                <div className="flex justify-between font-semibold"><span>Gross Total</span><span>{grossTotal.toFixed(2)}</span></div>
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <Label>Adjustment</Label>
+                                        <FormField control={control} name="adjustmentType" render={({ field }) => (
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl><SelectTrigger className="w-[80px] h-8"><SelectValue /></SelectTrigger></FormControl>
+                                                <SelectContent><SelectItem value="Add">Add</SelectItem><SelectItem value="Less">Less</SelectItem></SelectContent>
+                                            </Select>
+                                        )} />
+                                    </div>
+                                    <FormField control={control} name="adjustmentAmount" render={({ field }) => (
+                                        <Input type="number" {...field} className="w-24 h-8 text-right" />
+                                    )} />
+                                </div>
                                 <Separator />
                                 <div className="flex justify-between font-bold text-lg"><span>Total Value</span><span>{grandTotal.toFixed(2)}</span></div>
                             </div>

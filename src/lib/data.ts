@@ -38,11 +38,11 @@ export const mockCompanies: Company[] = [
 ];
 
 export const mockItems: Item[] = [
-  { id: 'item-001', name: 'Laptop Pro 15"', type: 'Goods', hsnCode: '84713010', unitPrice: 80000, uqc: 'NOS', gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
-  { id: 'item-002', name: 'Wireless Mouse', type: 'Goods', hsnCode: '84716060', unitPrice: 1500, uqc: 'NOS', gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
-  { id: 'item-003', name: 'Accounting Services', type: 'Services', sacCode: '998222', unitPrice: 20000, gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
-  { id: 'item-004', name: 'IT Support (AMC)', type: 'Services', sacCode: '998314', unitPrice: 50000, gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
-  { id: 'item-005', name: 'Office Chairs', type: 'Goods', hsnCode: '94013000', unitPrice: 7500, uqc: 'NOS', gstRate: 28, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
+  { id: 'item-001', name: 'Laptop Pro 15"', type: 'Goods', hsnCode: '84713010', sacCode: undefined, unitPrice: 80000, uqc: 'NOS', gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
+  { id: 'item-002', name: 'Wireless Mouse', type: 'Goods', hsnCode: '84716060', sacCode: undefined, unitPrice: 1500, uqc: 'NOS', gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
+  { id: 'item-003', name: 'Accounting Services', type: 'Services', hsnCode: undefined, sacCode: '998222', unitPrice: 20000, uqc: undefined, gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
+  { id: 'item-004', name: 'IT Support (AMC)', type: 'Services', hsnCode: undefined, sacCode: '998314', unitPrice: 50000, uqc: undefined, gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
+  { id: 'item-005', name: 'Office Chairs', type: 'Goods', hsnCode: '94013000', sacCode: undefined, unitPrice: 7500, uqc: 'NOS', gstRate: 28, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
 ];
 
 export const mockLedgers: Ledger[] = [
@@ -504,6 +504,10 @@ export const mockLedgers: Ledger[] = [
       creditLimit: 50000,
       creditPeriod: 30,
     },
+    tdsTcsConfig: {
+      tcsEnabled: true,
+      tcsRate: 1,
+    },
     createdAt: new Date(MOCK_DATA_YEAR, 4, 10),
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 9, 27),
     firmId: 'firm-abc',
@@ -522,6 +526,12 @@ export const mockLedgers: Ledger[] = [
     gstDetails: {
       gstRate: 12,
       gstClassification: 'Goods',
+    },
+    tdsTcsConfig: {
+      tdsEnabled: true,
+      tdsNatureOfPayment: 'contractor',
+      tdsDeducteeType: 'other',
+      tdsRate: 2,
     },
     status: 'Active',
     createdAt: new Date(MOCK_DATA_YEAR, 5, 15),

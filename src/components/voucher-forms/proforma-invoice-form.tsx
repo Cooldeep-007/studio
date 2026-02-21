@@ -37,9 +37,6 @@ const lineItemSchema = z.object({
         if (!data.quantity || data.quantity <= 0) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Qty > 0 required", path: ["quantity"] });
         }
-        if (!data.uqc) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "UQC required", path: ["uqc"] });
-        }
     }
 });
 
@@ -85,7 +82,7 @@ export function ProformaInvoiceForm() {
         mode: 'onChange',
     });
 
-    const { fields, append, remove } = useFieldArray({
+    const { fields, append, remove, update } = useFieldArray({
         control: form.control,
         name: 'lineItems',
     });
@@ -94,8 +91,7 @@ export function ProformaInvoiceForm() {
 
     const companyState = "Karnataka";
 
-    const lineItems = watch('lineItems');
-    const placeOfSupply = watch('placeOfSupply');
+    const [lineItems, placeOfSupply] = watch(["lineItems", "placeOfSupply"]);
 
      const handleItemCreated = (newItem: Item, index: number) => {
         setItems(prev => [...prev, newItem]);
@@ -110,41 +106,36 @@ export function ProformaInvoiceForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            const isService = selectedItem.type === 'Services';
-            setValue(`lineItems.${index}`, {
-                ...getValues(`lineItems.${index}`),
+            update(index, {
+                ...lineItems[index],
                 itemId: selectedItem.id,
                 itemType: selectedItem.type,
-                hsnSacCode: isService ? selectedItem.sacCode : selectedItem.hsnCode,
+                hsnSacCode: selectedItem.type === 'Services' ? selectedItem.sacCode : selectedItem.hsnCode,
                 rate: selectedItem.unitPrice,
                 gstRate: selectedItem.gstRate,
-                quantity: isService ? 1 : (getValues(`lineItems.${index}.quantity`) || 1),
-                uqc: isService ? '' : selectedItem.uqc,
-            }, { shouldValidate: true });
+                quantity: selectedItem.type === 'Goods' ? 1 : undefined,
+                uqc: selectedItem.type === 'Goods' ? selectedItem.uqc : undefined,
+            });
         }
     };
 
-    const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
-        let subTotal = 0;
-        let totalGstAmount = 0;
+    const { subtotal, totalGst, grandTotal } = React.useMemo(() => {
+        let subtotal = 0;
+        let totalGst = 0;
 
         lineItems.forEach(item => {
-            const quantity = Number(item.quantity) || 0;
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
             const rate = Number(item.rate) || 0;
-            const gstRate = Number(item.gstRate) || 0;
-            const taxableValue = item.itemType === 'Goods' 
-                ? (quantity * rate)
-                : rate;
-            const gstAmount = taxableValue * (gstRate / 100);
-            subTotal += taxableValue;
-            totalGstAmount += gstAmount;
+            const taxableValue = quantity * rate;
+            const gstOnItem = taxableValue * (Number(item.gstRate) / 100);
+
+            subtotal += taxableValue;
+            totalGst += gstOnItem;
         });
         
-        return {
-            totalTaxableAmount: subTotal,
-            totalGst: totalGstAmount,
-            grandTotal: subTotal + totalGstAmount,
-        };
+        const grandTotal = subtotal + totalGst;
+        
+        return { subtotal, totalGst, grandTotal };
     }, [lineItems]);
 
     const isIntraState = placeOfSupply === companyState;
@@ -153,7 +144,7 @@ export function ProformaInvoiceForm() {
     const igst = !isIntraState ? (totalGst || 0) : 0;
 
     function onSubmit(data: ProformaInvoiceFormValues) {
-        const finalData = { ...data, totalTaxableAmount, totalGst, grandTotal, cgst, sgst, igst };
+        const finalData = { ...data, subtotal, totalGst, grandTotal, cgst, sgst, igst };
         console.log(finalData);
         toast({
             title: "Proforma Invoice Saved",
@@ -215,11 +206,11 @@ export function ProformaInvoiceForm() {
                             </TableHeader>
                             <TableBody>
                                 {fields.map((field, index) => {
-                                    const currentItemType = watch(`lineItems.${index}.itemType`);
+                                    const currentItemType = lineItems[index]?.itemType;
                                     const item = lineItems[index];
-                                    const quantity = Number(item.quantity) || 0;
+                                    const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
                                     const rate = Number(item.rate) || 0;
-                                    const taxableValue = item.itemType === 'Goods' ? (quantity * rate) : rate;
+                                    const taxableValue = quantity * rate;
                                     const gstRate = Number(item.gstRate) || 0;
                                     const gstAmount = taxableValue * (gstRate / 100);
                                     const total = taxableValue + gstAmount;
@@ -236,9 +227,7 @@ export function ProformaInvoiceForm() {
                                                         <Combobox
                                                             options={items.map(item => ({ value: item.id, label: item.name }))}
                                                             value={itemField.value}
-                                                            onChange={(value) => {
-                                                                handleItemSelect(value, index);
-                                                            }}
+                                                            onChange={(value) => handleItemSelect(value, index)}
                                                             placeholder="Select Item"
                                                             searchPlaceholder="Search item..."
                                                             emptyText="No item found."
@@ -286,7 +275,7 @@ export function ProformaInvoiceForm() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                            <FormField control={control} name="terms" render={({ field }) => (<FormItem><FormLabel>Terms & Conditions</FormLabel><FormControl><Textarea placeholder="Payment terms, delivery schedule, etc." {...field} /></FormControl><FormMessage /></FormItem>)} />
                            <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Subtotal</span><span>{totalTaxableAmount.toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Subtotal</span><span>{subtotal.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{cgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{sgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{igst.toFixed(2)}</span></div>

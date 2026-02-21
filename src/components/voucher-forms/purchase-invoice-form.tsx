@@ -39,9 +39,6 @@ const lineItemSchema = z.object({
         if (!data.quantity || data.quantity <= 0) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Qty > 0 required", path: ["quantity"] });
         }
-        if (!data.uqc) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "UQC required", path: ["uqc"] });
-        }
     }
 });
 
@@ -60,7 +57,12 @@ const purchaseInvoiceSchema = z.object({
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
   
   reverseCharge: z.boolean().default(false),
-  
+  tdsApplicable: z.boolean().default(false),
+  tdsRate: z.coerce.number().default(0),
+
+  adjustmentType: z.enum(['Add', 'Less']).default('Less'),
+  adjustmentAmount: z.coerce.number().default(0),
+
   narration: z.string().optional(),
 }).refine(data => !data.dueDate || !data.invoiceDate || data.dueDate >= data.invoiceDate, {
   message: "Due date cannot be before the invoice date.",
@@ -82,8 +84,8 @@ const newLineItemDefault = {
 
 const defaultValues: Partial<PurchaseInvoiceFormValues> = {
   invoiceNumber: '',
-  invoiceDate: undefined,
-  dueDate: undefined,
+  invoiceDate: new Date(),
+  dueDate: new Date(),
   placeOfSupply: '',
   eWayBillRequired: false,
   partyLedgerId: '',
@@ -92,6 +94,10 @@ const defaultValues: Partial<PurchaseInvoiceFormValues> = {
   shippingAddress: '',
   lineItems: [newLineItemDefault],
   reverseCharge: false,
+  tdsApplicable: false,
+  tdsRate: 0,
+  adjustmentType: 'Less',
+  adjustmentAmount: 0,
   narration: '',
 };
 
@@ -106,7 +112,7 @@ export function PurchaseInvoiceForm() {
         mode: 'onChange',
     });
 
-    const { fields, append, remove } = useFieldArray({
+    const { fields, append, remove, update } = useFieldArray({
         control: form.control,
         name: 'lineItems',
     });
@@ -115,9 +121,16 @@ export function PurchaseInvoiceForm() {
 
     const companyState = "Karnataka";
 
-    const lineItems = watch('lineItems');
-    const placeOfSupply = watch('placeOfSupply');
-    const partyLedgerId = watch('partyLedgerId');
+    const watchedFields = watch([
+        "lineItems",
+        "placeOfSupply",
+        "partyLedgerId",
+        "adjustmentType",
+        "adjustmentAmount",
+        "tdsRate"
+    ]);
+    const [lineItems, placeOfSupply, partyLedgerId, adjustmentType, adjustmentAmount, tdsRate] = watchedFields;
+
 
     const handleItemCreated = (newItem: Item, index: number) => {
         setItems(prev => [...prev, newItem]);
@@ -132,17 +145,16 @@ export function PurchaseInvoiceForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            const isService = selectedItem.type === 'Services';
-            setValue(`lineItems.${index}`, {
-                ...getValues(`lineItems.${index}`),
+            update(index, {
+                ...lineItems[index],
                 itemId: selectedItem.id,
                 itemType: selectedItem.type,
-                hsnSacCode: isService ? selectedItem.sacCode : selectedItem.hsnCode,
+                hsnSacCode: selectedItem.type === 'Services' ? selectedItem.sacCode : selectedItem.hsnCode,
                 rate: selectedItem.unitPrice,
                 gstRate: selectedItem.gstRate,
-                quantity: isService ? 1 : (getValues(`lineItems.${index}.quantity`) || 1),
-                uqc: isService ? '' : selectedItem.uqc,
-            }, { shouldValidate: true });
+                quantity: selectedItem.type === 'Goods' ? 1 : undefined,
+                uqc: selectedItem.type === 'Goods' ? selectedItem.uqc : undefined,
+            });
         }
     };
 
@@ -165,35 +177,39 @@ export function PurchaseInvoiceForm() {
             if(party.contactDetails?.state) {
               setValue('placeOfSupply', party.contactDetails.state, { shouldValidate: true });
             }
+            if (party.tdsTcsConfig?.tdsEnabled) {
+                setValue('tdsApplicable', true);
+                setValue('tdsRate', party.tdsTcsConfig.tdsRate || 0);
+            } else {
+                setValue('tdsApplicable', false);
+                setValue('tdsRate', 0);
+            }
         }
     }, [partyLedgerId, setValue, supplierLedgers]);
     
-    const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
-        let subTotal = 0;
-        let totalGstAmount = 0;
+    const { subtotal, totalGst, grossTotal, finalAdjustment, netBeforeTds, tdsAmount, grandTotal } = React.useMemo(() => {
+        let subtotal = 0;
+        let totalGst = 0;
 
         lineItems.forEach(item => {
-            const quantity = Number(item.quantity) || 0;
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
             const rate = Number(item.rate) || 0;
             const discount = Number(item.discount) || 0;
-            const gstRate = Number(item.gstRate) || 0;
-            
-            const taxableValue = item.itemType === 'Goods' 
-                ? (quantity * rate) - discount
-                : rate - discount;
+            const taxableValue = (quantity * rate) - discount;
+            const gstOnItem = taxableValue * (Number(item.gstRate) / 100);
 
-            const gstAmount = taxableValue * (gstRate / 100);
-
-            subTotal += taxableValue;
-            totalGstAmount += gstAmount;
+            subtotal += taxableValue;
+            totalGst += gstOnItem;
         });
-        
-        return {
-            totalTaxableAmount: subTotal,
-            totalGst: totalGstAmount,
-            grandTotal: subTotal + totalGstAmount,
-        };
-    }, [lineItems]);
+
+        const grossTotal = subtotal + totalGst;
+        const finalAdjustment = adjustmentType === 'Add' ? adjustmentAmount : -adjustmentAmount;
+        const netBeforeTds = grossTotal + finalAdjustment;
+        const tdsAmountCalc = watch("tdsApplicable") ? (subtotal * (tdsRate / 100)) : 0;
+        const grandTotal = netBeforeTds - tdsAmountCalc;
+
+        return { subtotal, totalGst, grossTotal, finalAdjustment, netBeforeTds, tdsAmount: tdsAmountCalc, grandTotal };
+    }, [lineItems, adjustmentType, adjustmentAmount, tdsRate, watch]);
     
     const isIntraState = placeOfSupply === companyState;
     const cgst = isIntraState ? (totalGst || 0) / 2 : 0;
@@ -201,7 +217,7 @@ export function PurchaseInvoiceForm() {
     const igst = !isIntraState ? (totalGst || 0) : 0;
 
     function onSubmit(data: PurchaseInvoiceFormValues) {
-        const finalData = { ...data, totalTaxableAmount, totalGst, grandTotal, cgst, sgst, igst };
+        const finalData = { ...data, subtotal, totalGst, grandTotal, cgst, sgst, igst, finalAdjustment, tdsAmount };
         console.log(finalData);
         toast({
             title: "Purchase Invoice Created",
@@ -299,12 +315,12 @@ export function PurchaseInvoiceForm() {
                             </TableHeader>
                             <TableBody>
                                 {fields.map((field, index) => {
-                                    const currentItemType = watch(`lineItems.${index}.itemType`);
+                                    const currentItemType = lineItems[index]?.itemType;
                                     const item = lineItems[index];
-                                    const quantity = Number(item.quantity) || 0;
+                                    const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
                                     const rate = Number(item.rate) || 0;
                                     const discount = Number(item.discount) || 0;
-                                    const taxableValue = item.itemType === 'Goods' ? (quantity * rate) - discount : rate - discount;
+                                    const taxableValue = (quantity * rate) - discount;
                                     const gstRate = Number(item.gstRate) || 0;
                                     const gstAmount = taxableValue * (gstRate / 100);
                                     const total = taxableValue + gstAmount;
@@ -321,9 +337,7 @@ export function PurchaseInvoiceForm() {
                                                         <Combobox
                                                             options={items.map(item => ({ value: item.id, label: item.name }))}
                                                             value={itemField.value}
-                                                            onChange={(value) => {
-                                                                handleItemSelect(value, index);
-                                                            }}
+                                                            onChange={(value) => handleItemSelect(value, index)}
                                                             placeholder="Select Item"
                                                             searchPlaceholder="Search item..."
                                                             emptyText="No item found."
@@ -372,11 +386,40 @@ export function PurchaseInvoiceForm() {
 
                         <div className="flex justify-end">
                             <div className="w-full max-w-sm space-y-4">
-                                <div className="flex justify-between"><span>Subtotal</span><span>{totalTaxableAmount.toFixed(2)}</span></div>
-                                <div className="flex justify-between"><span>CGST</span><span>{cgst.toFixed(2)}</span></div>
-                                <div className="flex justify-between"><span>SGST</span><span>{sgst.toFixed(2)}</span></div>
-                                <div className="flex justify-between"><span>IGST</span><span>{igst.toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Subtotal</span><span>{subtotal.toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>Input CGST</span><span>{cgst.toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>Input SGST</span><span>{sgst.toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>Input IGST</span><span>{igst.toFixed(2)}</span></div>
                                 <Separator />
+                                <div className="flex justify-between font-semibold"><span>Gross Total</span><span>{grossTotal.toFixed(2)}</span></div>
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                        <Label>Adjustment</Label>
+                                        <FormField control={control} name="adjustmentType" render={({ field }) => (
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl><SelectTrigger className="w-[80px] h-8"><SelectValue /></SelectTrigger></FormControl>
+                                                <SelectContent><SelectItem value="Add">Add</SelectItem><SelectItem value="Less">Less</SelectItem></SelectContent>
+                                            </Select>
+                                        )} />
+                                    </div>
+                                    <FormField control={control} name="adjustmentAmount" render={({ field }) => (
+                                        <Input type="number" {...field} className="w-24 h-8 text-right" />
+                                    )} />
+                                </div>
+                                <Separator/>
+                                <div className="flex justify-between font-semibold"><span>Net Before TDS</span><span>{netBeforeTds.toFixed(2)}</span></div>
+                                {watch("tdsApplicable") && (
+                                    <div className="flex justify-between items-center text-destructive">
+                                        <Label>TDS</Label>
+                                        <div className="flex items-center gap-2">
+                                            <FormField control={control} name="tdsRate" render={({ field }) => (
+                                                <Input type="number" {...field} className="w-20 h-8 text-right" placeholder="Rate %" />
+                                            )} />
+                                            <span>- {tdsAmount.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                )}
+                                <Separator/>
                                 <div className="flex justify-between font-bold text-lg"><span>Grand Total</span><span>{grandTotal.toFixed(2)}</span></div>
                             </div>
                         </div>
@@ -386,6 +429,7 @@ export function PurchaseInvoiceForm() {
                             <div className="space-y-4">
                                  <FormField control={control} name="eWayBillRequired" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>E-Way Bill Required?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
                                  <FormField control={control} name="reverseCharge" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>Reverse Charge?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
+                                  <FormField control={control} name="tdsApplicable" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>TDS Applicable?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
                             </div>
                              <FormField control={control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being purchases made..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </div>
