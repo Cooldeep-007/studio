@@ -25,10 +25,10 @@ const lineItemSchema = z.object({
   sacCode: z.string().optional(),
   amount: z.coerce.number().min(0, 'Amount cannot be negative'),
   gstRate: z.coerce.number().min(0),
-  cgst: z.coerce.number(),
-  sgst: z.coerce.number(),
-  igst: z.coerce.number(),
-  total: z.coerce.number(),
+  cgst: z.coerce.number().optional(),
+  sgst: z.coerce.number().optional(),
+  igst: z.coerce.number().optional(),
+  total: z.coerce.number().optional(),
 });
 
 const adhocInvoiceSchema = z.object({
@@ -37,9 +37,9 @@ const adhocInvoiceSchema = z.object({
   partyLedgerId: z.string().min(1, "Customer/Party is required."),
   placeOfSupply: z.string().min(1, 'Place of supply is required.'),
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
-  totalTaxableAmount: z.coerce.number(),
-  totalGst: z.coerce.number(),
-  grandTotal: z.coerce.number(),
+  totalTaxableAmount: z.coerce.number().optional(),
+  totalGst: z.coerce.number().optional(),
+  grandTotal: z.coerce.number().optional(),
   narration: z.string().optional(),
 });
 
@@ -50,10 +50,7 @@ const defaultValues: Partial<AdhocInvoiceFormValues> = {
   invoiceDate: new Date(),
   partyLedgerId: '',
   placeOfSupply: '',
-  lineItems: [{ description: '', sacCode: '', amount: 0, gstRate: 0, cgst: 0, sgst: 0, igst: 0, total: 0 }],
-  totalTaxableAmount: 0,
-  totalGst: 0,
-  grandTotal: 0,
+  lineItems: [{ description: '', sacCode: '', amount: 0, gstRate: 0 }],
   narration: '',
 };
 
@@ -80,13 +77,32 @@ export function AdhocInvoiceForm() {
         let subTotal = 0;
         let totalGst = 0;
 
-        const updatedLineItems = watchedLineItems.map(item => {
-            const amount = item.amount || 0;
-            const gstRate = item.gstRate || 0;
+        watchedLineItems.forEach(item => {
+            const amount = Number(item.amount) || 0;
+            const gstRate = Number(item.gstRate) || 0;
+            const gstAmount = amount * (gstRate / 100);
+            
+            subTotal += amount;
+            totalGst += gstAmount;
+        });
+
+        const grandTotal = subTotal + totalGst;
+        form.setValue('totalTaxableAmount', subTotal);
+        form.setValue('totalGst', totalGst);
+        form.setValue('grandTotal', grandTotal);
+    }, [watchedLineItems, form]);
+    
+    function onSubmit(data: AdhocInvoiceFormValues) {
+        let subTotal = 0;
+        let totalGst = 0;
+
+        const finalLineItems = data.lineItems.map(item => {
+            const amount = Number(item.amount) || 0;
+            const gstRate = Number(item.gstRate) || 0;
             const gstAmount = amount * (gstRate / 100);
             let cgst = 0, sgst = 0, igst = 0;
 
-            if (placeOfSupply === companyState) {
+            if (data.placeOfSupply === companyState) {
                 cgst = gstAmount / 2;
                 sgst = gstAmount / 2;
             } else {
@@ -96,21 +112,19 @@ export function AdhocInvoiceForm() {
             const total = amount + gstAmount;
             subTotal += amount;
             totalGst += gstAmount;
+
             return { ...item, cgst, sgst, igst, total };
         });
 
-        if (JSON.stringify(updatedLineItems) !== JSON.stringify(watchedLineItems)) {
-            form.setValue('lineItems', updatedLineItems, { shouldValidate: true });
-        }
+        const finalData = {
+            ...data,
+            lineItems: finalLineItems,
+            totalTaxableAmount: subTotal,
+            totalGst: totalGst,
+            grandTotal: subTotal + totalGst,
+        };
         
-        const grandTotal = subTotal + totalGst;
-        form.setValue('totalTaxableAmount', subTotal);
-        form.setValue('totalGst', totalGst);
-        form.setValue('grandTotal', grandTotal);
-    }, [watchedLineItems, placeOfSupply, form, companyState]);
-    
-    function onSubmit(data: AdhocInvoiceFormValues) {
-        console.log(data);
+        console.log(finalData);
         toast({
             title: "Adhoc Invoice Created",
             description: `Invoice ${data.invoiceNumber} has been saved.`,
@@ -155,13 +169,21 @@ export function AdhocInvoiceForm() {
                                                 <SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent>
                                                 </Select>)} />
                                         </TableCell>
-                                        <TableCell className="text-right">{form.getValues(`lineItems.${index}.total`).toFixed(2)}</TableCell>
+                                        <TableCell className="text-right">
+                                            {(() => {
+                                                const item = watchedLineItems[index];
+                                                const amount = Number(item?.amount) || 0;
+                                                const gstRate = Number(item?.gstRate) || 0;
+                                                const total = amount + (amount * (gstRate / 100));
+                                                return total.toFixed(2);
+                                            })()}
+                                        </TableCell>
                                         <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
                           </Table>
-                          <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => append({ description: '', sacCode: '', amount: 0, gstRate: 0, cgst: 0, sgst: 0, igst: 0, total: 0 })}>
+                          <Button type="button" variant="outline" size="sm" className="mt-4" onClick={() => append({ description: '', sacCode: '', amount: 0, gstRate: 0 })}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Add Line
                           </Button>
                         </div>
@@ -169,12 +191,12 @@ export function AdhocInvoiceForm() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                            <FormField control={form.control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being services rendered..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                            <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Taxable Amount</span><span>{form.getValues('totalTaxableAmount').toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{watchedLineItems.reduce((acc, item) => acc + item.cgst, 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{watchedLineItems.reduce((acc, item) => acc + item.sgst, 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{watchedLineItems.reduce((acc, item) => acc + item.igst, 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Taxable Amount</span><span>{(form.getValues('totalTaxableAmount') || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{( (placeOfSupply === companyState ? form.getValues('totalGst') : 0) / 2 ).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{( (placeOfSupply === companyState ? form.getValues('totalGst') : 0) / 2 ).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{(placeOfSupply !== companyState ? form.getValues('totalGst') : 0).toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total Value</span><span>{form.getValues('grandTotal').toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Total Value</span><span>{(form.getValues('grandTotal') || 0).toFixed(2)}</span></div>
                             </div>
                         </div>
                     </CardContent>

@@ -27,12 +27,12 @@ const lineItemSchema = z.object({
   quantity: z.coerce.number().optional(),
   uqc: z.string().optional(),
   rate: z.coerce.number().min(0, 'Rate cannot be negative'),
-  taxableValue: z.coerce.number(),
+  taxableValue: z.coerce.number().optional(),
   gstRate: z.coerce.number().min(0),
-  cgst: z.coerce.number(),
-  sgst: z.coerce.number(),
-  igst: z.coerce.number(),
-  total: z.coerce.number(),
+  cgst: z.coerce.number().optional(),
+  sgst: z.coerce.number().optional(),
+  igst: z.coerce.number().optional(),
+  total: z.coerce.number().optional(),
 }).superRefine((data, ctx) => {
     if (data.itemType === 'Goods') {
         if (!data.quantity || data.quantity <= 0) {
@@ -50,9 +50,9 @@ const proformaInvoiceSchema = z.object({
   partyLedgerId: z.string().min(1, "Customer is required."),
   placeOfSupply: z.string().min(1, 'Place of supply is required.'),
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
-  totalTaxableAmount: z.coerce.number(),
-  totalGst: z.coerce.number(),
-  grandTotal: z.coerce.number(),
+  totalTaxableAmount: z.coerce.number().optional(),
+  totalGst: z.coerce.number().optional(),
+  grandTotal: z.coerce.number().optional(),
   terms: z.string().optional(),
 });
 
@@ -65,12 +65,7 @@ const newLineItemDefault = {
   quantity: 1, 
   uqc: '', 
   rate: 0, 
-  taxableValue: 0,
   gstRate: 0,
-  cgst: 0, 
-  sgst: 0, 
-  igst: 0, 
-  total: 0 
 };
 
 const defaultValues: Partial<ProformaInvoiceFormValues> = {
@@ -79,9 +74,6 @@ const defaultValues: Partial<ProformaInvoiceFormValues> = {
   partyLedgerId: '',
   placeOfSupply: '',
   lineItems: [newLineItemDefault],
-  totalTaxableAmount: 0,
-  totalGst: 0,
-  grandTotal: 0,
   terms: '',
 };
 
@@ -131,10 +123,30 @@ export function ProformaInvoiceForm() {
     };
 
     React.useEffect(() => {
+        if (!lineItems) return;
         let subTotal = 0;
         let totalGst = 0;
 
-        const updatedLineItems = lineItems.map(item => {
+        lineItems.forEach(item => {
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+            const rate = Number(item.rate) || 0;
+            const gstRate = Number(item.gstRate) || 0;
+            const taxableValue = quantity * rate;
+            const gstAmount = taxableValue * (gstRate / 100);
+            subTotal += taxableValue;
+            totalGst += gstAmount;
+        });
+        
+        setValue('totalTaxableAmount', subTotal);
+        setValue('totalGst', totalGst);
+        setValue('grandTotal', subTotal + totalGst);
+    }, [lineItems, setValue]);
+    
+    function onSubmit(data: ProformaInvoiceFormValues) {
+        let subTotal = 0;
+        let totalGst = 0;
+
+        const finalLineItems = data.lineItems.map(item => {
             const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
             const rate = Number(item.rate) || 0;
             const gstRate = Number(item.gstRate) || 0;
@@ -142,7 +154,7 @@ export function ProformaInvoiceForm() {
             const gstAmount = taxableValue * (gstRate / 100);
             let cgst = 0, sgst = 0, igst = 0;
 
-            if (placeOfSupply === companyState) {
+            if (data.placeOfSupply === companyState) {
                 cgst = gstAmount / 2;
                 sgst = gstAmount / 2;
             } else {
@@ -151,20 +163,19 @@ export function ProformaInvoiceForm() {
             const total = taxableValue + gstAmount;
             subTotal += taxableValue;
             totalGst += gstAmount;
+
             return { ...item, taxableValue, cgst, sgst, igst, total };
         });
 
-        if (JSON.stringify(updatedLineItems) !== JSON.stringify(lineItems)) {
-            setValue('lineItems', updatedLineItems, { shouldValidate: true });
-        }
+        const finalData = {
+            ...data,
+            lineItems: finalLineItems,
+            totalTaxableAmount: subTotal,
+            totalGst: totalGst,
+            grandTotal: subTotal + totalGst,
+        };
         
-        setValue('totalTaxableAmount', subTotal);
-        setValue('totalGst', totalGst);
-        setValue('grandTotal', subTotal + totalGst);
-    }, [lineItems, placeOfSupply, companyState, setValue]);
-    
-    function onSubmit(data: ProformaInvoiceFormValues) {
-        console.log(data);
+        console.log(finalData);
         toast({
             title: "Proforma Invoice Saved",
             description: `Proforma Invoice ${data.proformaNumber} has been saved as a draft.`,
@@ -241,7 +252,19 @@ export function ProformaInvoiceForm() {
 
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
-                                        <TableCell className="text-right">{lineItems[index]?.total.toFixed(2) || '0.00'}</TableCell>
+                                        <TableCell className="text-right">
+                                            {(() => {
+                                                const item = lineItems[index];
+                                                if (!item) return '0.00';
+                                                const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+                                                const rate = Number(item.rate) || 0;
+                                                const taxableValue = quantity * rate;
+                                                const gstRate = Number(item.gstRate) || 0;
+                                                const gstAmount = taxableValue * (gstRate / 100);
+                                                const total = taxableValue + gstAmount;
+                                                return total.toFixed(2);
+                                            })()}
+                                        </TableCell>
                                         <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
                                     </TableRow>
                                 )})}
@@ -255,12 +278,12 @@ export function ProformaInvoiceForm() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                            <FormField control={form.control} name="terms" render={({ field }) => (<FormItem><FormLabel>Terms & Conditions</FormLabel><FormControl><Textarea placeholder="Payment terms, delivery schedule, etc." {...field} /></FormControl><FormMessage /></FormItem>)} />
                            <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Subtotal</span><span>{getValues('totalTaxableAmount').toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{lineItems.reduce((acc, item) => acc + item.cgst, 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{lineItems.reduce((acc, item) => acc + item.sgst, 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{lineItems.reduce((acc, item) => acc + item.igst, 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Subtotal</span><span>{(getValues('totalTaxableAmount') || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{((placeOfSupply === companyState ? getValues('totalGst') : 0) / 2).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{((placeOfSupply === companyState ? getValues('totalGst') : 0) / 2).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{(placeOfSupply !== companyState ? getValues('totalGst') : 0).toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{getValues('grandTotal').toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{(getValues('grandTotal') || 0).toFixed(2)}</span></div>
                             </div>
                         </div>
                     </CardContent>

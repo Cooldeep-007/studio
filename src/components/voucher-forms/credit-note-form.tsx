@@ -27,12 +27,12 @@ const lineItemSchema = z.object({
   quantity: z.coerce.number().optional(),
   uqc: z.string().optional(),
   rate: z.coerce.number().min(0, 'Rate cannot be negative'),
-  taxableValue: z.coerce.number(),
+  taxableValue: z.coerce.number().optional(),
   gstRate: z.coerce.number().min(0),
-  cgst: z.coerce.number(),
-  sgst: z.coerce.number(),
-  igst: z.coerce.number(),
-  total: z.coerce.number(),
+  cgst: z.coerce.number().optional(),
+  sgst: z.coerce.number().optional(),
+  igst: z.coerce.number().optional(),
+  total: z.coerce.number().optional(),
 }).superRefine((data, ctx) => {
     if (data.itemType === 'Goods') {
         if (!data.quantity || data.quantity <= 0) {
@@ -59,9 +59,9 @@ const creditNoteSchema = z.object({
   
   narration: z.string().optional(),
 
-  totalTaxableAmount: z.coerce.number(),
-  totalGst: z.coerce.number(),
-  grandTotal: z.coerce.number(),
+  totalTaxableAmount: z.coerce.number().optional(),
+  totalGst: z.coerce.number().optional(),
+  grandTotal: z.coerce.number().optional(),
 }).refine(data => !data.creditNoteDate || !data.originalInvoiceDate || data.creditNoteDate >= data.originalInvoiceDate, {
   message: "Credit note date cannot be before the original invoice date.",
   path: ["creditNoteDate"],
@@ -77,12 +77,7 @@ const newLineItemDefault = {
   quantity: 1, 
   uqc: '', 
   rate: 0, 
-  taxableValue: 0,
   gstRate: 0,
-  cgst: 0, 
-  sgst: 0, 
-  igst: 0, 
-  total: 0 
 };
 
 const defaultValues: CreditNoteFormValues = {
@@ -94,9 +89,6 @@ const defaultValues: CreditNoteFormValues = {
   creditNoteDate: new Date(),
   originalInvoiceDate: new Date(),
   lineItems: [newLineItemDefault],
-  totalTaxableAmount: 0,
-  totalGst: 0,
-  grandTotal: 0,
   narration: '',
 };
 
@@ -158,11 +150,36 @@ export function CreditNoteForm() {
         }
     }, [partyLedgerId, setValue, customerLedgers]);
 
-     React.useEffect(() => {
+    React.useEffect(() => {
+        if (!lineItems) return;
         let subTotal = 0;
         let totalGst = 0;
 
-        const updatedLineItems = lineItems.map(item => {
+        lineItems.forEach(item => {
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+            const rate = Number(item.rate) || 0;
+            const gstRate = Number(item.gstRate) || 0;
+            
+            const taxableValue = quantity * rate;
+            const gstAmount = taxableValue * (gstRate / 100);
+
+            subTotal += taxableValue;
+            totalGst += gstAmount;
+        });
+        
+        const grandTotal = subTotal + totalGst;
+        setValue('totalTaxableAmount', subTotal);
+        setValue('totalGst', totalGst);
+        setValue('grandTotal', grandTotal);
+
+    }, [lineItems, placeOfSupply, setValue]);
+
+
+    function onSubmit(data: CreditNoteFormValues) {
+        let subTotal = 0;
+        let totalGst = 0;
+
+        const finalLineItems = data.lineItems.map(item => {
             const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
             const rate = Number(item.rate) || 0;
             const gstRate = Number(item.gstRate) || 0;
@@ -172,7 +189,7 @@ export function CreditNoteForm() {
 
             let cgst = 0, sgst = 0, igst = 0;
 
-            if (placeOfSupply === companyState) {
+            if (data.placeOfSupply === companyState) {
                 cgst = gstAmount / 2;
                 sgst = gstAmount / 2;
             } else {
@@ -187,20 +204,15 @@ export function CreditNoteForm() {
             return { ...item, taxableValue, cgst, sgst, igst, total };
         });
 
-        if (JSON.stringify(updatedLineItems) !== JSON.stringify(lineItems)) {
-            setValue('lineItems', updatedLineItems, { shouldValidate: true });
-        }
-        
-        const grandTotal = subTotal + totalGst;
-        setValue('totalTaxableAmount', subTotal);
-        setValue('totalGst', totalGst);
-        setValue('grandTotal', grandTotal);
+        const finalData = {
+            ...data,
+            lineItems: finalLineItems,
+            totalTaxableAmount: subTotal,
+            totalGst: totalGst,
+            grandTotal: subTotal + totalGst,
+        };
 
-    }, [lineItems, placeOfSupply, companyState, setValue]);
-
-
-    function onSubmit(data: CreditNoteFormValues) {
-        console.log(data);
+        console.log(finalData);
         toast({
             title: "Credit Note Created",
             description: `Credit Note against invoice ${data.originalInvoiceNo} has been saved.`,
@@ -316,7 +328,19 @@ export function CreditNoteForm() {
 
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
-                                        <TableCell className="text-right">{lineItems[index]?.total.toFixed(2) || '0.00'}</TableCell>
+                                        <TableCell className="text-right">
+                                            {(() => {
+                                                const item = lineItems[index];
+                                                if (!item) return '0.00';
+                                                const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+                                                const rate = Number(item.rate) || 0;
+                                                const taxableValue = quantity * rate;
+                                                const gstRate = Number(item.gstRate) || 0;
+                                                const gstAmount = taxableValue * (gstRate / 100);
+                                                const total = taxableValue + gstAmount;
+                                                return total.toFixed(2);
+                                            })()}
+                                        </TableCell>
                                         <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
                                     </TableRow>
                                 )})}
@@ -345,13 +369,13 @@ export function CreditNoteForm() {
                                 />
                                 <FormField control={form.control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being credit note raised for goods returned..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                             </div>
-                            <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Taxable Value</span><span>{getValues('totalTaxableAmount').toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>Output CGST Reversal</span><span>{lineItems.reduce((acc, item) => acc + item.cgst, 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>Output SGST Reversal</span><span>{lineItems.reduce((acc, item) => acc + item.sgst, 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>Output IGST Reversal</span><span>{lineItems.reduce((acc, item) => acc + item.igst, 0).toFixed(2)}</span></div>
+                           <div className="w-full space-y-2 self-end">
+                                <div className="flex justify-between"><span>Taxable Value</span><span>{(getValues('totalTaxableAmount') || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>Output CGST Reversal</span><span>{((placeOfSupply === companyState ? getValues('totalGst') : 0) / 2).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>Output SGST Reversal</span><span>{((placeOfSupply === companyState ? getValues('totalGst') : 0) / 2).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>Output IGST Reversal</span><span>{(placeOfSupply !== companyState ? getValues('totalGst') : 0).toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total Credit Note Value</span><span>{getValues('grandTotal').toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Total Credit Note Value</span><span>{(getValues('grandTotal') || 0).toFixed(2)}</span></div>
                             </div>
                         </div>
                     </CardContent>
