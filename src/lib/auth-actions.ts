@@ -45,7 +45,7 @@ function handleAuthError(error: any): AuthError {
         errorMessage = 'The password is too weak. Please use at least 8 characters.';
         break;
       case 'auth/operation-not-allowed':
-        errorMessage = 'This sign-in method is not enabled. Please enable it in the Firebase console.';
+        errorMessage = 'Operation not allowed. Please enable Email/Password and Google sign-in methods in your Firebase Console -> Authentication -> Sign-in method tab.';
         break;
       default:
         errorMessage = error.message;
