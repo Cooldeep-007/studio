@@ -245,6 +245,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <SidebarInset>
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 py-2">
           <SidebarTrigger className="sm:hidden" />
+          {profile && (
+            <div className="hidden items-center gap-2 md:flex">
+              <Building className="h-5 w-5 text-muted-foreground" />
+              <span className="font-semibold">{profile.companyName}</span>
+            </div>
+          )}
           <div className="relative ml-auto flex-1 md:grow-0"></div>
           {profile && <UserMenu user={profile} avatarUrl={user?.photoURL || userAvatar?.imageUrl} />}
         </header>
