@@ -25,10 +25,6 @@ const lineItemSchema = z.object({
   sacCode: z.string().optional(),
   amount: z.coerce.number().min(0, 'Amount cannot be negative'),
   gstRate: z.coerce.number().min(0),
-  cgst: z.coerce.number().optional(),
-  sgst: z.coerce.number().optional(),
-  igst: z.coerce.number().optional(),
-  total: z.coerce.number().optional(),
 });
 
 const adhocInvoiceSchema = z.object({
@@ -37,9 +33,6 @@ const adhocInvoiceSchema = z.object({
   partyLedgerId: z.string().min(1, "Customer/Party is required."),
   placeOfSupply: z.string().min(1, 'Place of supply is required.'),
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
-  totalTaxableAmount: z.coerce.number().optional(),
-  totalGst: z.coerce.number().optional(),
-  grandTotal: z.coerce.number().optional(),
   narration: z.string().optional(),
 });
 
@@ -67,7 +60,7 @@ export function AdhocInvoiceForm() {
         name: 'lineItems',
     });
 
-    const { watch, setValue, getValues } = form;
+    const { watch, getValues, reset } = form;
 
     const partyLedgers = React.useMemo(() => mockLedgers.filter(l => l.group === 'Sundry Debtor' || l.group === 'Sundry Creditor'), []);
     const companyState = "Karnataka";
@@ -75,12 +68,11 @@ export function AdhocInvoiceForm() {
     const watchedLineItems = watch('lineItems');
     const placeOfSupply = watch('placeOfSupply');
 
-    const calculateTotals = React.useCallback(() => {
-        const lineItems = getValues('lineItems');
+    const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
         let subTotal = 0;
         let totalGst = 0;
-
-        lineItems.forEach(item => {
+        
+        watchedLineItems.forEach(item => {
             const amount = Number(item.amount) || 0;
             const gstRate = Number(item.gstRate) || 0;
             const gstAmount = amount * (gstRate / 100);
@@ -89,52 +81,27 @@ export function AdhocInvoiceForm() {
             totalGst += gstAmount;
         });
 
-        const grandTotal = subTotal + totalGst;
-        setValue('totalTaxableAmount', subTotal, { shouldDirty: true });
-        setValue('totalGst', totalGst, { shouldDirty: true });
-        setValue('grandTotal', grandTotal, { shouldDirty: true });
-    }, [getValues, setValue]);
-
-    React.useEffect(() => {
-        const subscription = watch((value, { name }) => {
-            if (name && (name.startsWith('lineItems') || name === 'placeOfSupply')) {
-                calculateTotals();
-            }
-        });
-        return () => subscription.unsubscribe();
-    }, [watch, calculateTotals]);
-
-    
-    function onSubmit(data: AdhocInvoiceFormValues) {
-        let subTotal = 0;
-        let totalGst = 0;
-
-        const finalLineItems = data.lineItems.map(item => {
-            const amount = Number(item.amount) || 0;
-            const gstRate = Number(item.gstRate) || 0;
-            const gstAmount = amount * (gstRate / 100);
-            let cgst = 0, sgst = 0, igst = 0;
-
-            if (data.placeOfSupply === companyState) {
-                cgst = gstAmount / 2;
-                sgst = gstAmount / 2;
-            } else {
-                igst = gstAmount;
-            }
-
-            const total = amount + gstAmount;
-            subTotal += amount;
-            totalGst += gstAmount;
-
-            return { ...item, cgst, sgst, igst, total };
-        });
-
-        const finalData = {
-            ...data,
-            lineItems: finalLineItems,
+        return {
             totalTaxableAmount: subTotal,
             totalGst: totalGst,
             grandTotal: subTotal + totalGst,
+        };
+    }, [watchedLineItems]);
+
+    const isIntraState = placeOfSupply === companyState;
+    const cgst = isIntraState ? totalGst / 2 : 0;
+    const sgst = isIntraState ? totalGst / 2 : 0;
+    const igst = !isIntraState ? totalGst : 0;
+
+    function onSubmit(data: AdhocInvoiceFormValues) {
+        const finalData = {
+            ...data,
+            totalTaxableAmount,
+            totalGst,
+            cgst,
+            sgst,
+            igst,
+            grandTotal,
         };
         
         console.log(finalData);
@@ -142,7 +109,7 @@ export function AdhocInvoiceForm() {
             title: "Adhoc Invoice Created",
             description: `Invoice ${data.invoiceNumber} has been saved.`,
         });
-        form.reset();
+        reset();
     }
     
     return (
@@ -204,12 +171,12 @@ export function AdhocInvoiceForm() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                            <FormField control={form.control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being services rendered..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                            <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Taxable Amount</span><span>{(form.getValues('totalTaxableAmount') || 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{( (placeOfSupply === companyState ? (form.getValues('totalGst') || 0) : 0) / 2 ).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{( (placeOfSupply === companyState ? (form.getValues('totalGst') || 0) : 0) / 2 ).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{(placeOfSupply !== companyState ? (form.getValues('totalGst') || 0) : 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Taxable Amount</span><span>{totalTaxableAmount.toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{cgst.toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{sgst.toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{igst.toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total Value</span><span>{(form.getValues('grandTotal') || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Total Value</span><span>{grandTotal.toFixed(2)}</span></div>
                             </div>
                         </div>
                     </CardContent>
