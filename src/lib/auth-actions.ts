@@ -62,7 +62,9 @@ async function createUserProfile(uid: string, data: Omit<UserProfile, 'uid' | 'c
     uid,
     firmId,
     ...data,
+    role: 'Owner', // Default role for new sign-ups
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 }
 
@@ -155,7 +157,12 @@ export async function signInWithGoogle(): Promise<AuthError | null> {
       }, firmId);
     }
     return null;
-  } catch (error) {
+  } catch (error: any) {
+    // If the user closes the popup, it's not a true "error" we need to display.
+    // We can just ignore it and let the user try again if they want.
+    if (error.code === 'auth/popup-closed-by-user') {
+      return null;
+    }
     return handleAuthError(error);
   }
 }
