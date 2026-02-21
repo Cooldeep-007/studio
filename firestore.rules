@@ -1,0 +1,293 @@
+/**
+ * Core Philosophy:
+ * This ruleset enforces a strict multi-tenant security model centered around "Firms".
+ * All business data is isolated within a firm's data tree, and a user's access
+ * is determined by their membership in that firm, as defined in their UserProfile.
+ * The primary goal is to ensure no user from one firm can ever access data
+ * from another firm.
+ *
+ * Data Structure:
+ * The database is organized into two main root collections:
+ * 1. /users/{userId}: Stores private user profile information, including which
+ *    firm they belong to. This collection is owner-only access.
+ * 2. /firms/{firmId}: A top-level collection where each document represents a
+ *    tenant (a firm). All associated data, such as companies, ledgers, and
+ *    vouchers, is stored in subcollections under its respective firm document.
+ *
+ * Key Security Decisions:
+ * - Strict Tenant Isolation: Access to any document within the `/firms/{firmId}`
+ *   path requires checking the requesting user's own profile at `/users/{request.auth.uid}`
+ *   to verify they are a member of that firm.
+ * - User Privacy: Users can only read or write their own profile document. Listing
+ *   users is explicitly disallowed to prevent user enumeration.
+ * - Write Integrity: All write operations validate that the denormalized `firmId`
+ *   and `companyId` within a document match the document's path. This enforces
+ *   relational integrity at the database level.
+ * - Immutable Audit Logs: The `auditLogs` collection is append-only for firm
+ *   members. Once an audit log is created, it cannot be modified or deleted,
+ *   ensuring a tamper-resistant record of activities.
+ *
+ * Denormalization for Authorization:
+ * To ensure fast and secure authorization, a user's `firmId` is stored directly
+ * on their `UserProfile` document. Similarly, every document within a tenant's
+ * data tree (e.g., a Ledger or Voucher) contains a denormalized `firmId` and
+ * `companyId`. This allows security rules to authorize requests by comparing the
+ * user's `firmId` with the `firmId` on the target document, avoiding slow and
+ * costly parent document lookups.
+ *
+ * Structural Segregation:
+ * The hierarchical structure of `/firms/{firmId}/companies/{companyId}/...`
+ * provides a clear and secure boundary between different tenants and the
+ * companies they manage. This segregation simplifies rule logic and makes it
+ * easy to secure entire branches of the data tree with a single, consistent
+_`   `_principle.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper Functions
+    
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the requesting user's UID matches the provided userId.
+     * This is the foundation of the "user ownership" pattern.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Checks for document existence, used in update/delete operations.
+     */
+    function docExists() {
+      return resource != null;
+    }
+
+    /**
+     * Gets the requesting user's profile data document.
+     * This is the source of truth for a user's firm and role.
+     * The result is automatically cached per-request by Firestore Rules.
+     */
+    function userProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    /**
+     * Checks if the requesting user is a member of the specified firm.
+     */
+    function isMemberOfFirm(firmId) {
+      return isSignedIn() && userProfile().firmId == firmId;
+    }
+    
+    /**
+     * Combines firm membership and document existence checks for update/delete.
+     */
+    function isExistingFirmMember(firmId) {
+        return isMemberOfFirm(firmId) && docExists();
+    }
+
+
+    /**
+     * @description Rules for a user's own profile document.
+     * @path /users/{userId}
+     * @allow (create, get, update) by a user on their own document.
+     * @deny (list) requests to prevent user enumeration.
+     * @deny (get, update, delete) by any other user.
+     * @principle Restricts access to a user's own data tree.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isOwner(userId) && docExists() && request.resource.data.id == resource.data.id;
+      allow delete: if isOwner(userId) && docExists();
+    }
+
+    /**
+     * @description Rules for Firm documents, the root of all tenant data.
+     * @path /firms/{firmId}
+     * @allow (get, list, create, update, delete) by any authenticated member of the firm.
+     * @deny Any access by users not belonging to this firm.
+     * @principle Enforces tenant isolation at the highest level of the data hierarchy.
+     */
+    match /firms/{firmId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.id == firmId;
+      allow update: if isExistingFirmMember(firmId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingFirmMember(firmId);
+    }
+
+    /**
+     * @description Rules for the firm-specific, immutable audit log.
+     * @path /firms/{firmId}/auditLogs/{auditLogId}
+     * @allow (get, list, create) by any authenticated member of the firm.
+     * @deny (update, delete) to ensure audit trail integrity.
+     * @principle Guarantees the immutability of historical records.
+     */
+    match /firms/{firmId}/auditLogs/{auditLogId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId;
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    /**
+     * @description Rules for Company documents, nested under a Firm.
+     * @path /firms/{firmId}/companies/{companyId}
+     * @allow (get, list, create, update, delete) by any authenticated member of the parent firm.
+     * @deny Any access by users not belonging to this firm.
+     * @principle Enforces tenant isolation for company-level data.
+     */
+    match /firms/{firmId}/companies/{companyId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId && request.resource.data.id == companyId;
+      allow update: if isExistingFirmMember(firmId) && request.resource.data.firmId == resource.data.firmId && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingFirmMember(firmId);
+    }
+
+    /**
+     * @description Rules for Ledger documents.
+     * @path /firms/{firmId}/companies/{companyId}/ledgers/{ledgerId}
+     * @allow (read, write) by any member of the parent firm.
+     * @deny Access by users outside the firm.
+     * @principle Validates relational integrity between documents and paths.
+     */
+    match /firms/{firmId}/companies/{companyId}/ledgers/{ledgerId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
+      allow update: if isExistingFirmMember(firmId) && request.resource.data.firmId == resource.data.firmId && request.resource.data.companyId == resource.data.companyId;
+      allow delete: if isExistingFirmMember(firmId);
+    }
+
+    /**
+     * @description Rules for accounting Voucher documents.
+     * @path /firms/{firmId}/companies/{companyId}/vouchers/{voucherId}
+     * @allow (read, write) by any member of the parent firm.
+     * @deny Access by users outside the firm.
+     * @principle Validates relational integrity and authorship on creation.
+     */
+    match /firms/{firmId}/companies/{companyId}/vouchers/{voucherId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId && request.resource.data.createdByUserId == request.auth.uid;
+      allow update: if isExistingFirmMember(firmId) && request.resource.data.firmId == resource.data.firmId && request.resource.data.companyId == resource.data.companyId && request.resource.data.createdByUserId == resource.data.createdByUserId;
+      allow delete: if isExistingFirmMember(firmId);
+    }
+
+    /**
+     * @description Rules for Voucher Line Item documents.
+     * @path /firms/{firmId}/companies/{companyId}/vouchers/{voucherId}/lineItems/{lineItemId}
+     * @allow (read, write) by any member of the parent firm.
+     * @deny Access by users outside the firm.
+     * @principle Secures nested subcollection data based on parent firm membership.
+     */
+    match /firms/{firmId}/companies/{companyId}/vouchers/{voucherId}/lineItems/{lineItemId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId && request.resource.data.voucherId == voucherId;
+      allow update: if isExistingFirmMember(firmId) && request.resource.data.firmId == resource.data.firmId && request.resource.data.companyId == resource.data.companyId && request.resource.data.voucherId == resource.data.voucherId;
+      allow delete: if isExistingFirmMember(firmId);
+    }
+
+    /**
+     * @description Rules for Invoice documents.
+     * @path /firms/{firmId}/companies/{companyId}/invoices/{invoiceId}
+     * @allow (read, write) by any member of the parent firm.
+     * @deny Access by users outside the firm.
+     * @principle Enforces tenant isolation for financial documents.
+     */
+    match /firms/{firmId}/companies/{companyId}/invoices/{invoiceId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
+      allow update: if isExistingFirmMember(firmId) && request.resource.data.firmId == resource.data.firmId && request.resource.data.companyId == resource.data.companyId;
+      allow delete: if isExistingFirmMember(firmId);
+    }
+    
+    /**
+     * @description Rules for company-specific Invoice Template documents.
+     * @path /firms/{firmId}/companies/{companyId}/invoiceTemplates/{templateId}
+     * @allow (read, write) by any member of the parent firm.
+     * @deny Access by users outside the firm.
+     * @principle Secures configuration data within the correct tenant context.
+     */
+    match /firms/{firmId}/companies/{companyId}/invoiceTemplates/{templateId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
+      allow update: if isExistingFirmMember(firmId) && request.resource.data.firmId == resource.data.firmId && request.resource.data.companyId == resource.data.companyId;
+      allow delete: if isExistingFirmMember(firmId);
+    }
+
+    /**
+     * @description Rules for Custom Field Definition documents.
+     * @path /firms/{firmId}/companies/{companyId}/customFieldDefinitions/{definitionId}
+     * @allow (read, write) by any member of the parent firm.
+     * @deny Access by users outside the firm.
+     * @principle Secures metadata definitions within the correct tenant context.
+     */
+    match /firms/{firmId}/companies/{companyId}/customFieldDefinitions/{definitionId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
+      allow update: if isExistingFirmMember(firmId) && request.resource.data.firmId == resource.data.firmId && request.resource.data.companyId == resource.data.companyId;
+      allow delete: if isExistingFirmMember(firmId);
+    }
+
+    /**
+     * @description Rules for imported Bank Transaction documents.
+     * @path /firms/{firmId}/companies/{companyId}/bankTransactions/{bankTransactionId}
+     * @allow (read, write) by any member of the parent firm.
+     * @deny Access by users outside the firm.
+     * @principle Enforces tenant isolation for sensitive financial data.
+     */
+    match /firms/{firmId}/companies/{companyId}/bankTransactions/{bankTransactionId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
+      allow update: if isExistingFirmMember(firmId) && request.resource.data.firmId == resource.data.firmId && request.resource.data.companyId == resource.data.companyId;
+      allow delete: if isExistingFirmMember(firmId);
+    }
+
+    /**
+     * @description Rules for records of uploaded bank statements.
+     * @path /firms/{firmId}/companies/{companyId}/uploadedBankStatements/{statementId}
+     * @allow (read, write) by any member of the parent firm.
+     * @deny Access by users outside the firm.
+     * @principle Enforces tenant isolation and validates authorship on creation.
+     */
+    match /firms/{firmId}/companies/{companyId}/uploadedBankStatements/{statementId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId && request.resource.data.uploadedByUserId == request.auth.uid;
+      allow update: if isExistingFirmMember(firmId) && request.resource.data.firmId == resource.data.firmId && request.resource.data.companyId == resource.data.companyId && request.resource.data.uploadedByUserId == resource.data.uploadedByUserId;
+      allow delete: if isExistingFirmMember(firmId);
+    }
+
+    /**
+     * @description Rules for Tally import job records.
+     * @path /firms/{firmId}/companies/{companyId}/tallyImportJobs/{jobId}
+     * @allow (read, write) by any member of the parent firm.
+     * @deny Access by users outside the firm.
+     * @principle Enforces tenant isolation and validates authorship on creation.
+     */
+    match /firms/{firmId}/companies/{companyId}/tallyImportJobs/{jobId} {
+      allow get: if isMemberOfFirm(firmId);
+      allow list: if isMemberOfFirm(firmId);
+      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId && request.resource.data.uploadedByUserId == request.auth.uid;
+      allow update: if isExistingFirmMember(firmId) && request.resource.data.firmId == resource.data.firmId && request.resource.data.companyId == resource.data.companyId && request.resource.data.uploadedByUserId == resource.data.uploadedByUserId;
+      allow delete: if isExistingFirmMember(firmId);
+    }
+  }
+}

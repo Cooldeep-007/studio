@@ -1,0 +1,1282 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's profile within a multi-tenant firm, including their role and association with specific companies. Does not store sensitive authentication data like passwords.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The email address of the user, used for communication.",
+          "format": "email"
+        },
+        "mobile": {
+          "type": "string",
+          "description": "The mobile number of the user."
+        },
+        "role": {
+          "type": "string",
+          "description": "The assigned role of the user (e.g., SuperAdmin, FirmAdmin, Staff, ClientUser)."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether the user account is active or inactive."
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm this user belongs to. (Relationship: Firm 1:N UserProfile)"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the primary Company this user is associated with, if applicable (e.g., for a ClientUser). (Relationship: Company 1:N UserProfile)"
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "email",
+        "role",
+        "isActive",
+        "firmId",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Firm": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Firm",
+      "type": "object",
+      "description": "Represents a single SaaS tenant (firm) within the accounting system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Firm entity."
+        },
+        "firmName": {
+          "type": "string",
+          "description": "The legal name of the firm."
+        },
+        "subscriptionPlan": {
+          "type": "string",
+          "description": "The current subscription plan of the firm (e.g., Basic, Premium, Enterprise)."
+        },
+        "subscriptionExpiry": {
+          "type": "string",
+          "description": "The date and time when the firm's subscription plan expires.",
+          "format": "date-time"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates whether the firm's account is currently active."
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the firm record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the firm record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "firmName",
+        "isActive",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Company": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Company",
+      "type": "object",
+      "description": "Represents a client company managed by a firm in the accounting system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Company entity."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "The legal name of the client company."
+        },
+        "gstin": {
+          "type": "string",
+          "description": "Goods and Services Tax Identification Number (GSTIN) for the company."
+        },
+        "address": {
+          "type": "string",
+          "description": "The registered address of the company."
+        },
+        "financialYearStart": {
+          "type": "string",
+          "description": "The start date of the company's financial year.",
+          "format": "date"
+        },
+        "financialYearEnd": {
+          "type": "string",
+          "description": "The end date of the company's financial year.",
+          "format": "date"
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm that manages this company. (Relationship: Firm 1:N Company)"
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the company record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the company record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "companyName",
+        "gstin",
+        "financialYearStart",
+        "financialYearEnd",
+        "firmId",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Ledger": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Ledger",
+      "type": "object",
+      "description": "Represents an individual account in the chart of accounts for a company.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Ledger entity."
+        },
+        "ledgerName": {
+          "type": "string",
+          "description": "The name of the ledger account (e.g., 'Cash', 'Sales', 'Rent Expense')."
+        },
+        "group": {
+          "type": "string",
+          "description": "The primary group this ledger belongs to (e.g., Assets, Liabilities, Income, Expense)."
+        },
+        "openingBalance": {
+          "type": "number",
+          "description": "The initial balance of the ledger account at the start of a financial period."
+        },
+        "balanceType": {
+          "type": "string",
+          "description": "Indicates whether the ledger's natural balance is Debit (Dr) or Credit (Cr)."
+        },
+        "gstApplicable": {
+          "type": "boolean",
+          "description": "Indicates if GST (Goods and Services Tax) is applicable to transactions posted to this ledger."
+        },
+        "gstRate": {
+          "type": "number",
+          "description": "The default GST rate applicable to this ledger, if any."
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm this ledger belongs to. (Relationship: Firm 1:N Ledger)"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company this ledger belongs to. (Relationship: Company 1:N Ledger)"
+        },
+        "customFieldsData": {
+          "type": "string",
+          "description": "JSON string containing dynamically added custom field data for this ledger, validated against a schema."
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the ledger record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the ledger record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ledgerName",
+        "group",
+        "openingBalance",
+        "balanceType",
+        "gstApplicable",
+        "gstRate",
+        "firmId",
+        "companyId",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Voucher": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Voucher",
+      "type": "object",
+      "description": "Represents an accounting transaction entry that maintains double-entry accounting principles.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Voucher entity."
+        },
+        "voucherNumber": {
+          "type": "string",
+          "description": "An auto-sequenced unique number for the voucher within a company."
+        },
+        "voucherType": {
+          "type": "string",
+          "description": "The type of the voucher (e.g., Sales, Purchase, Payment, Receipt, Journal, Contra)."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date when the transaction occurred or the voucher was recorded.",
+          "format": "date"
+        },
+        "partyLedgerId": {
+          "type": "string",
+          "description": "Reference to the Ledger representing the main party involved in the transaction (e.g., Customer, Vendor). (Relationship: Ledger 1:N Voucher)"
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "The total amount of the voucher, summing all line items."
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm this voucher belongs to. (Relationship: Firm 1:N Voucher)"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company this voucher belongs to. (Relationship: Company 1:N Voucher)"
+        },
+        "createdByUserId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who created this voucher. (Relationship: UserProfile 1:N Voucher)"
+        },
+        "isBalanced": {
+          "type": "boolean",
+          "description": "A flag indicating if the voucher's debit and credit line items are balanced (total debits equal total credits)."
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the voucher record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the voucher record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "voucherNumber",
+        "voucherType",
+        "date",
+        "totalAmount",
+        "firmId",
+        "companyId",
+        "createdByUserId",
+        "isBalanced",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "VoucherLineItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "VoucherLineItem",
+      "type": "object",
+      "description": "Represents a single debit or credit entry within an accounting voucher.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the VoucherLineItem entity."
+        },
+        "voucherId": {
+          "type": "string",
+          "description": "Reference to the Voucher this line item belongs to. (Relationship: Voucher 1:N VoucherLineItem)"
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm this voucher line item belongs to. Inherited from Voucher."
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company this voucher line item belongs to. Inherited from Voucher."
+        },
+        "ledgerId": {
+          "type": "string",
+          "description": "Reference to the Ledger account affected by this line item. (Relationship: Ledger 1:N VoucherLineItem)"
+        },
+        "amount": {
+          "type": "number",
+          "description": "The monetary amount of this line item."
+        },
+        "taxRate": {
+          "type": "number",
+          "description": "The tax rate applicable to this line item, if any."
+        },
+        "taxAmount": {
+          "type": "number",
+          "description": "The calculated tax amount for this line item."
+        },
+        "drCrIndicator": {
+          "type": "string",
+          "description": "Indicates whether the entry is a Debit (Dr) or Credit (Cr)."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description for this specific line item."
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the voucher line item record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the voucher line item record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "voucherId",
+        "firmId",
+        "companyId",
+        "ledgerId",
+        "amount",
+        "drCrIndicator",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AuditLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AuditLog",
+      "type": "object",
+      "description": "Records all significant user activities and system changes for audit and security purposes.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the AuditLog entity."
+        },
+        "entityType": {
+          "type": "string",
+          "description": "The type of entity that was affected by the action (e.g., 'Voucher', 'Ledger', 'Company')."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "The ID of the specific entity instance that was affected."
+        },
+        "action": {
+          "type": "string",
+          "description": "The action performed (e.g., 'CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'VOUCHER_POST')."
+        },
+        "oldValue": {
+          "type": "string",
+          "description": "JSON string representing the state of the entity before the change."
+        },
+        "newValue": {
+          "type": "string",
+          "description": "JSON string representing the state of the entity after the change."
+        },
+        "changedByUserId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who performed the action. (Relationship: UserProfile 1:N AuditLog)"
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm associated with this audit log entry. (Relationship: Firm 1:N AuditLog)"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company associated with this audit log entry, if applicable. (Relationship: Company 1:N AuditLog)"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The date and time when the audited action occurred.",
+          "format": "date-time"
+        },
+        "ipAddress": {
+          "type": "string",
+          "description": "The IP address from which the action was initiated.",
+          "format": "ipv4"
+        },
+        "userAgent": {
+          "type": "string",
+          "description": "The user agent string of the client that initiated the action."
+        }
+      },
+      "required": [
+        "id",
+        "entityType",
+        "entityId",
+        "action",
+        "changedByUserId",
+        "firmId",
+        "timestamp"
+      ]
+    },
+    "Invoice": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Invoice",
+      "type": "object",
+      "description": "Represents a GST-compliant invoice generated from a Sales Voucher, with customizable details.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Invoice entity."
+        },
+        "invoiceNumber": {
+          "type": "string",
+          "description": "A unique, sequential invoice number."
+        },
+        "voucherId": {
+          "type": "string",
+          "description": "Reference to the Sales Voucher from which this invoice was generated. (Relationship: Voucher 1:N Invoice)"
+        },
+        "invoiceDate": {
+          "type": "string",
+          "description": "The date when the invoice was issued.",
+          "format": "date"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "The date by which payment for this invoice is due.",
+          "format": "date"
+        },
+        "partyLedgerId": {
+          "type": "string",
+          "description": "Reference to the Ledger representing the customer or recipient of the invoice. (Relationship: Ledger 1:N Invoice)"
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "The total amount of the invoice, including taxes."
+        },
+        "totalTaxAmount": {
+          "type": "number",
+          "description": "The total tax amount applied on the invoice."
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm this invoice belongs to. (Relationship: Firm 1:N Invoice)"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company this invoice belongs to. (Relationship: Company 1:N Invoice)"
+        },
+        "invoiceTemplateId": {
+          "type": "string",
+          "description": "Reference to the InvoiceTemplate used to generate this invoice's presentation. (Relationship: InvoiceTemplate 1:N Invoice)"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the invoice (e.g., Draft, Issued, Paid, PartiallyPaid, Cancelled)."
+        },
+        "paymentTerms": {
+          "type": "string",
+          "description": "Textual description of the payment terms (e.g., 'Net 30', 'Due on receipt')."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional footer notes or special instructions for the invoice."
+        },
+        "customFieldsData": {
+          "type": "string",
+          "description": "JSON string containing dynamic custom field data for this invoice, validated against a schema."
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the invoice record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the invoice record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "invoiceNumber",
+        "voucherId",
+        "invoiceDate",
+        "partyLedgerId",
+        "totalAmount",
+        "totalTaxAmount",
+        "firmId",
+        "companyId",
+        "status",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "InvoiceTemplate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "InvoiceTemplate",
+      "type": "object",
+      "description": "Defines a customizable template for generating invoices, specific to a company.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the InvoiceTemplate entity."
+        },
+        "templateName": {
+          "type": "string",
+          "description": "A descriptive name for the invoice template (e.g., 'Standard GST Invoice Template')."
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm this invoice template belongs to. (Relationship: Firm 1:N InvoiceTemplate)"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company that owns this invoice template. (Relationship: Company 1:N InvoiceTemplate)"
+        },
+        "logoUrl": {
+          "type": "string",
+          "description": "URL to the company's logo image to be used on the invoice.",
+          "format": "uri"
+        },
+        "colorThemePrimary": {
+          "type": "string",
+          "description": "Hex code for the primary color theme of the invoice."
+        },
+        "colorThemeAccent": {
+          "type": "string",
+          "description": "Hex code for the accent color theme of the invoice."
+        },
+        "bankDetailsJson": {
+          "type": "string",
+          "description": "JSON string containing bank account details for payment, e.g., {'bankName': 'ABC Bank', 'accountNumber': '12345', 'ifscCode': 'ABCD0001234'}."
+        },
+        "footerNotes": {
+          "type": "string",
+          "description": "General footer notes or legal disclaimers to appear on the invoice."
+        },
+        "customFieldsSchema": {
+          "type": "string",
+          "description": "JSON schema definition for custom fields that can be added to invoices using this template."
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the invoice template record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the invoice template record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "templateName",
+        "firmId",
+        "companyId",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CustomFieldDefinition": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CustomFieldDefinition",
+      "type": "object",
+      "description": "Defines the metadata and schema for custom fields that companies can add to various entities like Invoices or Ledgers.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CustomFieldDefinition entity."
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm this custom field definition belongs to. (Relationship: Firm 1:N CustomFieldDefinition)"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company for which this custom field is defined. (Relationship: Company 1:N CustomFieldDefinition)"
+        },
+        "entityType": {
+          "type": "string",
+          "description": "The type of entity this custom field applies to (e.g., 'Invoice', 'Ledger')."
+        },
+        "fieldName": {
+          "type": "string",
+          "description": "The programmatic name of the custom field (e.g., 'deliveryInstructions')."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user-friendly display name of the custom field (e.g., 'Delivery Instructions')."
+        },
+        "fieldType": {
+          "type": "string",
+          "description": "The type of data expected for this custom field (e.g., 'string', 'number', 'boolean', 'date', 'select')."
+        },
+        "schemaDefinition": {
+          "type": "string",
+          "description": "JSON string containing a JSON Schema snippet defining the validation rules for this custom field (e.g., {'type': 'string', 'maxLength': 255})."
+        },
+        "isRequired": {
+          "type": "boolean",
+          "description": "Indicates whether this custom field is mandatory for the target entity."
+        },
+        "order": {
+          "type": "number",
+          "description": "The display order of the custom field when rendering forms."
+        },
+        "defaultValue": {
+          "type": "string",
+          "description": "The default value for this custom field, if any (stored as a string, interpreted based on fieldType)."
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the custom field definition record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the custom field definition record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "firmId",
+        "companyId",
+        "entityType",
+        "fieldName",
+        "displayName",
+        "fieldType",
+        "schemaDefinition",
+        "isRequired",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BankTransaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "BankTransaction",
+      "type": "object",
+      "description": "Represents a single financial transaction imported from a bank statement, awaiting reconciliation.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the BankTransaction entity."
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm this bank transaction belongs to. (Relationship: Firm 1:N BankTransaction)"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company this bank transaction belongs to. (Relationship: Company 1:N BankTransaction)"
+        },
+        "bankAccountId": {
+          "type": "string",
+          "description": "Reference to the BankAccount this transaction originated from (if a BankAccount entity is implemented). (Relationship: BankAccount 1:N BankTransaction)"
+        },
+        "transactionDate": {
+          "type": "string",
+          "description": "The date of the bank transaction.",
+          "format": "date"
+        },
+        "description": {
+          "type": "string",
+          "description": "The description of the transaction as provided by the bank."
+        },
+        "referenceNumber": {
+          "type": "string",
+          "description": "A unique reference number provided by the bank for the transaction."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The monetary amount of the transaction."
+        },
+        "currency": {
+          "type": "string",
+          "description": "The currency of the transaction (e.g., 'INR', 'USD')."
+        },
+        "transactionType": {
+          "type": "string",
+          "description": "Indicates if the transaction is a DEBIT or CREDIT from the bank account perspective."
+        },
+        "sourceFileId": {
+          "type": "string",
+          "description": "Reference to the UploadedBankStatement file from which this transaction was imported. (Relationship: UploadedBankStatement 1:N BankTransaction)"
+        },
+        "isReconciled": {
+          "type": "boolean",
+          "description": "Flag indicating whether this bank transaction has been reconciled with an internal accounting entry."
+        },
+        "suggestedLedgerId": {
+          "type": "string",
+          "description": "Reference to a Ledger suggested for mapping this transaction to. (Relationship: Ledger 1:N BankTransaction)"
+        },
+        "actualLedgerId": {
+          "type": "string",
+          "description": "Reference to the Ledger this transaction was actually mapped to after review. (Relationship: Ledger 1:N BankTransaction)"
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the bank transaction record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the bank transaction record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "firmId",
+        "companyId",
+        "transactionDate",
+        "description",
+        "amount",
+        "currency",
+        "transactionType",
+        "isReconciled",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UploadedBankStatement": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UploadedBankStatement",
+      "type": "object",
+      "description": "Tracks uploaded bank statement files for processing and reconciliation.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UploadedBankStatement entity."
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm that uploaded this bank statement. (Relationship: Firm 1:N UploadedBankStatement)"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company for which this bank statement was uploaded. (Relationship: Company 1:N UploadedBankStatement)"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The original file name of the uploaded bank statement."
+        },
+        "fileUrl": {
+          "type": "string",
+          "description": "URL or path to the stored bank statement file.",
+          "format": "uri"
+        },
+        "uploadDate": {
+          "type": "string",
+          "description": "The date and time when the bank statement file was uploaded.",
+          "format": "date-time"
+        },
+        "uploadedByUserId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who uploaded the file. (Relationship: UserProfile 1:N UploadedBankStatement)"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current processing status of the uploaded file (e.g., 'UPLOADED', 'PARSED', 'ERROR', 'PROCESSED')."
+        },
+        "totalTransactions": {
+          "type": "number",
+          "description": "The total number of transactions found and processed in the uploaded file."
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the uploaded bank statement record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the uploaded bank statement record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "firmId",
+        "companyId",
+        "fileName",
+        "uploadDate",
+        "uploadedByUserId",
+        "status",
+        "totalTransactions",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TallyImportJob": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "TallyImportJob",
+      "type": "object",
+      "description": "Manages the process of importing accounting data from Tally XML files into the system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the TallyImportJob entity."
+        },
+        "firmId": {
+          "type": "string",
+          "description": "Reference to the Firm initiating this Tally import. (Relationship: Firm 1:N TallyImportJob)"
+        },
+        "companyId": {
+          "type": "string",
+          "description": "Reference to the Company for which Tally data is being imported. (Relationship: Company 1:N TallyImportJob)"
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The original file name of the uploaded Tally XML."
+        },
+        "fileUrl": {
+          "type": "string",
+          "description": "URL or path to the stored Tally XML file.",
+          "format": "uri"
+        },
+        "uploadDate": {
+          "type": "string",
+          "description": "The date and time when the Tally XML file was uploaded.",
+          "format": "date-time"
+        },
+        "uploadedByUserId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who uploaded the file. (Relationship: UserProfile 1:N TallyImportJob)"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current processing status of the Tally import job (e.g., 'UPLOADED', 'PARSING', 'PENDING_REVIEW', 'COMPLETED', 'ERROR')."
+        },
+        "importSummary": {
+          "type": "string",
+          "description": "JSON string containing a summary of the import, including counts of imported ledgers, vouchers, and any errors encountered."
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
+          "format": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the Tally import job record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the Tally import job record was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "firmId",
+        "companyId",
+        "fileName",
+        "uploadDate",
+        "uploadedByUserId",
+        "status",
+        "isDeleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profile information, roles, and firm/company affiliations. `userId` maps to Firebase Authentication's UID. Includes denormalized 'firmId' and 'companyId' for authorization.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Authentication User ID (UID) of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}",
+        "definition": {
+          "entityName": "Firm",
+          "schema": {
+            "$ref": "#/backend/entities/Firm"
+          },
+          "description": "Root collection for each SaaS tenant (accounting firm). All data related to a firm is nested under its respective document. This is the primary multi-tenancy boundary.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "Unique identifier for the accounting firm (tenant)."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}/companies/{companyId}",
+        "definition": {
+          "entityName": "Company",
+          "schema": {
+            "$ref": "#/backend/entities/Company"
+          },
+          "description": "Subcollection storing client companies managed by a specific firm. Each document includes denormalized 'firmId' for authorization independence.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "The unique identifier of the parent firm."
+            },
+            {
+              "name": "companyId",
+              "description": "Unique identifier for the client company within the firm."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}/companies/{companyId}/ledgers/{ledgerId}",
+        "definition": {
+          "entityName": "Ledger",
+          "schema": {
+            "$ref": "#/backend/entities/Ledger"
+          },
+          "description": "Subcollection for ledger accounts specific to a company. Each document includes denormalized 'firmId' and 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "The unique identifier of the parent firm."
+            },
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the parent company."
+            },
+            {
+              "name": "ledgerId",
+              "description": "Unique identifier for the ledger account."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}/companies/{companyId}/vouchers/{voucherId}",
+        "definition": {
+          "entityName": "Voucher",
+          "schema": {
+            "$ref": "#/backend/entities/Voucher"
+          },
+          "description": "Subcollection for accounting vouchers (transactions) specific to a company. Each document includes denormalized 'firmId' and 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "The unique identifier of the parent firm."
+            },
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the parent company."
+            },
+            {
+              "name": "voucherId",
+              "description": "Unique identifier for the accounting voucher."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}/companies/{companyId}/vouchers/{voucherId}/lineItems/{lineItemId}",
+        "definition": {
+          "entityName": "VoucherLineItem",
+          "schema": {
+            "$ref": "#/backend/entities/VoucherLineItem"
+          },
+          "description": "Subcollection for individual debit/credit entries within a voucher. Each document includes denormalized 'firmId' and 'companyId' for authorization independence, inherited from the parent voucher.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "The unique identifier of the top-level firm."
+            },
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the parent company."
+            },
+            {
+              "name": "voucherId",
+              "description": "The unique identifier of the parent voucher."
+            },
+            {
+              "name": "lineItemId",
+              "description": "Unique identifier for the voucher line item."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}/auditLogs/{auditLogId}",
+        "definition": {
+          "entityName": "AuditLog",
+          "schema": {
+            "$ref": "#/backend/entities/AuditLog"
+          },
+          "description": "Collection for audit logs specific to a firm, documenting significant user activities and system changes. Each document includes denormalized 'firmId' for authorization independence and optional 'companyId'.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "The unique identifier of the parent firm."
+            },
+            {
+              "name": "auditLogId",
+              "description": "Unique identifier for the audit log entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}/companies/{companyId}/invoices/{invoiceId}",
+        "definition": {
+          "entityName": "Invoice",
+          "schema": {
+            "$ref": "#/backend/entities/Invoice"
+          },
+          "description": "Subcollection for generated invoices specific to a company. Each document includes denormalized 'firmId' and 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "The unique identifier of the parent firm."
+            },
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the parent company."
+            },
+            {
+              "name": "invoiceId",
+              "description": "Unique identifier for the invoice."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}/companies/{companyId}/invoiceTemplates/{templateId}",
+        "definition": {
+          "entityName": "InvoiceTemplate",
+          "schema": {
+            "$ref": "#/backend/entities/InvoiceTemplate"
+          },
+          "description": "Subcollection for customizable invoice templates specific to a company. Each document includes denormalized 'firmId' and 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "The unique identifier of the parent firm."
+            },
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the parent company."
+            },
+            {
+              "name": "templateId",
+              "description": "Unique identifier for the invoice template."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}/companies/{companyId}/customFieldDefinitions/{definitionId}",
+        "definition": {
+          "entityName": "CustomFieldDefinition",
+          "schema": {
+            "$ref": "#/backend/entities/CustomFieldDefinition"
+          },
+          "description": "Subcollection for custom field definitions specific to a company and entity type. Each document includes denormalized 'firmId' and 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "The unique identifier of the parent firm."
+            },
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the parent company."
+            },
+            {
+              "name": "definitionId",
+              "description": "Unique identifier for the custom field definition."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}/companies/{companyId}/bankTransactions/{bankTransactionId}",
+        "definition": {
+          "entityName": "BankTransaction",
+          "schema": {
+            "$ref": "#/backend/entities/BankTransaction"
+          },
+          "description": "Subcollection for bank transactions imported for a specific company, awaiting reconciliation. Each document includes denormalized 'firmId' and 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "The unique identifier of the parent firm."
+            },
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the parent company."
+            },
+            {
+              "name": "bankTransactionId",
+              "description": "Unique identifier for the bank transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}/companies/{companyId}/uploadedBankStatements/{statementId}",
+        "definition": {
+          "entityName": "UploadedBankStatement",
+          "schema": {
+            "$ref": "#/backend/entities/UploadedBankStatement"
+          },
+          "description": "Subcollection tracking uploaded bank statement files for a company. Each document includes denormalized 'firmId' and 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "The unique identifier of the parent firm."
+            },
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the parent company."
+            },
+            {
+              "name": "statementId",
+              "description": "Unique identifier for the uploaded bank statement record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/firms/{firmId}/companies/{companyId}/tallyImportJobs/{jobId}",
+        "definition": {
+          "entityName": "TallyImportJob",
+          "schema": {
+            "$ref": "#/backend/entities/TallyImportJob"
+          },
+          "description": "Subcollection managing Tally import jobs for a specific company. Each document includes denormalized 'firmId' and 'companyId' for authorization independence.",
+          "params": [
+            {
+              "name": "firmId",
+              "description": "The unique identifier of the parent firm."
+            },
+            {
+              "name": "companyId",
+              "description": "The unique identifier of the parent company."
+            },
+            {
+              "name": "jobId",
+              "description": "Unique identifier for the Tally import job."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The recommended Firestore structure is designed to strictly adhere to the core principles of Authorization Independence, Structural Segregation, and Access Modeling, ensuring a secure, scalable, and debuggable multi-tenant SaaS accounting application.\n\n**Authorization Independence (via Denormalization):**\nEach document that represents data within a specific `Firm` or `Company` context explicitly includes the `firmId` and, where applicable, the `companyId` as direct fields. This denormalization is crucial for `Authorization Independence`. For example, a `Ledger` document stored at `/firms/{firmId}/companies/{companyId}/ledgers/{ledgerId}` will contain `ledger.firmId` and `ledger.companyId`. This eliminates the need for security rules to perform expensive and non-atomic `get()` operations on parent documents (e.g., to retrieve `companyId` from a `Company` document before authorizing access to a `Ledger`). Instead, rules can directly compare the `firmId` and `companyId` extracted from the `request.auth.uid`'s `UserProfile` (which stores the user's `firmId` and `companyId`) with the `firmId` and `companyId` present in the document itself. This design allows for atomic writes and reads and greatly simplifies rule logic, making it robust against race conditions and easier to debug.\n\n**Support for QAPs (Queries as Authorization Policies):**\n1.  **Path-Based Ownership:** The `/users/{userId}` path for `UserProfile` documents inherently supports QAPs by enforcing that `request.auth.uid` must match `{userId}`. This makes `list` operations on user profiles trivially secure, as a user can only query their own profile.\n2.  **Denormalized `firmId` and `companyId`:** For all firm- and company-scoped data, the explicit inclusion of `firmId` and `companyId` in every document enables QAPs at a broader scale. Security rules will mandate that any `list` query must include `where('firmId', '==', request.auth.firmId)` and/or `where('companyId', '==', request.auth.companyId)`. The rules then merely *validate* that the query's filters match the authenticated user's access scope (derived from their `UserProfile`), rather than attempting to filter results themselves. This ensures that clients can only ever request data they are authorized to see, making `list` operations efficient and secure.\n3.  **Structural Segregation:** Data is hierarchically organized (`/firms/{firmId}/companies/{companyId}/...`). This ensures that all documents within a given collection (e.g., `/firms/{firmId}/companies/{companyId}/ledgers`) share a homogeneous security posture. Rules can be written concisely for each collection, relying on the `firmId` and `companyId` within the document and path to grant access based on the user's role, thus facilitating strong QAPs.\n\n**Access Modeling:**\n*   **Private User Data:** `UserProfile` data is stored under `/users/{userId}`, directly tied to the Firebase `auth.uid`.\n*   **Hierarchical Multi-Tenant Data:** All firm-specific data (e.g., `Firm` details, `Company` details, `Ledgers`, `Vouchers`, etc.) is structured under `/firms/{firmId}` and further under `/firms/{firmId}/companies/{companyId}`. This clear hierarchy provides natural scoping for multi-tenancy.\n*   **DBAC (Database Access Control):** User roles (`SuperAdmin`, `FirmAdmin`, `Staff`, `ClientUser`) and their primary `firmId` and `companyId` are stored directly within their `UserProfile` document. Security rules will `get()` the user's *own* `UserProfile` (`/users/$(request.auth.uid)`) to ascertain their role and scope for authorizing access to other data within the system. This avoids custom claims and keeps role management within Firestore. SuperAdmins will have a `role` field allowing broad access, while other roles will be restricted by their associated `firmId` and `companyId` fields.\n\nThis design establishes a robust foundation for implementing fine-grained security rules, supporting efficient data retrieval, and simplifying debugging in a multi-tenant environment."
+  }
+}
