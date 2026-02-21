@@ -56,10 +56,6 @@ const creditNoteSchema = z.object({
   
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
   
-  totalTaxableAmount: z.number().optional(),
-  totalGst: z.number().optional(),
-  grandTotal: z.number().optional(),
-
   narration: z.string().optional(),
 
 }).refine(data => !data.creditNoteDate || !data.originalInvoiceDate || data.creditNoteDate >= data.originalInvoiceDate, {
@@ -108,7 +104,7 @@ export function CreditNoteForm() {
         name: 'lineItems',
     });
 
-    const { watch, setValue, getValues, trigger, reset } = form;
+    const { watch, setValue, getValues, reset, control } = form;
 
     const reasonLedgers = React.useMemo(() => mockLedgers.filter(l => l.ledgerName === 'Sales Return'), []);
 
@@ -120,7 +116,6 @@ export function CreditNoteForm() {
 
      const handleItemCreated = (newItem: Item, index: number) => {
         setItems(prev => [...prev, newItem]);
-        setValue(`lineItems.${index}.itemId`, newItem.id, { shouldDirty: true, shouldTouch: true });
         handleItemSelect(newItem.id, index);
     };
 
@@ -132,22 +127,19 @@ export function CreditNoteForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            setValue(`lineItems.${index}.itemType`, selectedItem.type);
-            setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
-            setValue(`lineItems.${index}.rate`, selectedItem.unitPrice, { shouldValidate: true });
-            setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
-            
-            if (selectedItem.type === 'Goods') {
-                setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
-                const currentQuantity = getValues(`lineItems.${index}.quantity`);
-                if (currentQuantity === undefined || currentQuantity === 0) {
-                  setValue(`lineItems.${index}.quantity`, 1);
-                }
-            } else { // It's a service
-                setValue(`lineItems.${index}.quantity`, 1);
-                setValue(`lineItems.${index}.uqc`, '');
-            }
-            trigger(`lineItems.${index}`);
+            const currentLineItem = getValues(`lineItems.${index}`);
+            const isService = selectedItem.type === 'Services';
+
+            setValue(`lineItems.${index}`, {
+                ...currentLineItem,
+                itemId: selectedItem.id,
+                itemType: selectedItem.type,
+                hsnSacCode: isService ? selectedItem.sacCode : selectedItem.hsnCode,
+                rate: selectedItem.unitPrice,
+                gstRate: selectedItem.gstRate,
+                quantity: isService ? 1 : (currentLineItem.quantity || 1),
+                uqc: isService ? '' : selectedItem.uqc,
+            }, { shouldValidate: true });
         }
     };
 
@@ -161,12 +153,12 @@ export function CreditNoteForm() {
         }
     }, [partyLedgerId, setValue, customerLedgers]);
 
-    const calculateTotals = React.useCallback(() => {
+    const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
         let subTotal = 0;
         let totalGstAmount = 0;
 
-        getValues('lineItems').forEach(item => {
-            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+        lineItems.forEach(item => {
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
             const rate = Number(item.rate) || 0;
             const gstRate = Number(item.gstRate) || 0;
             
@@ -177,22 +169,12 @@ export function CreditNoteForm() {
             totalGstAmount += gstAmount;
         });
         
-        setValue('totalTaxableAmount', subTotal);
-        setValue('totalGst', totalGstAmount);
-        setValue('grandTotal', subTotal + totalGstAmount);
-
-    }, [getValues, setValue]);
-
-    React.useEffect(() => {
-        const subscription = watch((value, { name }) => {
-            if (name && name.startsWith('lineItems')) {
-                calculateTotals();
-            }
-        });
-        return () => subscription.unsubscribe();
-    }, [watch, calculateTotals]);
-    
-    const { totalTaxableAmount, totalGst, grandTotal } = watch();
+        return {
+            totalTaxableAmount: subTotal,
+            totalGst: totalGstAmount,
+            grandTotal: subTotal + totalGstAmount,
+        };
+    }, [lineItems]);
     
     const isIntraState = placeOfSupply === companyState;
     const cgst = isIntraState ? (totalGst || 0) / 2 : 0;
@@ -200,7 +182,8 @@ export function CreditNoteForm() {
     const igst = !isIntraState ? (totalGst || 0) : 0;
 
     function onSubmit(data: CreditNoteFormValues) {
-        console.log(data);
+        const finalData = { ...data, totalTaxableAmount, totalGst, grandTotal, cgst, sgst, igst };
+        console.log(finalData);
         toast({
             title: "Credit Note Created",
             description: `Credit Note against invoice ${data.originalInvoiceNo} has been saved.`,
@@ -219,7 +202,7 @@ export function CreditNoteForm() {
                     <CardContent className="space-y-6">
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                            <FormField
-                                control={form.control}
+                                control={control}
                                 name="customerLedgerId"
                                 render={({ field }) => (
                                 <FormItem>
@@ -241,12 +224,12 @@ export function CreditNoteForm() {
                                 </FormItem>
                                 )}
                             />
-                             <FormField control={form.control} name="gstin" render={({ field }) => (<FormItem><FormLabel>Customer GSTIN</FormLabel><FormControl><Input {...field} readOnly /></FormControl></FormItem>)} />
+                             <FormField control={control} name="gstin" render={({ field }) => (<FormItem><FormLabel>Customer GSTIN</FormLabel><FormControl><Input {...field} readOnly /></FormControl></FormItem>)} />
                         </div>
                         <Separator />
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <FormField control={form.control} name="originalInvoiceNo" render={({ field }) => (<FormItem><FormLabel>Original Invoice No.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                           <FormField control={form.control} name="originalInvoiceDate" render={({ field }) => (
+                            <FormField control={control} name="originalInvoiceNo" render={({ field }) => (<FormItem><FormLabel>Original Invoice No.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                           <FormField control={control} name="originalInvoiceDate" render={({ field }) => (
                                <FormItem className="flex flex-col pt-2"><FormLabel className='mb-2'>Original Invoice Date</FormLabel>
                                    <Popover><PopoverTrigger asChild>
                                            <FormControl><Button variant={"outline"} className={cn("pl-3 font-normal", !field.value && "text-muted-foreground")}>
@@ -257,7 +240,7 @@ export function CreditNoteForm() {
                                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent>
                                    </Popover>
                                <FormMessage /></FormItem>)} />
-                             <FormField control={form.control} name="creditNoteDate" render={({ field }) => (
+                             <FormField control={control} name="creditNoteDate" render={({ field }) => (
                                <FormItem className="flex flex-col pt-2"><FormLabel className='mb-2'>Credit Note Date</FormLabel>
                                    <Popover><PopoverTrigger asChild>
                                            <FormControl><Button variant={"outline"} className={cn("pl-3 font-normal", !field.value && "text-muted-foreground")}>
@@ -268,7 +251,7 @@ export function CreditNoteForm() {
                                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent>
                                    </Popover>
                                <FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="placeOfSupply" render={({ field }) => (
+                            <FormField control={control} name="placeOfSupply" render={({ field }) => (
                                 <FormItem><FormLabel>Place of Supply</FormLabel>
                                     <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger></FormControl>
                                     <SelectContent>{indianStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
@@ -293,12 +276,12 @@ export function CreditNoteForm() {
                             </TableHeader>
                             <TableBody>
                                 {fields.map((field, index) => {
-                                    const currentItemType = lineItems[index]?.itemType;
+                                    const currentItemType = watch(`lineItems.${index}.itemType`);
                                     const item = lineItems[index];
-                                    const quantity = item?.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
-                                    const rate = Number(item?.rate) || 0;
+                                    const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
+                                    const rate = Number(item.rate) || 0;
                                     const taxableValue = quantity * rate;
-                                    const gstRate = Number(item?.gstRate) || 0;
+                                    const gstRate = Number(item.gstRate) || 0;
                                     const gstAmount = taxableValue * (gstRate / 100);
                                     const total = taxableValue + gstAmount;
 
@@ -307,7 +290,7 @@ export function CreditNoteForm() {
                                         <TableCell>
                                             <div className="flex gap-2">
                                                 <FormField
-                                                    control={form.control}
+                                                    control={control}
                                                     name={`lineItems.${index}.itemId`}
                                                     render={({ field: itemField }) => (
                                                         <FormItem className='w-full'>
@@ -315,7 +298,6 @@ export function CreditNoteForm() {
                                                             options={items.map(item => ({ value: item.id, label: item.name }))}
                                                             value={itemField.value}
                                                             onChange={(value) => {
-                                                                itemField.onChange(value);
                                                                 handleItemSelect(value, index);
                                                             }}
                                                             placeholder="Select Item"
@@ -330,25 +312,25 @@ export function CreditNoteForm() {
                                                 </AddItemSheet>
                                             </div>
                                         </TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
                                         <TableCell>
                                             {currentItemType === 'Goods' && (
-                                                <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
+                                                <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
                                                     <Input type="number" {...field} /> 
                                                 )} />
                                             )}
                                         </TableCell>
                                         <TableCell>
                                             {currentItemType === 'Goods' && (
-                                                <FormField control={form.control} name={`lineItems.${index}.uqc`} render={({ field }) => (
+                                                <FormField control={control} name={`lineItems.${index}.uqc`} render={({ field }) => (
                                                 <Select onValueChange={field.onChange} value={field.value}>
                                                     <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
                                                     <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
                                                 </Select>)} />
                                             )}
                                         </TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
                                         <TableCell className="text-right">
                                             {total.toFixed(2)}
                                         </TableCell>
@@ -365,7 +347,7 @@ export function CreditNoteForm() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                             <div className='space-y-4'>
                                 <FormField
-                                    control={form.control}
+                                    control={control}
                                     name="reasonLedgerId"
                                     render={({ field }) => (
                                     <FormItem>
@@ -382,15 +364,15 @@ export function CreditNoteForm() {
                                     </FormItem>
                                     )}
                                 />
-                                <FormField control={form.control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being credit note raised for goods returned..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                <FormField control={control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being credit note raised for goods returned..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                             </div>
                            <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Taxable Value</span><span>{(totalTaxableAmount || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Taxable Value</span><span>{totalTaxableAmount.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Output CGST Reversal</span><span>{cgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Output SGST Reversal</span><span>{sgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Output IGST Reversal</span><span>{igst.toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total Credit Note Value</span><span>{(grandTotal || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Total Credit Note Value</span><span>{grandTotal.toFixed(2)}</span></div>
                             </div>
                         </div>
                     </CardContent>

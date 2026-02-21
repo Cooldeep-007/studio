@@ -50,10 +50,6 @@ const proformaInvoiceSchema = z.object({
   placeOfSupply: z.string().min(1, 'Place of supply is required.'),
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
   
-  totalTaxableAmount: z.number().optional(),
-  totalGst: z.number().optional(),
-  grandTotal: z.number().optional(),
-
   terms: z.string().optional(),
 });
 
@@ -94,7 +90,7 @@ export function ProformaInvoiceForm() {
         name: 'lineItems',
     });
 
-    const { watch, setValue, getValues, reset, trigger } = form;
+    const { watch, setValue, getValues, reset, control } = form;
 
     const companyState = "Karnataka";
 
@@ -103,7 +99,6 @@ export function ProformaInvoiceForm() {
 
      const handleItemCreated = (newItem: Item, index: number) => {
         setItems(prev => [...prev, newItem]);
-        setValue(`lineItems.${index}.itemId`, newItem.id, { shouldDirty: true, shouldTouch: true });
         handleItemSelect(newItem.id, index);
     };
 
@@ -115,30 +110,28 @@ export function ProformaInvoiceForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            setValue(`lineItems.${index}.itemType`, selectedItem.type);
-            setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
-            setValue(`lineItems.${index}.rate`, selectedItem.unitPrice, { shouldValidate: true });
-            setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
-            
-            if (selectedItem.type === 'Goods') {
-                setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
-                 if (getValues(`lineItems.${index}.quantity`) === undefined || getValues(`lineItems.${index}.quantity`) === 0) {
-                   setValue(`lineItems.${index}.quantity`, 1);
-                }
-            } else { // It's a service
-                setValue(`lineItems.${index}.quantity`, 1);
-                setValue(`lineItems.${index}.uqc`, '');
-            }
-            trigger(`lineItems.${index}`);
+            const currentLineItem = getValues(`lineItems.${index}`);
+            const isService = selectedItem.type === 'Services';
+
+            setValue(`lineItems.${index}`, {
+                ...currentLineItem,
+                itemId: selectedItem.id,
+                itemType: selectedItem.type,
+                hsnSacCode: isService ? selectedItem.sacCode : selectedItem.hsnCode,
+                rate: selectedItem.unitPrice,
+                gstRate: selectedItem.gstRate,
+                quantity: isService ? 1 : (currentLineItem.quantity || 1),
+                uqc: isService ? '' : selectedItem.uqc,
+            }, { shouldValidate: true });
         }
     };
 
-    const calculateTotals = React.useCallback(() => {
+    const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
         let subTotal = 0;
         let totalGstAmount = 0;
 
-        getValues('lineItems').forEach(item => {
-            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+        lineItems.forEach(item => {
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
             const rate = Number(item.rate) || 0;
             const gstRate = Number(item.gstRate) || 0;
             const taxableValue = quantity * rate;
@@ -147,29 +140,21 @@ export function ProformaInvoiceForm() {
             totalGstAmount += gstAmount;
         });
         
-        setValue('totalTaxableAmount', subTotal);
-        setValue('totalGst', totalGstAmount);
-        setValue('grandTotal', subTotal + totalGstAmount);
-    }, [getValues, setValue]);
+        return {
+            totalTaxableAmount: subTotal,
+            totalGst: totalGstAmount,
+            grandTotal: subTotal + totalGstAmount,
+        };
+    }, [lineItems]);
 
-    React.useEffect(() => {
-        const subscription = watch((value, { name }) => {
-            if (name && name.startsWith('lineItems')) {
-                calculateTotals();
-            }
-        });
-        return () => subscription.unsubscribe();
-    }, [watch, calculateTotals]);
-
-    const { totalTaxableAmount, totalGst, grandTotal } = watch();
-    
     const isIntraState = placeOfSupply === companyState;
     const cgst = isIntraState ? (totalGst || 0) / 2 : 0;
     const sgst = isIntraState ? (totalGst || 0) / 2 : 0;
     const igst = !isIntraState ? (totalGst || 0) : 0;
 
     function onSubmit(data: ProformaInvoiceFormValues) {
-        console.log(data);
+        const finalData = { ...data, totalTaxableAmount, totalGst, grandTotal, cgst, sgst, igst };
+        console.log(finalData);
         toast({
             title: "Proforma Invoice Saved",
             description: `Proforma Invoice ${data.proformaNumber} has been saved as a draft.`,
@@ -187,14 +172,14 @@ export function ProformaInvoiceForm() {
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                           <FormField control={form.control} name="proformaNumber" render={({ field }) => (<FormItem><FormLabel>Proforma No.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                           <FormField control={form.control} name="proformaDate" render={({ field }) => (
+                           <FormField control={control} name="proformaNumber" render={({ field }) => (<FormItem><FormLabel>Proforma No.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                           <FormField control={control} name="proformaDate" render={({ field }) => (
                                <FormItem className="flex flex-col pt-2"><FormLabel className='mb-2'>Date</FormLabel>
                                    <Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
                                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent>
                                    </Popover><FormMessage /></FormItem>
                            )} />
-                             <FormField control={form.control} name="partyLedgerId" render={({ field }) => (
+                             <FormField control={control} name="partyLedgerId" render={({ field }) => (
                                 <FormItem><FormLabel>Customer</FormLabel>
                                 <div className="flex gap-2">
                                     <Combobox
@@ -229,12 +214,12 @@ export function ProformaInvoiceForm() {
                             </TableHeader>
                             <TableBody>
                                 {fields.map((field, index) => {
-                                    const currentItemType = lineItems[index]?.itemType;
+                                    const currentItemType = watch(`lineItems.${index}.itemType`);
                                     const item = lineItems[index];
-                                    const quantity = item?.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
-                                    const rate = Number(item?.rate) || 0;
+                                    const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
+                                    const rate = Number(item.rate) || 0;
                                     const taxableValue = quantity * rate;
-                                    const gstRate = Number(item?.gstRate) || 0;
+                                    const gstRate = Number(item.gstRate) || 0;
                                     const gstAmount = taxableValue * (gstRate / 100);
                                     const total = taxableValue + gstAmount;
 
@@ -243,7 +228,7 @@ export function ProformaInvoiceForm() {
                                         <TableCell>
                                             <div className="flex gap-2">
                                                 <FormField
-                                                    control={form.control}
+                                                    control={control}
                                                     name={`lineItems.${index}.itemId`}
                                                     render={({ field: itemField }) => (
                                                         <FormItem className='w-full'>
@@ -251,7 +236,6 @@ export function ProformaInvoiceForm() {
                                                             options={items.map(item => ({ value: item.id, label: item.name }))}
                                                             value={itemField.value}
                                                             onChange={(value) => {
-                                                                itemField.onChange(value);
                                                                 handleItemSelect(value, index);
                                                             }}
                                                             placeholder="Select Item"
@@ -266,25 +250,25 @@ export function ProformaInvoiceForm() {
                                                 </AddItemSheet>
                                             </div>
                                         </TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
                                         <TableCell>
                                             {currentItemType === 'Goods' && (
-                                                <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
+                                                <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
                                                     <Input type="number" {...field} /> 
                                                 )} />
                                             )}
                                         </TableCell>
                                         <TableCell>
                                             {currentItemType === 'Goods' && (
-                                                <FormField control={form.control} name={`lineItems.${index}.uqc`} render={({ field }) => (
+                                                <FormField control={control} name={`lineItems.${index}.uqc`} render={({ field }) => (
                                                 <Select onValueChange={field.onChange} value={field.value}>
                                                     <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
                                                     <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
                                                 </Select>)} />
                                             )}
                                         </TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
                                         <TableCell className="text-right">
                                             {total.toFixed(2)}
                                         </TableCell>
@@ -299,14 +283,14 @@ export function ProformaInvoiceForm() {
                         </div>
                         <Separator />
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-                           <FormField control={form.control} name="terms" render={({ field }) => (<FormItem><FormLabel>Terms & Conditions</FormLabel><FormControl><Textarea placeholder="Payment terms, delivery schedule, etc." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                           <FormField control={control} name="terms" render={({ field }) => (<FormItem><FormLabel>Terms & Conditions</FormLabel><FormControl><Textarea placeholder="Payment terms, delivery schedule, etc." {...field} /></FormControl><FormMessage /></FormItem>)} />
                            <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Subtotal</span><span>{(totalTaxableAmount || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Subtotal</span><span>{totalTaxableAmount.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{cgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{sgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{igst.toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{(grandTotal || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{grandTotal.toFixed(2)}</span></div>
                             </div>
                         </div>
                     </CardContent>

@@ -59,10 +59,6 @@ const purchaseInvoiceSchema = z.object({
   
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
   
-  totalTaxableAmount: z.number().optional(),
-  totalGst: z.number().optional(),
-  grandTotal: z.number().optional(),
-
   reverseCharge: z.boolean().default(false),
   
   narration: z.string().optional(),
@@ -115,7 +111,7 @@ export function PurchaseInvoiceForm() {
         name: 'lineItems',
     });
 
-    const { watch, setValue, getValues, reset, trigger } = form;
+    const { watch, setValue, getValues, reset, trigger, control } = form;
 
     const companyState = "Karnataka";
 
@@ -125,7 +121,6 @@ export function PurchaseInvoiceForm() {
 
     const handleItemCreated = (newItem: Item, index: number) => {
         setItems(prev => [...prev, newItem]);
-        setValue(`lineItems.${index}.itemId`, newItem.id, { shouldDirty: true, shouldTouch: true });
         handleItemSelect(newItem.id, index);
     };
 
@@ -137,22 +132,19 @@ export function PurchaseInvoiceForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            setValue(`lineItems.${index}.itemType`, selectedItem.type);
-            setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
-            setValue(`lineItems.${index}.rate`, selectedItem.unitPrice, { shouldValidate: true });
-            setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
-            
-            if (selectedItem.type === 'Goods') {
-                setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
-                 const currentQuantity = getValues(`lineItems.${index}.quantity`);
-                if (currentQuantity === undefined || currentQuantity === 0) {
-                   setValue(`lineItems.${index}.quantity`, 1);
-                }
-            } else { // It's a service
-                setValue(`lineItems.${index}.quantity`, 1);
-                setValue(`lineItems.${index}.uqc`, '');
-            }
-            trigger(`lineItems.${index}`);
+            const currentLineItem = getValues(`lineItems.${index}`);
+            const isService = selectedItem.type === 'Services';
+
+            setValue(`lineItems.${index}`, {
+                ...currentLineItem,
+                itemId: selectedItem.id,
+                itemType: selectedItem.type,
+                hsnSacCode: isService ? selectedItem.sacCode : selectedItem.hsnCode,
+                rate: selectedItem.unitPrice,
+                gstRate: selectedItem.gstRate,
+                quantity: isService ? 1 : (currentLineItem.quantity || 1),
+                uqc: isService ? '' : selectedItem.uqc,
+            }, { shouldValidate: true });
         }
     };
 
@@ -178,12 +170,12 @@ export function PurchaseInvoiceForm() {
         }
     }, [partyLedgerId, setValue, supplierLedgers]);
     
-    const calculateTotals = React.useCallback(() => {
+    const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
         let subTotal = 0;
         let totalGstAmount = 0;
 
-        getValues('lineItems').forEach(item => {
-            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+        lineItems.forEach(item => {
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
             const rate = Number(item.rate) || 0;
             const discount = Number(item.discount) || 0;
             const gstRate = Number(item.gstRate) || 0;
@@ -195,22 +187,12 @@ export function PurchaseInvoiceForm() {
             totalGstAmount += gstAmount;
         });
         
-        setValue('totalTaxableAmount', subTotal);
-        setValue('totalGst', totalGstAmount);
-        setValue('grandTotal', subTotal + totalGstAmount);
-
-    }, [getValues, setValue]);
-
-    React.useEffect(() => {
-        const subscription = watch((value, { name }) => {
-            if (name && name.startsWith('lineItems')) {
-                calculateTotals();
-            }
-        });
-        return () => subscription.unsubscribe();
-    }, [watch, calculateTotals]);
-
-    const { totalTaxableAmount, totalGst, grandTotal } = watch();
+        return {
+            totalTaxableAmount: subTotal,
+            totalGst: totalGstAmount,
+            grandTotal: subTotal + totalGstAmount,
+        };
+    }, [lineItems]);
     
     const isIntraState = placeOfSupply === companyState;
     const cgst = isIntraState ? (totalGst || 0) / 2 : 0;
@@ -218,7 +200,8 @@ export function PurchaseInvoiceForm() {
     const igst = !isIntraState ? (totalGst || 0) : 0;
 
     function onSubmit(data: PurchaseInvoiceFormValues) {
-        console.log(data);
+        const finalData = { ...data, totalTaxableAmount, totalGst, grandTotal, cgst, sgst, igst };
+        console.log(finalData);
         toast({
             title: "Purchase Invoice Created",
             description: `Invoice ${data.invoiceNumber} has been saved.`,
@@ -235,8 +218,8 @@ export function PurchaseInvoiceForm() {
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                           <FormField control={form.control} name="invoiceNumber" render={({ field }) => (<FormItem><FormLabel>Invoice No.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                           <FormField control={form.control} name="invoiceDate" render={({ field }) => (
+                           <FormField control={control} name="invoiceNumber" render={({ field }) => (<FormItem><FormLabel>Invoice No.</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                           <FormField control={control} name="invoiceDate" render={({ field }) => (
                                <FormItem className="flex flex-col pt-2"><FormLabel className='mb-2'>Invoice Date</FormLabel>
                                    <Popover><PopoverTrigger asChild>
                                            <FormControl>
@@ -252,7 +235,7 @@ export function PurchaseInvoiceForm() {
                                    </Popover>
                                <FormMessage /></FormItem>
                            )} />
-                            <FormField control={form.control} name="dueDate" render={({ field }) => (
+                            <FormField control={control} name="dueDate" render={({ field }) => (
                                <FormItem className="flex flex-col pt-2"><FormLabel className='mb-2'>Due Date</FormLabel>
                                    <Popover><PopoverTrigger asChild>
                                            <FormControl>
@@ -268,7 +251,7 @@ export function PurchaseInvoiceForm() {
                                    </Popover>
                                <FormMessage /></FormItem>
                            )} />
-                             <FormField control={form.control} name="placeOfSupply" render={({ field }) => (
+                             <FormField control={control} name="placeOfSupply" render={({ field }) => (
                                 <FormItem><FormLabel>Place of Supply</FormLabel>
                                     <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select State"/></SelectTrigger></FormControl>
                                     <SelectContent>{indianStates.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
@@ -277,7 +260,7 @@ export function PurchaseInvoiceForm() {
                         </div>
                         <Separator />
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <FormField control={form.control} name="partyLedgerId" render={({ field }) => (
+                           <FormField control={control} name="partyLedgerId" render={({ field }) => (
                                 <FormItem><FormLabel>Supplier</FormLabel>
                                     <div className="flex gap-2">
                                         <Combobox
@@ -293,9 +276,9 @@ export function PurchaseInvoiceForm() {
                                         </AddLedgerSheet>
                                     </div>
                                 <FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="gstin" render={({ field }) => (<FormItem><FormLabel>GSTIN</FormLabel><FormControl><Input {...field} readOnly /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="billingAddress" render={({ field }) => (<FormItem><FormLabel>Billing Address</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="shippingAddress" render={({ field }) => (<FormItem><FormLabel>Shipping Address</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={control} name="gstin" render={({ field }) => (<FormItem><FormLabel>GSTIN</FormLabel><FormControl><Input {...field} readOnly /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={control} name="billingAddress" render={({ field }) => (<FormItem><FormLabel>Billing Address</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
+                            <FormField control={control} name="shippingAddress" render={({ field }) => (<FormItem><FormLabel>Shipping Address</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>)} />
                         </div>
                         <Separator />
                         <div>
@@ -315,13 +298,13 @@ export function PurchaseInvoiceForm() {
                             </TableHeader>
                             <TableBody>
                                 {fields.map((field, index) => {
-                                    const currentItemType = lineItems[index]?.itemType;
+                                    const currentItemType = watch(`lineItems.${index}.itemType`);
                                     const item = lineItems[index];
-                                    const quantity = item?.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
-                                    const rate = Number(item?.rate) || 0;
-                                    const discount = Number(item?.discount) || 0;
+                                    const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
+                                    const rate = Number(item.rate) || 0;
+                                    const discount = Number(item.discount) || 0;
                                     const taxableValue = (quantity * rate) - discount;
-                                    const gstRate = Number(item?.gstRate) || 0;
+                                    const gstRate = Number(item.gstRate) || 0;
                                     const gstAmount = taxableValue * (gstRate / 100);
                                     const total = taxableValue + gstAmount;
 
@@ -330,7 +313,7 @@ export function PurchaseInvoiceForm() {
                                         <TableCell>
                                             <div className="flex gap-2">
                                                 <FormField
-                                                    control={form.control}
+                                                    control={control}
                                                     name={`lineItems.${index}.itemId`}
                                                     render={({ field: itemField }) => (
                                                         <FormItem className='w-full'>
@@ -338,7 +321,6 @@ export function PurchaseInvoiceForm() {
                                                             options={items.map(item => ({ value: item.id, label: item.name }))}
                                                             value={itemField.value}
                                                             onChange={(value) => {
-                                                                itemField.onChange(value);
                                                                 handleItemSelect(value, index);
                                                             }}
                                                             placeholder="Select Item"
@@ -353,25 +335,25 @@ export function PurchaseInvoiceForm() {
                                                 </AddItemSheet>
                                             </div>
                                         </TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
                                         <TableCell>
                                             {currentItemType === 'Goods' && (
-                                                <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
+                                                <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
                                                     <Input type="number" {...field} /> 
                                                 )} />
                                             )}
                                         </TableCell>
                                         <TableCell>
                                              {currentItemType === 'Goods' && (
-                                                <FormField control={form.control} name={`lineItems.${index}.uqc`} render={({ field }) => (
+                                                <FormField control={control} name={`lineItems.${index}.uqc`} render={({ field }) => (
                                                 <Select onValueChange={field.onChange} value={field.value}>
                                                     <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
                                                     <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
                                                 </Select>)} />
                                             )}
                                         </TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
                                         <TableCell className="text-right">
                                            {total.toFixed(2)}
                                         </TableCell>
@@ -389,22 +371,22 @@ export function PurchaseInvoiceForm() {
 
                         <div className="flex justify-end">
                             <div className="w-full max-w-sm space-y-4">
-                                <div className="flex justify-between"><span>Subtotal</span><span>{(totalTaxableAmount || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Subtotal</span><span>{totalTaxableAmount.toFixed(2)}</span></div>
                                 <div className="flex justify-between"><span>CGST</span><span>{cgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between"><span>SGST</span><span>{sgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between"><span>IGST</span><span>{igst.toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Grand Total</span><span>{(grandTotal || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Grand Total</span><span>{grandTotal.toFixed(2)}</span></div>
                             </div>
                         </div>
 
                          <Separator />
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-4">
-                                 <FormField control={form.control} name="eWayBillRequired" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>E-Way Bill Required?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
-                                 <FormField control={form.control} name="reverseCharge" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>Reverse Charge?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
+                                 <FormField control={control} name="eWayBillRequired" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>E-Way Bill Required?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
+                                 <FormField control={control} name="reverseCharge" render={({ field }) => ( <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><FormLabel>Reverse Charge?</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange}/></FormControl></FormItem> )} />
                             </div>
-                             <FormField control={form.control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being purchases made..." {...field} /></FormControl><FormMessage /></FormItem>)} />
+                             <FormField control={control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being purchases made..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </div>
                     </CardContent>
                     <CardFooter>

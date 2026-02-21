@@ -59,11 +59,7 @@ const salesInvoiceSchema = z.object({
   shippingAddress: z.string().optional(),
   
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
-  
-  totalTaxableAmount: z.number().optional(),
-  totalGst: z.number().optional(),
-  grandTotal: z.number().optional(),
-  
+    
   reverseCharge: z.boolean().default(false),
   tcsApplicable: z.boolean().default(false),
   
@@ -119,7 +115,7 @@ export function SalesInvoiceForm() {
         name: 'lineItems',
     });
 
-    const { watch, setValue, getValues, reset, trigger } = form;
+    const { watch, setValue, getValues, reset, trigger, control } = form;
 
     const companyState = "Karnataka";
 
@@ -129,7 +125,6 @@ export function SalesInvoiceForm() {
 
     const handleItemCreated = (newItem: Item, index: number) => {
         setItems(prev => [...prev, newItem]);
-        setValue(`lineItems.${index}.itemId`, newItem.id, { shouldDirty: true, shouldTouch: true });
         handleItemSelect(newItem.id, index);
     };
 
@@ -141,22 +136,19 @@ export function SalesInvoiceForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            setValue(`lineItems.${index}.itemType`, selectedItem.type);
-            setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
-            setValue(`lineItems.${index}.rate`, selectedItem.unitPrice, { shouldValidate: true });
-            setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
-            
-            if (selectedItem.type === 'Goods') {
-                setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
-                const currentQuantity = getValues(`lineItems.${index}.quantity`);
-                if (currentQuantity === undefined || currentQuantity === 0) {
-                  setValue(`lineItems.${index}.quantity`, 1);
-                }
-            } else { // It's a service
-                setValue(`lineItems.${index}.quantity`, 1);
-                setValue(`lineItems.${index}.uqc`, ''); 
-            }
-            trigger(`lineItems.${index}`);
+            const currentLineItem = getValues(`lineItems.${index}`);
+            const isService = selectedItem.type === 'Services';
+
+            setValue(`lineItems.${index}`, {
+                ...currentLineItem,
+                itemId: selectedItem.id,
+                itemType: selectedItem.type,
+                hsnSacCode: isService ? selectedItem.sacCode : selectedItem.hsnCode,
+                rate: selectedItem.unitPrice,
+                gstRate: selectedItem.gstRate,
+                quantity: isService ? 1 : (currentLineItem.quantity || 1),
+                uqc: isService ? '' : selectedItem.uqc,
+            }, { shouldValidate: true });
         }
     };
 
@@ -182,12 +174,12 @@ export function SalesInvoiceForm() {
         }
     }, [partyLedgerId, setValue, customerLedgers]);
     
-    const calculateTotals = React.useCallback(() => {
+    const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
         let subTotal = 0;
         let totalGstAmount = 0;
 
-        getValues('lineItems').forEach(item => {
-            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+        lineItems.forEach(item => {
+            const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
             const rate = Number(item.rate) || 0;
             const discount = Number(item.discount) || 0;
             const gstRate = Number(item.gstRate) || 0;
@@ -199,22 +191,12 @@ export function SalesInvoiceForm() {
             totalGstAmount += gstAmount;
         });
         
-        setValue('totalTaxableAmount', subTotal);
-        setValue('totalGst', totalGstAmount);
-        setValue('grandTotal', subTotal + totalGstAmount);
-
-    }, [getValues, setValue]);
-
-    React.useEffect(() => {
-        const subscription = watch((value, { name }) => {
-            if (name && name.startsWith('lineItems')) {
-                calculateTotals();
-            }
-        });
-        return () => subscription.unsubscribe();
-    }, [watch, calculateTotals]);
-
-    const { totalTaxableAmount, totalGst, grandTotal } = watch();
+        return {
+            totalTaxableAmount: subTotal,
+            totalGst: totalGstAmount,
+            grandTotal: subTotal + totalGstAmount,
+        };
+    }, [lineItems]);
     
     const isIntraState = placeOfSupply === companyState;
     const cgst = isIntraState ? (totalGst || 0) / 2 : 0;
@@ -222,7 +204,8 @@ export function SalesInvoiceForm() {
     const igst = !isIntraState ? (totalGst || 0) : 0;
 
     function onSubmit(data: SalesInvoiceFormValues) {
-        console.log(data);
+        const finalData = { ...data, totalTaxableAmount, totalGst, grandTotal, cgst, sgst, igst };
+        console.log(finalData);
         toast({
             title: "Sales Invoice Created",
             description: `Invoice ${data.invoiceNumber} has been saved.`,
@@ -319,13 +302,13 @@ export function SalesInvoiceForm() {
                             </TableHeader>
                             <TableBody>
                                 {fields.map((field, index) => {
-                                    const currentItemType = lineItems[index]?.itemType;
+                                    const currentItemType = watch(`lineItems.${index}.itemType`);
                                     const item = lineItems[index];
-                                    const quantity = item?.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
-                                    const rate = Number(item?.rate) || 0;
-                                    const discount = Number(item?.discount) || 0;
+                                    const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 1) : 1;
+                                    const rate = Number(item.rate) || 0;
+                                    const discount = Number(item.discount) || 0;
                                     const taxableValue = (quantity * rate) - discount;
-                                    const gstRate = Number(item?.gstRate) || 0;
+                                    const gstRate = Number(item.gstRate) || 0;
                                     const gstAmount = taxableValue * (gstRate / 100);
                                     const total = taxableValue + gstAmount;
 
@@ -334,7 +317,7 @@ export function SalesInvoiceForm() {
                                         <TableCell>
                                             <div className="flex gap-2">
                                                 <FormField
-                                                    control={form.control}
+                                                    control={control}
                                                     name={`lineItems.${index}.itemId`}
                                                     render={({ field: itemField }) => (
                                                         <FormItem className='w-full'>
@@ -342,7 +325,6 @@ export function SalesInvoiceForm() {
                                                             options={items.map(item => ({ value: item.id, label: item.name }))}
                                                             value={itemField.value}
                                                             onChange={(value) => {
-                                                                itemField.onChange(value);
                                                                 handleItemSelect(value, index);
                                                             }}
                                                             placeholder="Select Item"
@@ -357,25 +339,25 @@ export function SalesInvoiceForm() {
                                                 </AddItemSheet>
                                             </div>
                                         </TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
                                         <TableCell>
                                             {currentItemType === 'Goods' && (
-                                                <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
+                                                <FormField control={control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
                                                     <Input type="number" {...field} /> 
                                                 )} />
                                             )}
                                         </TableCell>
                                         <TableCell>
                                             {currentItemType === 'Goods' && (
-                                                <FormField control={form.control} name={`lineItems.${index}.uqc`} render={({ field }) => (
+                                                <FormField control={control} name={`lineItems.${index}.uqc`} render={({ field }) => (
                                                 <Select onValueChange={field.onChange} value={field.value}>
                                                     <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
                                                     <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
                                                 </Select>)} />
                                             )}
                                         </TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
-                                        <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
+                                        <TableCell><FormField control={control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value?.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
                                         <TableCell className="text-right">
                                             {total.toFixed(2)}
                                         </TableCell>
@@ -393,12 +375,12 @@ export function SalesInvoiceForm() {
 
                         <div className="flex justify-end">
                             <div className="w-full max-w-sm space-y-4">
-                                <div className="flex justify-between"><span>Subtotal</span><span>{(totalTaxableAmount || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Subtotal</span><span>{totalTaxableAmount.toFixed(2)}</span></div>
                                 <div className="flex justify-between"><span>CGST</span><span>{cgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between"><span>SGST</span><span>{sgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between"><span>IGST</span><span>{igst.toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Grand Total</span><span>{(grandTotal || 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Grand Total</span><span>{grandTotal.toFixed(2)}</span></div>
                             </div>
                         </div>
 
