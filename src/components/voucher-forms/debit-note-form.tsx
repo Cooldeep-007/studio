@@ -55,6 +55,10 @@ const debitNoteSchema = z.object({
   reasonLedgerId: z.string().min(1, "A reason account (e.g. Purchase Return) is required."),
   
   lineItems: z.array(lineItemSchema).min(1, "At least one item is required."),
+
+  totalTaxableAmount: z.number().optional(),
+  totalGst: z.number().optional(),
+  grandTotal: z.number().optional(),
   
   narration: z.string().optional(),
 }).refine(data => !data.debitNoteDate || !data.originalInvoiceDate || data.debitNoteDate >= data.originalInvoiceDate, {
@@ -126,25 +130,22 @@ export function DebitNoteForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = items.find(item => item.id === itemId);
         if (selectedItem) {
-            const currentLineItems = getValues('lineItems');
-            const currentItem = currentLineItems[index];
-
-            currentItem.itemType = selectedItem.type;
-            currentItem.hsnSacCode = selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode;
-            currentItem.rate = selectedItem.unitPrice;
-            currentItem.gstRate = selectedItem.gstRate;
+            setValue(`lineItems.${index}.itemType`, selectedItem.type);
+            setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
+            setValue(`lineItems.${index}.rate`, selectedItem.unitPrice, { shouldValidate: true });
+            setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
             
             if (selectedItem.type === 'Goods') {
-                currentItem.uqc = selectedItem.uqc;
-                if (currentItem.quantity === undefined || currentItem.quantity === 0) {
-                  currentItem.quantity = 1;
+                setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
+                const currentQuantity = getValues(`lineItems.${index}.quantity`);
+                if (currentQuantity === undefined || currentQuantity === 0) {
+                  setValue(`lineItems.${index}.quantity`, 1);
                 }
             } else { // It's a service
-                currentItem.quantity = 1;
-                currentItem.uqc = undefined;
+                setValue(`lineItems.${index}.quantity`, 1);
+                setValue(`lineItems.${index}.uqc`, '');
             }
-            setValue('lineItems', currentLineItems);
-            trigger('lineItems');
+            trigger(`lineItems.${index}`);
         }
     };
 
@@ -158,11 +159,11 @@ export function DebitNoteForm() {
         }
     }, [partyLedgerId, setValue, supplierLedgers]);
 
-    const { totalTaxableAmount, totalGst, grandTotal } = React.useMemo(() => {
+    const calculateTotals = React.useCallback(() => {
         let subTotal = 0;
         let totalGstAmount = 0;
 
-        lineItems.forEach(item => {
+        getValues('lineItems').forEach(item => {
             const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
             const rate = Number(item.rate) || 0;
             const gstRate = Number(item.gstRate) || 0;
@@ -174,30 +175,30 @@ export function DebitNoteForm() {
             totalGstAmount += gstAmount;
         });
         
-        return {
-            totalTaxableAmount: subTotal,
-            totalGst: totalGstAmount,
-            grandTotal: subTotal + totalGstAmount
-        };
-    }, [lineItems]);
+        setValue('totalTaxableAmount', subTotal);
+        setValue('totalGst', totalGstAmount);
+        setValue('grandTotal', subTotal + totalGstAmount);
+
+    }, [getValues, setValue]);
+
+    React.useEffect(() => {
+        const subscription = watch((value, { name }) => {
+            if (name && name.startsWith('lineItems')) {
+                calculateTotals();
+            }
+        });
+        return () => subscription.unsubscribe();
+    }, [watch, calculateTotals]);
+
+    const { totalTaxableAmount, totalGst, grandTotal } = watch();
     
     const isIntraState = placeOfSupply === companyState;
-    const cgst = isIntraState ? totalGst / 2 : 0;
-    const sgst = isIntraState ? totalGst / 2 : 0;
-    const igst = !isIntraState ? totalGst : 0;
+    const cgst = isIntraState ? (totalGst || 0) / 2 : 0;
+    const sgst = isIntraState ? (totalGst || 0) / 2 : 0;
+    const igst = !isIntraState ? (totalGst || 0) : 0;
 
     function onSubmit(data: DebitNoteFormValues) {
-        const finalData = {
-            ...data,
-            totalTaxableAmount,
-            totalGst,
-            cgst,
-            sgst,
-            igst,
-            grandTotal,
-        };
-
-        console.log(finalData);
+        console.log(data);
         toast({
             title: "Debit Note Created",
             description: `Debit Note against invoice ${data.originalInvoiceNo} has been saved.`,
@@ -291,6 +292,14 @@ export function DebitNoteForm() {
                             <TableBody>
                                 {fields.map((field, index) => {
                                     const currentItemType = lineItems[index]?.itemType;
+                                    const item = lineItems[index];
+                                    const quantity = item?.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
+                                    const rate = Number(item?.rate) || 0;
+                                    const taxableValue = quantity * rate;
+                                    const gstRate = Number(item?.gstRate) || 0;
+                                    const gstAmount = taxableValue * (gstRate / 100);
+                                    const total = taxableValue + gstAmount;
+
                                     return (
                                     <TableRow key={field.id}>
                                         <TableCell>
@@ -321,31 +330,25 @@ export function DebitNoteForm() {
                                         </TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.hsnSacCode`} render={({ field }) => ( <Input {...field} readOnly /> )} /></TableCell>
                                         <TableCell>
-                                            <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
-                                                <Input type="number" {...field} disabled={currentItemType === 'Services'} /> 
-                                            )} />
+                                            {currentItemType === 'Goods' && (
+                                                <FormField control={form.control} name={`lineItems.${index}.quantity`} render={({ field }) => ( 
+                                                    <Input type="number" {...field} /> 
+                                                )} />
+                                            )}
                                         </TableCell>
                                         <TableCell>
-                                            <FormField control={form.control} name={`lineItems.${index}.uqc`} render={({ field }) => (
-                                            <Select onValueChange={field.onChange} value={field.value} disabled={currentItemType === 'Services'}>
-                                                <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                                                <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
-                                            </Select>)} />
+                                            {currentItemType === 'Goods' && (
+                                                <FormField control={form.control} name={`lineItems.${index}.uqc`} render={({ field }) => (
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                                    <SelectContent>{uqcList.map(u => <SelectItem key={u.code} value={u.code}>{u.code}</SelectItem>)}</SelectContent>
+                                                </Select>)} />
+                                            )}
                                         </TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.rate`} render={({ field }) => ( <Input type="number" {...field} /> )} /></TableCell>
                                         <TableCell><FormField control={form.control} name={`lineItems.${index}.gstRate`} render={({ field }) => (<Select onValueChange={(v) => field.onChange(Number(v))} value={field.value.toString()}><FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl><SelectContent>{gstRates.map(r => <SelectItem key={r} value={r.toString()}>{r}%</SelectItem>)}</SelectContent></Select>)} /></TableCell>
                                         <TableCell className="text-right">
-                                            {(() => {
-                                                const item = lineItems[index];
-                                                if (!item) return '0.00';
-                                                const quantity = item.itemType === 'Goods' ? (Number(item.quantity) || 0) : 1;
-                                                const rate = Number(item.rate) || 0;
-                                                const taxableValue = quantity * rate;
-                                                const gstRate = Number(item.gstRate) || 0;
-                                                const gstAmount = taxableValue * (gstRate / 100);
-                                                const total = taxableValue + gstAmount;
-                                                return total.toFixed(2);
-                                            })()}
+                                            {total.toFixed(2)}
                                         </TableCell>
                                         <TableCell><Button type="button" variant="ghost" size="icon" onClick={() => remove(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button></TableCell>
                                     </TableRow>
@@ -380,12 +383,12 @@ export function DebitNoteForm() {
                                 <FormField control={form.control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being debit note raised for goods returned..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                             </div>
                             <div className="w-full space-y-2 self-end">
-                                <div className="flex justify-between"><span>Taxable Value</span><span>{totalTaxableAmount.toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>Taxable Value</span><span>{(totalTaxableAmount || 0).toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Input CGST Reversal</span><span>{cgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Input SGST Reversal</span><span>{sgst.toFixed(2)}</span></div>
                                 <div className="flex justify-between text-sm text-muted-foreground"><span>Input IGST Reversal</span><span>{igst.toFixed(2)}</span></div>
                                 <Separator />
-                                <div className="flex justify-between font-bold text-lg"><span>Total Debit Note Value</span><span>{grandTotal.toFixed(2)}</span></div>
+                                <div className="flex justify-between font-bold text-lg"><span>Total Debit Note Value</span><span>{(grandTotal || 0).toFixed(2)}</span></div>
                             </div>
                         </div>
                     </CardContent>
