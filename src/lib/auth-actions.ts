@@ -1,3 +1,4 @@
+
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
@@ -42,6 +43,9 @@ function handleAuthError(error: any): AuthError {
         break;
       case 'auth/weak-password':
         errorMessage = 'The password is too weak. Please use at least 8 characters.';
+        break;
+      case 'auth/operation-not-allowed':
+        errorMessage = 'This sign-in method is not enabled. Please enable it in the Firebase console.';
         break;
       default:
         errorMessage = error.message;
