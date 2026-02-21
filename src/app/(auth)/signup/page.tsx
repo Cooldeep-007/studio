@@ -61,7 +61,7 @@ export default function SignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user, isLoading: isUserLoading } = useUser();
+  const { user, profile, isLoading: isAuthLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [authError, setAuthError] = React.useState<AuthError | null>(null);
   
@@ -79,6 +79,15 @@ export default function SignupPage() {
       confirmPassword: '',
     },
   });
+
+  React.useEffect(() => {
+    // If user and profile are loaded, and both exist, user shouldn't be here.
+    // Redirect them to the dashboard. This handles cases where a logged-in user
+    // with a complete profile navigates to the signup page.
+    if (!isAuthLoading && user && profile) {
+      router.push('/dashboard');
+    }
+  }, [isAuthLoading, user, profile, router]);
 
   React.useEffect(() => {
     if (isGoogleSignupFlow && user) {
@@ -122,7 +131,15 @@ export default function SignupPage() {
     if (error) {
       if (error.code === 'auth/email-already-in-use') {
         setAuthError(error);
-      } else {
+      } else if (error.code === 'auth/profile-exists') {
+        // The profile exists, so just take them to the dashboard.
+        toast({
+          title: 'Profile Found',
+          description: 'Your profile already exists. Redirecting you to the dashboard.',
+        });
+        router.push('/dashboard');
+      }
+      else {
         toast({
           variant: 'destructive',
           title: 'An Error Occurred',
@@ -132,6 +149,14 @@ export default function SignupPage() {
     }
     setIsSubmitting(false);
   };
+
+  if (isAuthLoading) {
+    return (
+        <div className="flex items-center justify-center p-12">
+            <Loader2 className="h-8 w-8 animate-spin text-white" />
+        </div>
+    );
+  }
 
   return (
     <Card className="w-full">
@@ -238,7 +263,7 @@ export default function SignupPage() {
                     />
                 </>
             )}
-            <Button type="submit" className="w-full" disabled={isSubmitting || isUserLoading}>
+            <Button type="submit" className="w-full" disabled={isSubmitting || isAuthLoading}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isGoogleSignupFlow ? 'Complete Registration' : 'Create an account'}
             </Button>
