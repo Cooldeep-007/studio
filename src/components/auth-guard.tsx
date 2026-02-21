@@ -1,17 +1,16 @@
-
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser } from '@/firebase/auth/use-user';
+import { useFirebase } from '@/firebase';
 import { Loader2 } from 'lucide-react';
 
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const { user, profile, isLoading } = useUser();
+  const { user, isUserLoading } = useFirebase();
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading) {
+    if (isUserLoading) {
       return; // Still checking, do nothing.
     }
 
@@ -20,17 +19,10 @@ export function AuthGuard({ children }: { children: ReactNode }) {
       router.push('/login');
       return;
     }
+  }, [user, isUserLoading, router]);
 
-    if (!profile) {
-      // Authenticated but no Firestore profile.
-      // This is a new user (likely via Google) who needs to complete setup.
-      router.push('/signup?flow=g-register');
-      return;
-    }
-  }, [user, profile, isLoading, router]);
-
-  // While loading, or if we are about to redirect, show a loader.
-  if (isLoading || !user || !profile) {
+  // While loading auth, or if no user (and about to redirect), show a loader.
+  if (isUserLoading || !user) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -38,6 +30,6 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  // If all checks pass, render the protected content.
+  // If authenticated, render the children (AppShell), which will handle the profile check.
   return <>{children}</>;
 }

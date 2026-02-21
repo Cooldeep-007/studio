@@ -17,6 +17,7 @@ import {
   Percent,
   ChevronRight,
   LogOut,
+  Loader2,
 } from 'lucide-react';
 import { doc, serverTimestamp } from 'firebase/firestore';
 
@@ -77,12 +78,21 @@ const settingsMenuItem = {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, profile } = useUser();
+  const router = useRouter();
+  const { user, profile, isLoading } = useUser();
   const { firestore } = useFirebase();
   const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
   const [isWelcomeModalOpen, setIsWelcomeModalOpen] = React.useState(false);
 
-  const userRole = profile?.role;
+  React.useEffect(() => {
+    if (isLoading) {
+      return; // Wait until user and profile status is confirmed
+    }
+    if (user && !profile) {
+      // User is authenticated but has no profile, redirect to complete signup
+      router.push('/signup?flow=g-register');
+    }
+  }, [user, profile, isLoading, router]);
 
   React.useEffect(() => {
     if (profile?.firstLogin) {
@@ -101,18 +111,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const userRole = profile?.role;
 
   const isActive = (path: string) => {
     if (path === '/settings/custom-fields') {
       return pathname.startsWith('/settings');
     }
-    // For ledgers, which is under /ledgers, but label is Masters
     if (path === '/ledgers') {
       return pathname.startsWith('/ledgers');
     }
     return pathname === path;
   };
   const isGstActive = pathname.startsWith('/gst');
+
+  // This variable determines if we should show a loader inside the main content area.
+  // It's true if we're still loading the profile OR if we've determined a redirect is necessary.
+  const showContentLoader = isLoading || (user && !profile);
 
   return (
     <SidebarProvider>
@@ -254,7 +268,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="relative ml-auto flex-1 md:grow-0"></div>
           {profile && <UserMenu user={profile} avatarUrl={user?.photoURL || userAvatar?.imageUrl} />}
         </header>
-        <main className="flex-1 p-4 sm:px-6 sm:pb-6">{children}</main>
+        <main className="flex-1 p-4 sm:px-6 sm:pb-6">
+          {showContentLoader ? (
+            <div className="flex h-full w-full items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            children
+          )}
+        </main>
       </SidebarInset>
       <WelcomeModal
         open={isWelcomeModalOpen}
