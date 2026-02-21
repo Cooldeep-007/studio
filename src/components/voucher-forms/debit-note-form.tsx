@@ -120,22 +120,24 @@ export function DebitNoteForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = mockItems.find(item => item.id === itemId);
         if (selectedItem) {
-            setValue(`lineItems.${index}.itemType`, selectedItem.type);
-            setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
-            setValue(`lineItems.${index}.rate`, selectedItem.unitPrice);
-            setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
+            const lineItems = getValues('lineItems');
+            lineItems[index].itemType = selectedItem.type;
+            lineItems[index].hsnSacCode = selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode;
+            lineItems[index].rate = selectedItem.unitPrice;
+            lineItems[index].gstRate = selectedItem.gstRate;
             
             if (selectedItem.type === 'Goods') {
-                setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
+                lineItems[index].uqc = selectedItem.uqc;
                 const currentQty = getValues(`lineItems.${index}.quantity`);
                 if (currentQty === undefined || currentQty === 0) {
-                  setValue(`lineItems.${index}.quantity`, 1);
+                  lineItems[index].quantity = 1;
                 }
             } else {
-                setValue(`lineItems.${index}.quantity`, 1);
-                setValue(`lineItems.${index}.uqc`, undefined);
+                lineItems[index].quantity = 1;
+                lineItems[index].uqc = undefined;
             }
-            trigger(`lineItems.${index}`);
+            setValue('lineItems', lineItems);
+            trigger('lineItems');
         }
     };
 
@@ -149,8 +151,8 @@ export function DebitNoteForm() {
         }
     }, [partyLedgerId, setValue, supplierLedgers]);
 
-    React.useEffect(() => {
-        if (!lineItems) return;
+    const calculateTotals = React.useCallback(() => {
+        const lineItems = getValues('lineItems');
         let subTotal = 0;
         let totalGst = 0;
 
@@ -167,11 +169,19 @@ export function DebitNoteForm() {
         });
         
         const grandTotal = subTotal + totalGst;
-        setValue('totalTaxableAmount', subTotal);
-        setValue('totalGst', totalGst);
-        setValue('grandTotal', grandTotal);
+        setValue('totalTaxableAmount', subTotal, { shouldDirty: true });
+        setValue('totalGst', totalGst, { shouldDirty: true });
+        setValue('grandTotal', grandTotal, { shouldDirty: true });
+    }, [getValues, setValue]);
 
-    }, [lineItems, placeOfSupply, setValue]);
+    React.useEffect(() => {
+        const subscription = watch((value, { name }) => {
+            if (name && (name.startsWith('lineItems') || name === 'placeOfSupply')) {
+                calculateTotals();
+            }
+        });
+        return () => subscription.unsubscribe();
+    }, [watch, calculateTotals]);
 
 
     function onSubmit(data: DebitNoteFormValues) {
@@ -370,9 +380,9 @@ export function DebitNoteForm() {
                             </div>
                             <div className="w-full space-y-2 self-end">
                                 <div className="flex justify-between"><span>Taxable Value</span><span>{(getValues('totalTaxableAmount') || 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>Input CGST Reversal</span><span>{((placeOfSupply === companyState ? getValues('totalGst') : 0) / 2).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>Input SGST Reversal</span><span>{((placeOfSupply === companyState ? getValues('totalGst') : 0) / 2).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>Input IGST Reversal</span><span>{(placeOfSupply !== companyState ? getValues('totalGst') : 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>Input CGST Reversal</span><span>{((placeOfSupply === companyState ? (getValues('totalGst') || 0) : 0) / 2).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>Input SGST Reversal</span><span>{((placeOfSupply === companyState ? (getValues('totalGst') || 0) : 0) / 2).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>Input IGST Reversal</span><span>{(placeOfSupply !== companyState ? (getValues('totalGst') || 0) : 0).toFixed(2)}</span></div>
                                 <Separator />
                                 <div className="flex justify-between font-bold text-lg"><span>Total Debit Note Value</span><span>{(getValues('grandTotal') || 0).toFixed(2)}</span></div>
                             </div>

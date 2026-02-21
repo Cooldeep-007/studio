@@ -127,22 +127,23 @@ export function PurchaseInvoiceForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = mockItems.find(item => item.id === itemId);
         if (selectedItem) {
-            setValue(`lineItems.${index}.itemType`, selectedItem.type);
-            setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
-            setValue(`lineItems.${index}.rate`, selectedItem.unitPrice);
-            setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
+            const lineItems = getValues('lineItems');
+            lineItems[index].itemType = selectedItem.type;
+            lineItems[index].hsnSacCode = selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode;
+            lineItems[index].rate = selectedItem.unitPrice;
+            lineItems[index].gstRate = selectedItem.gstRate;
             
             if (selectedItem.type === 'Goods') {
-                setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
-                const currentQty = getValues(`lineItems.${index}.quantity`);
-                if (currentQty === undefined || currentQty === 0) {
-                  setValue(`lineItems.${index}.quantity`, 1);
+                lineItems[index].uqc = selectedItem.uqc;
+                 if (lineItems[index].quantity === undefined || lineItems[index].quantity === 0) {
+                   lineItems[index].quantity = 1;
                 }
             } else { // It's a service
-                setValue(`lineItems.${index}.quantity`, 1);
-                setValue(`lineItems.${index}.uqc`, undefined);
+                lineItems[index].quantity = 1;
+                lineItems[index].uqc = undefined;
             }
-            trigger(`lineItems.${index}`);
+            setValue('lineItems', lineItems);
+            trigger('lineItems');
         }
     };
 
@@ -167,9 +168,9 @@ export function PurchaseInvoiceForm() {
             }
         }
     }, [partyLedgerId, setValue, supplierLedgers]);
-
-    React.useEffect(() => {
-        if (!lineItems) return;
+    
+    const calculateTotals = React.useCallback(() => {
+        const lineItems = getValues('lineItems');
         let subTotal = 0;
         let totalGst = 0;
 
@@ -186,13 +187,20 @@ export function PurchaseInvoiceForm() {
             totalGst += gstAmount;
         });
         
-        const grandTotal = subTotal + totalGst;
-        setValue('totalTaxableAmount', subTotal);
-        setValue('totalGst', totalGst);
-        setValue('grandTotal', grandTotal);
+        setValue('totalTaxableAmount', subTotal, { shouldDirty: true });
+        setValue('totalGst', totalGst, { shouldDirty: true });
+        setValue('grandTotal', subTotal + totalGst, { shouldDirty: true });
+    }, [getValues, setValue]);
 
-    }, [lineItems, placeOfSupply, setValue]);
-    
+    React.useEffect(() => {
+        const subscription = watch((value, { name }) => {
+            if (name && (name.startsWith('lineItems') || name === 'placeOfSupply')) {
+                calculateTotals();
+            }
+        });
+        return () => subscription.unsubscribe();
+    }, [watch, calculateTotals]);
+
     
     function onSubmit(data: PurchaseInvoiceFormValues) {
         let subTotal = 0;
@@ -381,9 +389,9 @@ export function PurchaseInvoiceForm() {
                         <div className="flex justify-end">
                             <div className="w-full max-w-sm space-y-4">
                                 <div className="flex justify-between"><span>Subtotal</span><span>{(getValues('totalTaxableAmount') || 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between"><span>CGST</span><span>{((placeOfSupply === companyState ? getValues('totalGst') : 0) / 2).toFixed(2)}</span></div>
-                                <div className="flex justify-between"><span>SGST</span><span>{((placeOfSupply === companyState ? getValues('totalGst') : 0) / 2).toFixed(2)}</span></div>
-                                <div className="flex justify-between"><span>IGST</span><span>{(placeOfSupply !== companyState ? getValues('totalGst') : 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>CGST</span><span>{((placeOfSupply === companyState ? (getValues('totalGst') || 0) : 0) / 2).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>SGST</span><span>{((placeOfSupply === companyState ? (getValues('totalGst') || 0) : 0) / 2).toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span>IGST</span><span>{(placeOfSupply !== companyState ? (getValues('totalGst') || 0) : 0).toFixed(2)}</span></div>
                                 <Separator />
                                 <div className="flex justify-between font-bold text-lg"><span>Grand Total</span><span>{(getValues('grandTotal') || 0).toFixed(2)}</span></div>
                             </div>

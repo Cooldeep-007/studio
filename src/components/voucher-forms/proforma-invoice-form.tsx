@@ -90,7 +90,7 @@ export function ProformaInvoiceForm() {
         name: 'lineItems',
     });
 
-    const { watch, setValue, getValues, trigger, reset } = form;
+    const { watch, setValue, getValues, reset, trigger } = form;
 
     const customerLedgers = React.useMemo(() => mockLedgers.filter(l => l.group === 'Sundry Debtor'), []);
     const companyState = "Karnataka";
@@ -103,27 +103,28 @@ export function ProformaInvoiceForm() {
     const handleItemSelect = (itemId: string, index: number) => {
         const selectedItem = mockItems.find(item => item.id === itemId);
         if (selectedItem) {
-            setValue(`lineItems.${index}.itemType`, selectedItem.type);
-            setValue(`lineItems.${index}.hsnSacCode`, selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode);
-            setValue(`lineItems.${index}.rate`, selectedItem.unitPrice);
-            setValue(`lineItems.${index}.gstRate`, selectedItem.gstRate);
+            const lineItems = getValues('lineItems');
+            lineItems[index].itemType = selectedItem.type;
+            lineItems[index].hsnSacCode = selectedItem.type === 'Goods' ? selectedItem.hsnCode : selectedItem.sacCode;
+            lineItems[index].rate = selectedItem.unitPrice;
+            lineItems[index].gstRate = selectedItem.gstRate;
             
             if (selectedItem.type === 'Goods') {
-                setValue(`lineItems.${index}.uqc`, selectedItem.uqc);
-                const currentQty = getValues(`lineItems.${index}.quantity`);
-                if (currentQty === undefined || currentQty === 0) {
-                  setValue(`lineItems.${index}.quantity`, 1);
+                lineItems[index].uqc = selectedItem.uqc;
+                 if (lineItems[index].quantity === undefined || lineItems[index].quantity === 0) {
+                   lineItems[index].quantity = 1;
                 }
-            } else {
-                setValue(`lineItems.${index}.quantity`, 1);
-                setValue(`lineItems.${index}.uqc`, undefined);
+            } else { // It's a service
+                lineItems[index].quantity = 1;
+                lineItems[index].uqc = undefined;
             }
-            trigger(`lineItems.${index}`);
+            setValue('lineItems', lineItems);
+            trigger('lineItems');
         }
     };
 
-    React.useEffect(() => {
-        if (!lineItems) return;
+    const calculateTotals = React.useCallback(() => {
+        const lineItems = getValues('lineItems');
         let subTotal = 0;
         let totalGst = 0;
 
@@ -137,10 +138,20 @@ export function ProformaInvoiceForm() {
             totalGst += gstAmount;
         });
         
-        setValue('totalTaxableAmount', subTotal);
-        setValue('totalGst', totalGst);
-        setValue('grandTotal', subTotal + totalGst);
-    }, [lineItems, setValue]);
+        setValue('totalTaxableAmount', subTotal, { shouldDirty: true });
+        setValue('totalGst', totalGst, { shouldDirty: true });
+        setValue('grandTotal', subTotal + totalGst, { shouldDirty: true });
+    }, [getValues, setValue]);
+
+    React.useEffect(() => {
+        const subscription = watch((value, { name }) => {
+            if (name && (name.startsWith('lineItems') || name === 'placeOfSupply')) {
+                calculateTotals();
+            }
+        });
+        return () => subscription.unsubscribe();
+    }, [watch, calculateTotals]);
+
     
     function onSubmit(data: ProformaInvoiceFormValues) {
         let subTotal = 0;
@@ -279,9 +290,9 @@ export function ProformaInvoiceForm() {
                            <FormField control={form.control} name="terms" render={({ field }) => (<FormItem><FormLabel>Terms & Conditions</FormLabel><FormControl><Textarea placeholder="Payment terms, delivery schedule, etc." {...field} /></FormControl><FormMessage /></FormItem>)} />
                            <div className="w-full space-y-2 self-end">
                                 <div className="flex justify-between"><span>Subtotal</span><span>{(getValues('totalTaxableAmount') || 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{((placeOfSupply === companyState ? getValues('totalGst') : 0) / 2).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{((placeOfSupply === companyState ? getValues('totalGst') : 0) / 2).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{(placeOfSupply !== companyState ? getValues('totalGst') : 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{((placeOfSupply === companyState ? (getValues('totalGst') || 0) : 0) / 2).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{((placeOfSupply === companyState ? (getValues('totalGst') || 0) : 0) / 2).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{(placeOfSupply !== companyState ? (getValues('totalGst') || 0) : 0).toFixed(2)}</span></div>
                                 <Separator />
                                 <div className="flex justify-between font-bold text-lg"><span>Total</span><span>{(getValues('grandTotal') || 0).toFixed(2)}</span></div>
                             </div>

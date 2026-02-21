@@ -67,17 +67,20 @@ export function AdhocInvoiceForm() {
         name: 'lineItems',
     });
 
+    const { watch, setValue, getValues } = form;
+
     const partyLedgers = React.useMemo(() => mockLedgers.filter(l => l.group === 'Sundry Debtor' || l.group === 'Sundry Creditor'), []);
     const companyState = "Karnataka";
 
-    const watchedLineItems = form.watch('lineItems');
-    const placeOfSupply = form.watch('placeOfSupply');
+    const watchedLineItems = watch('lineItems');
+    const placeOfSupply = watch('placeOfSupply');
 
-    React.useEffect(() => {
+    const calculateTotals = React.useCallback(() => {
+        const lineItems = getValues('lineItems');
         let subTotal = 0;
         let totalGst = 0;
 
-        watchedLineItems.forEach(item => {
+        lineItems.forEach(item => {
             const amount = Number(item.amount) || 0;
             const gstRate = Number(item.gstRate) || 0;
             const gstAmount = amount * (gstRate / 100);
@@ -87,10 +90,20 @@ export function AdhocInvoiceForm() {
         });
 
         const grandTotal = subTotal + totalGst;
-        form.setValue('totalTaxableAmount', subTotal);
-        form.setValue('totalGst', totalGst);
-        form.setValue('grandTotal', grandTotal);
-    }, [watchedLineItems, form]);
+        setValue('totalTaxableAmount', subTotal, { shouldDirty: true });
+        setValue('totalGst', totalGst, { shouldDirty: true });
+        setValue('grandTotal', grandTotal, { shouldDirty: true });
+    }, [getValues, setValue]);
+
+    React.useEffect(() => {
+        const subscription = watch((value, { name }) => {
+            if (name && (name.startsWith('lineItems') || name === 'placeOfSupply')) {
+                calculateTotals();
+            }
+        });
+        return () => subscription.unsubscribe();
+    }, [watch, calculateTotals]);
+
     
     function onSubmit(data: AdhocInvoiceFormValues) {
         let subTotal = 0;
@@ -192,9 +205,9 @@ export function AdhocInvoiceForm() {
                            <FormField control={form.control} name="narration" render={({ field }) => (<FormItem><FormLabel>Narration</FormLabel><FormControl><Textarea placeholder="Being services rendered..." {...field} /></FormControl><FormMessage /></FormItem>)} />
                            <div className="w-full space-y-2 self-end">
                                 <div className="flex justify-between"><span>Taxable Amount</span><span>{(form.getValues('totalTaxableAmount') || 0).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{( (placeOfSupply === companyState ? form.getValues('totalGst') : 0) / 2 ).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{( (placeOfSupply === companyState ? form.getValues('totalGst') : 0) / 2 ).toFixed(2)}</span></div>
-                                <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{(placeOfSupply !== companyState ? form.getValues('totalGst') : 0).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>CGST</span><span>{( (placeOfSupply === companyState ? (form.getValues('totalGst') || 0) : 0) / 2 ).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>SGST</span><span>{( (placeOfSupply === companyState ? (form.getValues('totalGst') || 0) : 0) / 2 ).toFixed(2)}</span></div>
+                                <div className="flex justify-between text-sm text-muted-foreground"><span>IGST</span><span>{(placeOfSupply !== companyState ? (form.getValues('totalGst') || 0) : 0).toFixed(2)}</span></div>
                                 <Separator />
                                 <div className="flex justify-between font-bold text-lg"><span>Total Value</span><span>{(form.getValues('grandTotal') || 0).toFixed(2)}</span></div>
                             </div>
