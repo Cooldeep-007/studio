@@ -682,6 +682,38 @@ export const mockLedgers: Ledger[] = [
     firmId: 'firm-abc',
     companyId: 'comp-001',
   },
+  {
+    id: 'led-tds-rent',
+    ledgerName: 'TDS on Rent (194I)',
+    parentLedgerId: 'group-tds-payable',
+    group: 'Liabilities',
+    isGroup: false,
+    openingBalance: 0,
+    currentBalance: 2500,
+    balanceType: 'Cr',
+    gstApplicable: false,
+    status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 9, 26),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 9, 26),
+    firmId: 'firm-abc',
+    companyId: 'comp-001',
+  },
+  {
+    id: 'led-tds-prof',
+    ledgerName: 'TDS on Prof. Fees (194J)',
+    parentLedgerId: 'group-tds-payable',
+    group: 'Liabilities',
+    isGroup: false,
+    openingBalance: 0,
+    currentBalance: 1200,
+    balanceType: 'Cr',
+    gstApplicable: false,
+    status: 'Active',
+    createdAt: new Date(MOCK_DATA_YEAR, 10, 10),
+    lastUpdatedAt: new Date(MOCK_DATA_YEAR, 10, 10),
+    firmId: 'firm-abc',
+    companyId: 'comp-001',
+  },
 ];
 
 export const mockVouchers: Voucher[] = [
@@ -838,5 +870,3 @@ export const mockNotes: Note[] = [
     createdAt: new Date(MOCK_DATA_YEAR, 10, 5),
   }
 ];
-
-    
