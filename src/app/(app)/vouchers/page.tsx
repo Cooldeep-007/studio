@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { PlusCircle, Search } from 'lucide-react';
+import { PlusCircle, Search, MoreHorizontal } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import type { DateRange } from "react-day-picker";
 import {
@@ -32,6 +32,12 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { useRouter } from 'next/navigation';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 import { mockVouchers, mockLedgers } from '@/lib/data';
 import type { Voucher, VoucherType } from '@/lib/types';
@@ -158,22 +164,41 @@ export default function VouchersPage() {
                 <TableHead>Type</TableHead>
                 <TableHead>Party</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
                 {filteredVouchers.length > 0 ? (
                     filteredVouchers.map((voucher) => (
-                        <TableRow key={voucher.id} onClick={() => router.push(`/vouchers/${voucher.id}`)} className="cursor-pointer hover:bg-muted/50 transition-colors">
+                        <TableRow key={voucher.id} className="hover:bg-muted/50 transition-colors">
                             <TableCell>{format(new Date(voucher.date), 'dd-MMM-yyyy')}</TableCell>
                             <TableCell className="font-medium">{voucher.voucherNumber}</TableCell>
                             <TableCell><Badge className={badgeColors[voucher.voucherType] || 'bg-secondary text-secondary-foreground'}>{voucher.voucherType}</Badge></TableCell>
                             <TableCell>{ledgerMap.get(voucher.partyLedgerId || '') || '-'}</TableCell>
                             <TableCell className="text-right font-mono">{formatCurrency(voucher.totalDebit)}</TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Open menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => router.push(`/vouchers/${voucher.id}`)}>
+                                    View
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => router.push(`/vouchers/${voucher.id}/edit`)}>
+                                    Edit
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
                         </TableRow>
                     ))
                 ) : (
                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
+                        <TableCell colSpan={6} className="h-24 text-center">
                             No vouchers found for the selected criteria.
                         </TableCell>
                     </TableRow>
