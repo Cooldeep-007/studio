@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -248,7 +249,8 @@ function ImportPreview({ preview, setIsOpen }: { preview: TallyPreviewLedger[], 
                     {preview.map((ledger, index) => (
                         <TableRow key={index} className={ledger.status === 'Error' ? 'bg-destructive/10' : ''}>
                             <TableCell>{ledger.ledgerName}</TableCell><TableCell>{ledger.parent}</TableCell><TableCell>{ledger.gstClassification || "-"}</TableCell>
-                            <TableCell className="text-right">{ledger.openingBalance.toFixed(2)}</TableCell><TableCell>{ledger.balanceType}</TableCell><TableCell>{ledger.gstin || "-"}</TableCell>
+                            <TableCell className="text-right">{(Number(ledger.openingBalance) || 0).toFixed(2)}</TableCell>
+                            <TableCell>{ledger.balanceType}</TableCell><TableCell>{ledger.gstin || "-"}</TableCell>
                             <TableCell>
                                 <Badge variant={ledger.status === 'New' ? 'default' : (ledger.status === 'Error' ? 'destructive' : 'secondary')} className={ledger.status === 'New' ? 'bg-green-100 text-green-800' : ''}>{ledger.status}</Badge>
                                 {ledger.error && <p className="text-xs text-destructive mt-1">{ledger.error}</p>}

@@ -167,19 +167,27 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
             const ledgerName = tallyLedger['@_NAME'];
             const parentName = tallyLedger.PARENT;
             
-            let openingBalance = 0;
+            let openingBalance: number;
             const rawOpeningBalance = tallyLedger.OPENINGBALANCE;
-            if (typeof rawOpeningBalance === 'string') {
-                openingBalance = parseFloat(rawOpeningBalance.replace(/ Cr$/, '').replace(/ Dr$/, '')) || 0;
-            } else if (typeof rawOpeningBalance === 'number') {
-                openingBalance = rawOpeningBalance;
-            }
-            openingBalance = Math.abs(openingBalance);
 
+            if (typeof rawOpeningBalance === 'number') {
+                openingBalance = rawOpeningBalance;
+            } else if (typeof rawOpeningBalance === 'string' && rawOpeningBalance.trim() !== '') {
+                openingBalance = parseFloat(rawOpeningBalance.replace(/ Cr$/, '').replace(/ Dr$/, ''));
+            } else {
+                openingBalance = 0;
+            }
+
+            if (isNaN(openingBalance)) {
+                openingBalance = 0;
+            }
+            
             let balanceType: 'Dr' | 'Cr' = 'Dr';
             if (tallyLedger.ISDEEMEDPOSITIVE === 'No' || (typeof rawOpeningBalance === 'string' && rawOpeningBalance.includes('Cr'))) {
                 balanceType = 'Cr';
             }
+
+            openingBalance = Math.abs(openingBalance);
             
             let classification: TallyPreviewLedger['gstClassification'];
             if (tallyLedger.GSTCLASSIFICATIONNAME?.toLowerCase().includes('goods')) classification = 'Goods';
