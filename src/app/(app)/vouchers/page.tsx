@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Search } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import type { DateRange } from "react-day-picker";
 import {
@@ -29,13 +29,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
+import { Input } from '@/components/ui/input';
 import { DateRangePicker } from '@/components/date-range-picker';
+import { useRouter } from 'next/navigation';
 
 import { mockVouchers, mockLedgers } from '@/lib/data';
 import type { Voucher, VoucherType } from '@/lib/types';
@@ -61,10 +57,12 @@ const badgeColors: Record<string, string> = {
   'Proforma Invoice': 'bg-cyan-100 text-cyan-800 hover:bg-cyan-100/80',
 };
 
-const voucherTypesForFilter: string[] = ['All', 'Sales', 'Purchase', 'Payment', 'Receipt', 'Debit Note', 'Credit Note', 'Journal', 'Adhoc Invoice', 'Proforma Invoice'];
+const voucherTypesForFilter: string[] = ['All', 'Sales', 'Purchase', 'Payment', 'Receipt', 'Debit Note', 'Credit Note', 'Journal', 'Contra'];
 
 export default function VouchersPage() {
+  const router = useRouter();
   const [voucherTypeFilter, setVoucherTypeFilter] = React.useState<string>('All');
+  const [searchQuery, setSearchQuery] = React.useState('');
   const [date, setDate] = React.useState<DateRange | undefined>({
       from: startOfMonth(new Date()),
       to: endOfMonth(new Date()),
@@ -87,126 +85,101 @@ export default function VouchersPage() {
         vouchers = vouchers.filter(v => v.voucherType === voucherTypeFilter);
     }
     
-    return vouchers;
-  }, [date, voucherTypeFilter]);
+    // 3. Filter by search query
+    if (searchQuery) {
+        const lowercasedQuery = searchQuery.toLowerCase();
+        vouchers = vouchers.filter(v => {
+            const partyName = v.partyLedgerId ? ledgerMap.get(v.partyLedgerId)?.toLowerCase() : '';
+            return (
+                v.voucherNumber.toLowerCase().includes(lowercasedQuery) ||
+                (partyName && partyName.includes(lowercasedQuery)) ||
+                v.narration.toLowerCase().includes(lowercasedQuery) ||
+                v.totalDebit.toString().includes(lowercasedQuery)
+            );
+        });
+    }
+    
+    // Sort by date descending
+    return vouchers.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const groupedVouchers = React.useMemo(() => {
-    return filteredVouchers.reduce(
-      (acc, voucher) => {
-        const type = voucher.voucherType;
-        if (!acc[type]) {
-          acc[type] = [];
-        }
-        acc[type].push(voucher);
-        return acc;
-      },
-      {} as Record<string, Voucher[]>
-    );
-  }, [filteredVouchers]);
-  
-  const sortedGroupKeys = React.useMemo(() => {
-    const keys = Object.keys(groupedVouchers);
-    const voucherTypeOrder: VoucherType[] = ['Sales', 'Purchase', 'Receipt', 'Payment', 'Journal', 'Contra', 'Debit Note', 'Credit Note'];
-    return keys.sort((a, b) => {
-        const aIndex = voucherTypeOrder.indexOf(a as VoucherType);
-        const bIndex = voucherTypeOrder.indexOf(b as VoucherType);
-        return (aIndex > -1 ? aIndex : 99) - (bIndex > -1 ? bIndex : 99);
-    });
-  }, [groupedVouchers]);
+  }, [date, voucherTypeFilter, searchQuery, ledgerMap]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h1 className="text-2xl font-bold">Vouchers</h1>
-        <div className="flex flex-col md:flex-row items-center gap-2">
+        <h1 className="text-2xl font-bold">Voucher Register</h1>
+      </div>
+      
+      <Card>
+          <CardHeader>
+              <CardTitle>Filters</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col md:flex-row gap-4">
             <DateRangePicker date={date} setDate={setDate} />
-            <div className="flex w-full md:w-auto items-center gap-2">
-                 <Select value={voucherTypeFilter} onValueChange={setVoucherTypeFilter}>
-                    <SelectTrigger className="w-full md:w-[180px]">
-                        <SelectValue placeholder="Voucher Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                       {voucherTypesForFilter.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Link href="/vouchers/create">
+            <Select value={voucherTypeFilter} onValueChange={setVoucherTypeFilter}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                    <SelectValue placeholder="Voucher Type" />
+                </SelectTrigger>
+                <SelectContent>
+                    {voucherTypesForFilter.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                </SelectContent>
+            </Select>
+            <div className="relative flex-grow">
+                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                 <Input 
+                    placeholder="Search by No, Party, Narration..."
+                    className="pl-10"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                 />
+            </div>
+             <Link href="/vouchers/create">
                 <Button className="w-full md:w-auto">
                     <PlusCircle className="mr-2 h-4 w-4" />
-                    Create
+                    Create Voucher
                 </Button>
-                </Link>
-            </div>
-        </div>
-      </div>
+            </Link>
+          </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
           <CardTitle>Voucher Entries</CardTitle>
           <CardDescription>
-            A list of all recorded accounting vouchers for the selected period and type.
+            A list of all recorded accounting vouchers for the selected period.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {Object.keys(groupedVouchers).length > 0 ? (
-            <Accordion type="single" collapsible className="w-full" defaultValue={`${sortedGroupKeys[0]}-item`}>
-              {sortedGroupKeys.map((key) => {
-                const vouchers = groupedVouchers[key];
-                const totalAmount = vouchers.reduce(
-                  (sum, v) => sum + v.totalDebit,
-                  0
-                );
-                const sortedVouchers = [...vouchers].sort(
-                  (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-                );
-
-                return (
-                  <AccordionItem value={`${key}-item`} key={key}>
-                    <AccordionTrigger className="hover:no-underline hover:bg-muted/50 px-4 rounded-md">
-                      <div className="flex items-center gap-4">
-                        <Badge className={badgeColors[key as VoucherType] || 'bg-secondary text-secondary-foreground'}>
-                          {key}
-                        </Badge>
-                        <span className="text-muted-foreground">({vouchers.length} vouchers)</span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="p-2">
-                       <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-1/4">Date</TableHead>
-                            <TableHead className="w-1/4">Voucher No.</TableHead>
-                            <TableHead className="w-1/4">Party</TableHead>
-                            <TableHead className="text-right w-1/4">Amount</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {sortedVouchers.map((voucher) => (
-                            <TableRow key={voucher.id} className="hover:bg-muted/50 transition-colors">
-                              <TableCell>{format(new Date(voucher.date), 'dd/MM/yyyy')}</TableCell>
-                              <TableCell className="font-medium">{voucher.voucherNumber}</TableCell>
-                               <TableCell>
-                                 {ledgerMap.get(voucher.partyLedgerId || '') || voucher.narration}
-                               </TableCell>
-                              <TableCell className="text-right">
-                                {formatCurrency(voucher.totalDebit)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                      <div className="text-right font-bold p-4 border-t">
-                          Total {key} Amount: {formatCurrency(totalAmount)}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                );
-              })}
-            </Accordion>
-          ) : (
-            <div className="text-center text-muted-foreground py-12">
-              No voucher entries found for the selected criteria.
-            </div>
-          )}
+           <Table>
+            <TableHeader>
+                <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Voucher No.</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Party</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {filteredVouchers.length > 0 ? (
+                    filteredVouchers.map((voucher) => (
+                        <TableRow key={voucher.id} onClick={() => router.push(`/vouchers/${voucher.id}`)} className="cursor-pointer hover:bg-muted/50 transition-colors">
+                            <TableCell>{format(new Date(voucher.date), 'dd-MMM-yyyy')}</TableCell>
+                            <TableCell className="font-medium">{voucher.voucherNumber}</TableCell>
+                            <TableCell><Badge className={badgeColors[voucher.voucherType] || 'bg-secondary text-secondary-foreground'}>{voucher.voucherType}</Badge></TableCell>
+                            <TableCell>{ledgerMap.get(voucher.partyLedgerId || '') || '-'}</TableCell>
+                            <TableCell className="text-right font-mono">{formatCurrency(voucher.totalDebit)}</TableCell>
+                        </TableRow>
+                    ))
+                ) : (
+                     <TableRow>
+                        <TableCell colSpan={5} className="h-24 text-center">
+                            No vouchers found for the selected criteria.
+                        </TableCell>
+                    </TableRow>
+                )}
+            </TableBody>
+           </Table>
         </CardContent>
       </Card>
     </div>
