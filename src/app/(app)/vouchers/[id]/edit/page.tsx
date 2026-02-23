@@ -12,6 +12,9 @@ import { JournalEntryForm } from '@/components/voucher-forms/journal-entry-form'
 import { PaymentReceiptForm } from '@/components/voucher-forms/payment-receipt-form';
 import { ContraEntryForm } from '@/components/voucher-forms/contra-entry-form';
 import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form';
+import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
+import { AdhocInvoiceForm } from '@/components/voucher-forms/adhoc-invoice-form';
+import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
 import { mockVouchers } from '@/lib/data';
 import type { Voucher } from '@/lib/types';
 import { FileWarning, Loader2, ArrowLeft } from 'lucide-react';
@@ -35,6 +38,8 @@ export default function EditVoucherPage() {
   const [voucher, setVoucher] = React.useState<Voucher | null | undefined>(undefined);
 
   React.useEffect(() => {
+    // In a real app, you would fetch this data from an API
+    // const foundVoucher = await fetchVoucherById(voucherId);
     const foundVoucher = mockVouchers.find(v => v.id === voucherId);
     setVoucher(foundVoucher || null);
   }, [voucherId]);
@@ -69,7 +74,7 @@ export default function EditVoucherPage() {
       case 'Sales':
         return <SalesInvoiceForm initialData={voucher} />;
       case 'Purchase':
-        return <NotImplemented type="Purchase" />;
+        return <PurchaseInvoiceForm />;
       case 'Payment':
         return <PaymentReceiptForm type="Payment" initialData={voucher} />;
       case 'Receipt':
@@ -82,6 +87,10 @@ export default function EditVoucherPage() {
         return <NotImplemented type="Debit Note" />;
       case 'Credit Note':
         return <NotImplemented type="Credit Note" />;
+      case 'Adhoc Invoice':
+        return <AdhocInvoiceForm />;
+      case 'Proforma Invoice':
+        return <ProformaInvoiceForm />;
       default:
         return (
           <div className="flex items-center justify-center h-40 mt-6 text-muted-foreground">
