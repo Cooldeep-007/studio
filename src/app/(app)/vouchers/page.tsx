@@ -70,8 +70,11 @@ const getFinancialYearLabel = (date: Date): string => {
     }
 };
 
+const voucherTypesForFilter: ('All' | VoucherType)[] = ['All', 'Sales', 'Purchase', 'Receipt', 'Payment', 'Journal', 'Contra', 'Debit Note', 'Credit Note'];
+
 export default function VouchersPage() {
   const [groupBy, setGroupBy] = React.useState('voucherType');
+  const [voucherTypeFilter, setVoucherTypeFilter] = React.useState<string>('All');
   const [date, setDate] = React.useState<DateRange | undefined>({
       from: startOfMonth(new Date()),
       to: endOfMonth(new Date()),
@@ -79,12 +82,23 @@ export default function VouchersPage() {
   const ledgerMap = React.useMemo(() => new Map(mockLedgers.map(l => [l.id, l.ledgerName])), []);
 
   const filteredVouchers = React.useMemo(() => {
-    return mockVouchers.filter(v => {
-        if (!date?.from || !date?.to) return true;
-        const voucherDate = new Date(v.date);
-        return voucherDate >= date.from && voucherDate <= date.to;
-    });
-  }, [date]);
+    let vouchers = mockVouchers;
+
+    // 1. Filter by date
+    if (date?.from && date?.to) {
+        vouchers = vouchers.filter(v => {
+            const voucherDate = new Date(v.date);
+            return voucherDate >= date.from! && voucherDate <= date.to!;
+        });
+    }
+
+    // 2. Filter by voucher type
+    if (voucherTypeFilter !== 'All') {
+        vouchers = vouchers.filter(v => v.voucherType === voucherTypeFilter);
+    }
+    
+    return vouchers;
+  }, [date, voucherTypeFilter]);
 
   const groupedVouchers = React.useMemo(() => {
     if (groupBy === 'voucherType') {
@@ -153,8 +167,16 @@ export default function VouchersPage() {
         <div className="flex flex-col md:flex-row items-center gap-2">
             <DateRangePicker date={date} setDate={setDate} />
             <div className="flex w-full md:w-auto items-center gap-2">
-                <Select value={groupBy} onValueChange={setGroupBy}>
+                 <Select value={voucherTypeFilter} onValueChange={setVoucherTypeFilter}>
                     <SelectTrigger className="w-full md:w-[180px]">
+                        <SelectValue placeholder="Filter by Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                       {voucherTypesForFilter.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <Select value={groupBy} onValueChange={setGroupBy}>
+                    <SelectTrigger className="w-full md:w-[150px]">
                         <SelectValue placeholder="Group by" />
                     </SelectTrigger>
                     <SelectContent>
@@ -177,12 +199,12 @@ export default function VouchersPage() {
         <CardHeader>
           <CardTitle>Voucher Entries</CardTitle>
           <CardDescription>
-            A list of all recorded accounting vouchers, grouped by your selection.
+            A list of all recorded accounting vouchers for the selected period and type.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {Object.keys(groupedVouchers).length > 0 ? (
-            <Accordion type="single" collapsible className="w-full">
+            <Accordion type="single" collapsible className="w-full" defaultValue={`${sortedGroupKeys[0]}-item`}>
               {sortedGroupKeys.map((key) => {
                 const vouchers = groupedVouchers[key];
                 const totalAmount = vouchers.reduce(
@@ -249,7 +271,7 @@ export default function VouchersPage() {
             </Accordion>
           ) : (
             <div className="text-center text-muted-foreground py-12">
-              No voucher entries found for the selected period.
+              No voucher entries found for the selected criteria.
             </div>
           )}
         </CardContent>
