@@ -2,7 +2,13 @@
 "use client";
 
 import * as React from "react";
-import { PlusCircle, ListFilter, Upload, Search } from "lucide-react";
+import { format } from "date-fns";
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import type { jsPDF as jsPDFType } from 'jspdf';
+
+import { PlusCircle, ListFilter, Upload, Search, Download, FileText, FileSpreadsheet, Loader2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -24,15 +30,20 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { AddLedgerSheet } from "@/components/add-ledger-sheet";
+import { Checkbox } from "@/components/ui/checkbox";
 import { mockLedgers, mockCompanies } from "@/lib/data";
 import type { Company, Ledger } from "@/lib/types";
 import { TallyImportDialog } from "@/components/tally-import-dialog";
+import { useUser } from "@/firebase/auth/use-user";
+import { useToast } from "@/hooks/use-toast";
+
 
 // Helper type for tree structure
 interface LedgerWithChildren extends Ledger {
@@ -73,12 +84,10 @@ function buildLedgerTree(ledgers: Ledger[]): LedgerWithChildren[] {
   const ledgerMap: Record<string, LedgerWithChildren> = {};
   const ledgerTree: LedgerWithChildren[] = [];
 
-  // Initialize map and add children array
   for (const ledger of ledgers) {
     ledgerMap[ledger.id] = { ...ledger, children: [] };
   }
 
-  // Build the tree
   for (const ledger of Object.values(ledgerMap)) {
     if (ledger.parentLedgerId && ledgerMap[ledger.parentLedgerId]) {
       ledgerMap[ledger.parentLedgerId].children.push(ledger);
@@ -90,14 +99,39 @@ function buildLedgerTree(ledgers: Ledger[]): LedgerWithChildren[] {
 }
 
 // Component to render a single row (and its children recursively)
-function LedgerRow({ ledger, visibleColumns, level, parentName }: { ledger: LedgerWithChildren; visibleColumns: Record<string, boolean>; level: number, parentName?: string }) {
+function LedgerRow({ 
+  ledger, 
+  visibleColumns, 
+  level, 
+  parentName,
+  selectedRows,
+  onSelectionChange
+}: { 
+  ledger: LedgerWithChildren; 
+  visibleColumns: Record<string, boolean>; 
+  level: number; 
+  parentName?: string;
+  selectedRows: Record<string, boolean>;
+  onSelectionChange: (ledgerId: string, checked: boolean) => void;
+}) {
   const formatCurrency = (amount: number) => amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   const getNestedValue = (obj: any, path: string): any => path.split('.').reduce((o, i) => o?.[i], obj);
 
+  const isSelected = !!selectedRows[ledger.id];
+
   return (
     <>
-      <TableRow className="hover:bg-muted/50 transition-colors">
-        {visibleColumns.ledgerName && <TableCell style={{ paddingLeft: `${level * 1.5 + 1}rem` }} className="font-medium">{ledger.ledgerName}</TableCell>}
+      <TableRow className="hover:bg-muted/50 transition-colors" data-state={isSelected ? "selected" : ""}>
+        <TableCell style={{ paddingLeft: `${level * 1.5 + 0.5}rem` }} className="font-medium">
+             <div className="flex items-center gap-3">
+                <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={(checked) => onSelectionChange(ledger.id, !!checked)}
+                    aria-label={`Select ledger ${ledger.ledgerName}`}
+                />
+                <span>{ledger.ledgerName}</span>
+            </div>
+        </TableCell>
         {visibleColumns.parentLedgerName && <TableCell>{parentName || '-'}</TableCell>}
         {visibleColumns.group && <TableCell><Badge variant="outline">{ledger.group}</Badge></TableCell>}
         {visibleColumns['gstDetails.gstClassification'] && <TableCell>{getNestedValue(ledger, 'gstDetails.gstClassification') || '-'}</TableCell>}
@@ -120,13 +154,16 @@ function LedgerRow({ ledger, visibleColumns, level, parentName }: { ledger: Ledg
         {visibleColumns.lastUpdatedAt && <TableCell>{new Date(ledger.lastUpdatedAt).toLocaleDateString()}</TableCell>}
       </TableRow>
       {ledger.children.map(child => (
-        <LedgerRow key={child.id} ledger={child} visibleColumns={visibleColumns} level={level + 1} parentName={ledger.ledgerName} />
+        <LedgerRow key={child.id} ledger={child} visibleColumns={visibleColumns} level={level + 1} parentName={ledger.ledgerName} selectedRows={selectedRows} onSelectionChange={onSelectionChange}/>
       ))}
     </>
   );
 }
 
 export default function LedgersPage() {
+  const { profile } = useUser();
+  const { toast } = useToast();
+
   const [ledgers, setLedgers] = React.useState<Ledger[]>(mockLedgers);
   const [companies, setCompanies] = React.useState<Company[]>(mockCompanies);
   const [ledgerTree, setLedgerTree] = React.useState<LedgerWithChildren[]>([]);
@@ -134,6 +171,10 @@ export default function LedgersPage() {
   const [isMounted, setIsMounted] = React.useState(false);
   const [search, setSearch] = React.useState('');
   const [columnFilters, setColumnFilters] = React.useState<Record<string, string>>({});
+  const [selectedRows, setSelectedRows] = React.useState<Record<string, boolean>>({});
+  const [isExporting, setIsExporting] = React.useState(false);
+
+  const canExport = profile?.role === 'Owner' || profile?.role === 'Admin';
   
   const ledgerMap = React.useMemo(() => Object.fromEntries(ledgers.map(l => [l.id, l])), [ledgers]);
 
@@ -157,6 +198,18 @@ export default function LedgersPage() {
     }
   }, [visibleColumns, isMounted]);
 
+  const flattenTree = React.useCallback((nodes: LedgerWithChildren[]): Ledger[] => {
+      let flatList: Ledger[] = [];
+      nodes.forEach(node => {
+          const { children, ...rest } = node;
+          flatList.push(rest as Ledger);
+          if (children.length > 0) {
+              flatList = flatList.concat(flattenTree(children));
+          }
+      });
+      return flatList;
+  }, []);
+  
   React.useEffect(() => {
     const getNestedValue = (obj: any, path: string): any => {
         return path.split('.').reduce((o, i) => (o ? o[i] : undefined), obj);
@@ -223,8 +276,66 @@ export default function LedgersPage() {
     setColumnFilters(prev => ({ ...prev, [columnId]: value }));
   };
 
+  const handleSelectionChange = (ledgerId: string, checked: boolean) => {
+    setSelectedRows(prev => ({...prev, [ledgerId]: checked }));
+  };
+
+  const visibleLedgerIds = React.useMemo(() => flattenTree(ledgerTree).map(l => l.id), [ledgerTree, flattenTree]);
+  const isAllVisibleSelected = React.useMemo(() => visibleLedgerIds.length > 0 && visibleLedgerIds.every(id => selectedRows[id]), [visibleLedgerIds, selectedRows]);
+
+  const handleSelectAll = (checked: boolean) => {
+      const newSelectedRows = {...selectedRows};
+      visibleLedgerIds.forEach(id => {
+          newSelectedRows[id] = checked;
+      });
+      setSelectedRows(newSelectedRows);
+  };
+
+  const handleExport = async (formatType: 'pdf' | 'xlsx') => {
+      setIsExporting(true);
+      toast({ title: 'Exporting...', description: `Your ledger data is being prepared as a ${formatType.toUpperCase()} file.` });
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing
+
+      const selectedIds = Object.keys(selectedRows).filter(id => selectedRows[id]);
+      let dataToExport: Ledger[];
+
+      if (selectedIds.length > 0) {
+          dataToExport = ledgers.filter(l => selectedIds.includes(l.id));
+      } else {
+          dataToExport = flattenTree(ledgerTree);
+      }
+      
+      const exportData = dataToExport.map(ledger => ({
+          'Ledger Name': ledger.ledgerName,
+          'Parent Ledger': ledgerMap[ledger.parentLedgerId || '']?.ledgerName || '-',
+          'Group': ledger.group,
+          'Opening Balance': ledger.openingBalance,
+          'Dr/Cr': ledger.balanceType,
+          'GST Applicable': ledger.gstApplicable ? 'Yes' : 'No',
+          'GSTIN': ledger.gstDetails?.gstin || '-',
+          'GST Rate': ledger.gstDetails?.gstRate ? `${ledger.gstDetails.gstRate}%` : '-',
+          'HSN/SAC': ledger.gstDetails?.hsnCode || '-',
+          'Contact Person': ledger.contactDetails?.contactPerson || '-',
+          'Mobile': ledger.contactDetails?.mobileNumber || '-',
+          'Email': ledger.contactDetails?.email || '-',
+          'Created Date': format(ledger.createdAt, 'yyyy-MM-dd'),
+      }));
+
+      const today = format(new Date(), 'yyyy_MM_dd');
+      const companyName = mockCompanies.find(c => c.id === 'comp-001')?.companyName || "Pro Accounting";
+
+      if (formatType === 'xlsx') {
+          exportToExcel(exportData, companyName, today);
+      } else {
+          exportToPdf(exportData, companyName, today);
+      }
+
+      setIsExporting(false);
+      toast({ title: 'Export Successful', description: 'Your file has been downloaded.' });
+  };
+
+
   if (!isMounted) {
-    // To avoid hydration mismatch with localStorage
     return null; 
   }
 
@@ -279,6 +390,26 @@ export default function LedgersPage() {
               </DropdownMenuContent>
             </DropdownMenu>
             <TallyImportDialog companies={companies} ledgers={ledgers} />
+             {canExport && (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" disabled={isExporting}>
+                            {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Export
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => handleExport('pdf')}>
+                            <FileText className="mr-2 h-4 w-4" />
+                            Export as PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleExport('xlsx')}>
+                            <FileSpreadsheet className="mr-2 h-4 w-4" />
+                            Export as Excel
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
             <AddLedgerSheet ledgers={ledgers} onLedgerCreated={handleLedgerCreated}>
               <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -298,7 +429,17 @@ export default function LedgersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {visibleCols.map(column => 
+                    <TableHead className="w-[30%]">
+                      <div className="flex items-center gap-3">
+                         <Checkbox
+                            checked={isAllVisibleSelected}
+                            onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                            aria-label="Select all visible rows"
+                         />
+                         {visibleColumns.ledgerName && allColumns.find(c => c.id === 'ledgerName')?.label}
+                      </div>
+                    </TableHead>
+                  {visibleCols.slice(1).map(column => 
                       <TableHead key={column.id} className={['openingBalance', 'currentBalance', 'creditControl.creditLimit'].includes(column.id) ? 'text-right' : ''}>
                           {column.label}
                       </TableHead>
@@ -320,7 +461,7 @@ export default function LedgersPage() {
               <TableBody>
                 {ledgerTree.length > 0 ? (
                   ledgerTree.map((ledger) => (
-                    <LedgerRow key={ledger.id} ledger={ledger} visibleColumns={visibleColumns} level={0} parentName={ledger.parentLedgerId ? ledgerMap[ledger.parentLedgerId]?.ledgerName : '-'}/>
+                    <LedgerRow key={ledger.id} ledger={ledger} visibleColumns={visibleColumns} level={0} parentName={ledger.parentLedgerId ? ledgerMap[ledger.parentLedgerId]?.ledgerName : '-'} selectedRows={selectedRows} onSelectionChange={handleSelectionChange}/>
                   ))
                 ) : (
                   <TableRow>
@@ -338,4 +479,63 @@ export default function LedgersPage() {
   );
 }
 
+
+// --- EXPORT HELPERS ---
+
+const exportToPdf = (data: Record<string, any>[], companyName: string, dateStr: string) => {
+    if (data.length === 0) return;
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const tableData = data.map(row => Object.values(row));
+    const tableHeaders = Object.keys(data[0]);
+    const exportDate = format(new Date(), 'PPP');
+
+    (doc as jsPDFType & { autoTable: (options: any) => void }).autoTable({
+        head: [tableHeaders],
+        body: tableData,
+        didDrawPage: (data: any) => {
+            doc.setFontSize(18);
+            doc.setTextColor(40);
+            doc.text(companyName, data.settings.margin.left, 15);
+            doc.setFontSize(10);
+            doc.text(`Ledger Masters Export - ${exportDate}`, data.settings.margin.left, 22);
+
+            const pageCount = doc.internal.getNumberOfPages();
+            doc.setFontSize(10);
+            doc.text(`Page ${data.pageNumber} of ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
+        },
+        margin: { top: 30 },
+    });
+
+    doc.save(`ProAccounting_Masters_${dateStr}.pdf`);
+};
+
+const exportToExcel = (data: Record<string, any>[], companyName: string, dateStr: string) => {
+    if (data.length === 0) return;
+    const ws = XLSX.utils.json_to_sheet([]);
     
+    XLSX.utils.sheet_add_aoa(ws, [[`Company: ${companyName}`]], { origin: 'A1' });
+    XLSX.utils.sheet_add_aoa(ws, [[`Export Date: ${format(new Date(), 'PPP')}`]], { origin: 'A2' });
+
+    XLSX.utils.sheet_add_json(ws, data, { origin: 'A4', skipHeader: false });
+    
+    const footerOrigin = data.length + 6;
+    XLSX.utils.sheet_add_aoa(ws, [[`Total Ledgers: ${data.length}`]], { origin: `A${footerOrigin}` });
+    
+    const headerCellStyle = { font: { bold: true } };
+    const headers = Object.keys(data[0]);
+    headers.forEach((header, index) => {
+        const cellAddress = XLSX.utils.encode_cell({c: index, r: 3});
+        if(ws[cellAddress]) {
+            ws[cellAddress].s = headerCellStyle;
+        }
+    });
+
+    const colWidths = headers.map(key => ({
+        wch: Math.max(key.length, ...data.map(row => (row[key] || '').toString().length)) + 2
+    }));
+    ws['!cols'] = colWidths;
+    
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ledgers');
+    XLSX.writeFile(wb, `ProAccounting_Masters_${dateStr}.xlsx`);
+};
