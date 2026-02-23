@@ -4,6 +4,11 @@
 import { generateCustomFieldSchema } from "@/ai/flows/generate-custom-field-schema";
 import { z } from "zod";
 import { XMLParser } from "fast-xml-parser";
+import { initializeFirebase } from "@/firebase";
+import { collection, doc, getDocs, writeBatch, serverTimestamp, query } from "firebase/firestore";
+import type { Ledger, LedgerGroup } from "@/lib/types";
+
+const { firestore } = initializeFirebase();
 
 // Schema for Custom Field Generator
 const customFieldSchema = z.object({
@@ -61,7 +66,8 @@ export async function handleGenerateSchema(
 // Schemas and Types for Tally Import
 const tallyImportSchema = z.object({
   xmlContent: z.string().min(1, "XML file is empty or could not be read."),
-  companyId: z.string(),
+  companyId: z.string().min(1, "Company is required."),
+  firmId: z.string().min(1, "Firm could not be identified."),
   importMode: z.enum(['create', 'update', 'skip']),
   dryRun: z.boolean(),
 });
@@ -75,7 +81,7 @@ type TallyLedger = {
   LEDGERCONTACT?: string;
   LEDGERPHONE?: string;
   LEDGEREMAIL?: string;
-  GSTREGISTRATIONTYPE?: string;
+  GSTREGISTRATIONTYPE?: 'Regular' | 'Composition' | 'Unregistered' | 'Consumer' | 'Unknown';
   PARTYGSTIN?: string;
   ADDRESS?: { V: string[] };
   STATENAME?: string;
@@ -112,6 +118,7 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
     const rawData = {
         xmlContent: formData.get('xmlContent'),
         companyId: formData.get('companyId'),
+        firmId: formData.get('firmId'),
         importMode: formData.get('importMode'),
         dryRun: formData.get('dryRun') === 'true',
     }
@@ -119,100 +126,145 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
     const validatedFields = tallyImportSchema.safeParse(rawData);
     
     if (!validatedFields.success) {
-        return { message: "Form validation failed.", error: validatedFields.error.flatten().fieldErrors.xmlContent?.[0] };
+        return { message: "Form validation failed.", error: JSON.stringify(validatedFields.error.flatten().fieldErrors) };
     }
 
-    const { xmlContent, importMode, dryRun } = validatedFields.data;
+    const { xmlContent, companyId, firmId, importMode, dryRun } = validatedFields.data;
     
     try {
-        const parser = new XMLParser({ ignoreAttributes: false });
+        const parser = new XMLParser({ ignoreAttributes: false, parseAttributeValue: true, trimValues: true });
         const jsonObj = parser.parse(xmlContent);
 
         const tallyLedgerNode = jsonObj?.ENVELOPE?.BODY?.IMPORTDATA?.REQUESTDATA?.TALLYMESSAGE?.LEDGER;
         const ledgers: TallyLedger[] = Array.isArray(tallyLedgerNode) ? tallyLedgerNode : tallyLedgerNode ? [tallyLedgerNode] : [];
 
-
         if (ledgers.length === 0) {
             return { message: "No ledgers found in the XML file or invalid Tally XML format." };
         }
+        
+        // --- PRE-FETCH EXISTING DATA ---
+        const ledgersCollectionRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'ledgers');
+        const existingLedgersSnapshot = await getDocs(query(ledgersCollectionRef));
+        
+        const existingLedgersMap = new Map<string, Ledger>();
+        const parentLedgerMap = new Map<string, { id: string, group: LedgerGroup }>();
 
+        existingLedgersSnapshot.forEach(doc => {
+            const ledger = { id: doc.id, ...doc.data() } as Ledger;
+            existingLedgersMap.set(ledger.ledgerName.toLowerCase().trim(), ledger);
+            if (ledger.isGroup) {
+                parentLedgerMap.set(ledger.ledgerName.toLowerCase().trim(), { id: ledger.id, group: ledger.group });
+            }
+        });
+
+        // --- PROCESS & PREPARE DATA ---
         const previewResult: TallyPreviewLedger[] = [];
-
-        // This is a mock of finding existing ledgers. In a real app, this would be a DB query.
-        const existingLedgers: any[] = []; // e.g. await db.ledgers.find({ companyId });
+        const ledgersToCreate: Ledger[] = [];
+        const ledgersToUpdate: { id: string, data: Partial<Ledger> }[] = [];
+        let skippedCount = 0;
 
         for (const tallyLedger of ledgers) {
             const ledgerName = tallyLedger['@_NAME'];
-            const parent = tallyLedger.PARENT;
+            const parentName = tallyLedger.PARENT;
             
-            // Safely parse opening balance
             let openingBalance = 0;
             const rawOpeningBalance = tallyLedger.OPENINGBALANCE;
             if (typeof rawOpeningBalance === 'string') {
-                openingBalance = parseFloat(rawOpeningBalance) || 0;
+                openingBalance = parseFloat(rawOpeningBalance.replace(/ Cr$/, '').replace(/ Dr$/, '')) || 0;
             } else if (typeof rawOpeningBalance === 'number') {
                 openingBalance = rawOpeningBalance;
             }
-            openingBalance = Math.abs(openingBalance); // We only want magnitude
+            openingBalance = Math.abs(openingBalance);
 
-            // Determine balance type
-            let balanceType: 'Dr' | 'Cr' = 'Dr'; // Default to Dr
-            if (tallyLedger.ISDEEMEDPOSITIVE === 'No') {
+            let balanceType: 'Dr' | 'Cr' = 'Dr';
+            if (tallyLedger.ISDEEMEDPOSITIVE === 'No' || (typeof rawOpeningBalance === 'string' && rawOpeningBalance.includes('Cr'))) {
                 balanceType = 'Cr';
-            } else if (typeof rawOpeningBalance === 'string' && rawOpeningBalance.toLowerCase().includes('cr')) {
-                balanceType = 'Cr';
-            }
-
-
-            let classification: TallyPreviewLedger['gstClassification'];
-            const gstClassificationName = tallyLedger.GSTCLASSIFICATIONNAME;
-            if (gstClassificationName) {
-                if (gstClassificationName.toLowerCase().includes('goods')) {
-                    classification = 'Goods';
-                } else if (gstClassificationName.toLowerCase().includes('service')) {
-                    classification = 'Services';
-                }
-            }
-
-            const existing = existingLedgers.find(l => l.ledgerName.toLowerCase() === ledgerName.toLowerCase());
-
-            let status: TallyPreviewLedger['status'] = 'New';
-            if (existing) {
-                if (importMode === 'skip') status = 'Duplicate';
-                if (importMode === 'update') status = 'Update';
             }
             
-            previewResult.push({
+            let classification: TallyPreviewLedger['gstClassification'];
+            if (tallyLedger.GSTCLASSIFICATIONNAME?.toLowerCase().includes('goods')) classification = 'Goods';
+            if (tallyLedger.GSTCLASSIFICATIONNAME?.toLowerCase().includes('service')) classification = 'Services';
+            
+            const parentInfo = parentLedgerMap.get(parentName.toLowerCase().trim());
+
+            if (!parentInfo) {
+                previewResult.push({
+                    ledgerName, parent: parentName, openingBalance, balanceType, status: 'Error', error: 'Parent group not found'
+                });
+                continue;
+            }
+
+            const existing = existingLedgersMap.get(ledgerName.toLowerCase().trim());
+            let status: TallyPreviewLedger['status'] = 'New';
+            if (existing) {
+                if (importMode === 'skip') { status = 'Duplicate'; skippedCount++; }
+                if (importMode === 'update') { status = 'Update'; }
+            }
+            
+            const ledgerData: Omit<Ledger, 'id' | 'createdAt' | 'lastUpdatedAt'> = {
                 ledgerName,
-                parent,
+                parentLedgerId: parentInfo.id,
+                group: parentInfo.group,
                 openingBalance,
+                currentBalance: openingBalance,
                 balanceType,
-                gstin: tallyLedger.PARTYGSTIN,
-                gstClassification: classification,
-                status,
-            });
+                isGroup: false,
+                gstApplicable: !!tallyLedger.PARTYGSTIN,
+                status: 'Active',
+                firmId,
+                companyId,
+                contactDetails: {
+                    addressLine1: Array.isArray(tallyLedger.ADDRESS?.V) ? tallyLedger.ADDRESS.V.join(', ') : undefined,
+                    state: tallyLedger.STATENAME,
+                    pincode: tallyLedger.PINCODE,
+                    pan: tallyLedger.INCOMETAXNUMBER,
+                    email: tallyLedger.LEDGEREMAIL,
+                    mobileNumber: tallyLedger.LEDGERPHONE,
+                },
+                gstDetails: {
+                    gstin: tallyLedger.PARTYGSTIN,
+                    gstRate: 0, // Tally master does not export rate
+                    gstClassification: classification,
+                    gstType: tallyLedger.GSTREGISTRATIONTYPE
+                }
+            };
+            
+            if (status === 'New') ledgersToCreate.push(ledgerData as Ledger);
+            if (status === 'Update' && existing) ledgersToUpdate.push({ id: existing.id, data: ledgerData });
+
+            previewResult.push({ ledgerName, parent: parentName, openingBalance, balanceType, status, gstin: tallyLedger.PARTYGSTIN, gstClassification: classification });
         }
         
         if (dryRun) {
-            return {
-                message: "Dry run completed successfully. See preview below.",
-                preview: previewResult
-            };
+            return { message: "Dry run completed successfully. See preview below.", preview: previewResult };
         }
 
-        // --- SIMULATED IMPORT ---
-        // In a real application, here you would perform the bulk write to the database
-        // based on the importMode and the 'status' determined above.
-        
+        // --- EXECUTE FIRESTORE WRITES ---
+        const BATCH_SIZE = 400;
         let importedCount = 0;
         let updatedCount = 0;
-        let skippedCount = 0;
 
-        previewResult.forEach(res => {
-            if (res.status === 'New') importedCount++;
-            if (res.status === 'Update') updatedCount++;
-            if (res.status === 'Duplicate') skippedCount++;
-        });
+        for (let i = 0; i < ledgersToCreate.length; i += BATCH_SIZE) {
+            const batch = writeBatch(firestore);
+            const chunk = ledgersToCreate.slice(i, i + BATCH_SIZE);
+            chunk.forEach(ledger => {
+                const newLedgerRef = doc(ledgersCollectionRef);
+                batch.set(newLedgerRef, { ...ledger, id: newLedgerRef.id, createdAt: serverTimestamp(), lastUpdatedAt: serverTimestamp() });
+            });
+            await batch.commit();
+            importedCount += chunk.length;
+        }
+        
+        for (let i = 0; i < ledgersToUpdate.length; i += BATCH_SIZE) {
+            const batch = writeBatch(firestore);
+            const chunk = ledgersToUpdate.slice(i, i + BATCH_SIZE);
+            chunk.forEach(item => {
+                const docRef = doc(ledgersCollectionRef, item.id);
+                batch.update(docRef, { ...item.data, lastUpdatedAt: serverTimestamp() });
+            });
+            await batch.commit();
+            updatedCount += chunk.length;
+        }
 
         return {
             message: "Import completed successfully!",
@@ -221,7 +273,7 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
                 imported: importedCount,
                 updated: updatedCount,
                 skipped: skippedCount,
-                errors: 0
+                errors: previewResult.filter(p => p.status === 'Error').length
             }
         };
 

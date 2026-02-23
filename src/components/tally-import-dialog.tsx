@@ -70,6 +70,9 @@ export function TallyImportDialog({ companies, ledgers }: { companies: Company[]
   const [state, formAction] = useActionState(handleTallyImport, initialState);
   const [fileContent, setFileContent] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(companies[0]?.id || '');
+  const [selectedFirmId, setSelectedFirmId] = React.useState<string>(companies[0]?.firmId || '');
 
   const { toast } = useToast();
 
@@ -90,6 +93,7 @@ export function TallyImportDialog({ companies, ledgers }: { companies: Company[]
                 title: "Import Complete",
                 description: state.message,
             });
+             // Optionally trigger a refresh of ledger data here
         }
     }
     if (state.error) {
@@ -111,6 +115,14 @@ export function TallyImportDialog({ companies, ledgers }: { companies: Company[]
       reader.readAsText(file);
     }
   };
+  
+  const handleCompanyChange = (companyId: string) => {
+    const company = companies.find(c => c.id === companyId);
+    if (company) {
+        setSelectedCompanyId(company.id);
+        setSelectedFirmId(company.firmId);
+    }
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -145,12 +157,13 @@ export function TallyImportDialog({ companies, ledgers }: { companies: Company[]
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="companyId">Select Company</Label>
-                         <Select name="companyId" defaultValue={companies[0]?.id} required>
+                         <Select name="companyId" value={selectedCompanyId} onValueChange={handleCompanyChange} required>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
                                 {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.companyName}</SelectItem>)}
                             </SelectContent>
                         </Select>
+                        <input type="hidden" name="firmId" value={selectedFirmId} />
                     </div>
                 </div>
 
@@ -214,7 +227,7 @@ function ImportPreview({ preview }: { preview: TallyPreviewLedger[] }) {
                     </TableHeader>
                     <TableBody>
                         {preview.map((ledger, index) => (
-                            <TableRow key={index}>
+                            <TableRow key={index} className={ledger.status === 'Error' ? 'bg-destructive/10' : ''}>
                                 <TableCell>{ledger.ledgerName}</TableCell>
                                 <TableCell>{ledger.parent}</TableCell>
                                 <TableCell>{ledger.gstClassification || "-"}</TableCell>
@@ -222,7 +235,13 @@ function ImportPreview({ preview }: { preview: TallyPreviewLedger[] }) {
                                 <TableCell>{ledger.balanceType}</TableCell>
                                 <TableCell>{ledger.gstin || "-"}</TableCell>
                                 <TableCell>
-                                    <Badge variant={ledger.status === 'New' ? 'default' : 'secondary'}>{ledger.status}</Badge>
+                                    <Badge 
+                                        variant={ledger.status === 'New' ? 'default' : (ledger.status === 'Error' ? 'destructive' : 'secondary')}
+                                        className={ledger.status === 'New' ? 'bg-green-100 text-green-800' : ''}
+                                    >
+                                        {ledger.status}
+                                    </Badge>
+                                    {ledger.error && <p className="text-xs text-destructive mt-1">{ledger.error}</p>}
                                 </TableCell>
                             </TableRow>
                         ))}
