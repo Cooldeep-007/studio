@@ -371,7 +371,7 @@ export default function DashboardPage() {
     aoa.push([`${companyName} - Dashboard Summary Report`]);
     aoa.push([`Exported on: ${format(new Date(), 'PPP p')}`]);
     aoa.push([`Period: ${date?.from ? format(date.from, "PP") : ''} to ${date?.to ? format(date.to, "PP") : ''}`]);
-    aoa.push([]); // Spacer
+    aoa.push(['', '']); // Spacer
 
     const sections: { title: string; data: (string | number)[][] }[] = [];
 
@@ -397,6 +397,7 @@ export default function DashboardPage() {
         ['Bank Balance', currency(cashFlow.bankBalance)],
         ['Outstanding Receivables', currency(cashFlow.receivables)],
         ['Outstanding Payables', currency(cashFlow.payables)],
+        ['', ''], // Spacer in data
         ['Net Profit %', percent(ratios.netProfitMargin)],
         ['Expense Ratio %', percent(ratios.expenseRatio)],
         ['GST Liability', currency(ratios.gstLiability)],
@@ -412,76 +413,98 @@ export default function DashboardPage() {
       ],
     });
 
-    let currentRow = 0;
-    sections.forEach(section => {
-      if (currentRow > 0) {
-        aoa.push([]); // Spacer row
+    let rowOffset = 0;
+    sections.forEach((section, index) => {
+      if (index > 0) {
+        aoa.push(['', '']); // Spacer row
       }
       aoa.push([section.title]);
       aoa.push(...section.data);
-      currentRow = aoa.length;
     });
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     
     // --- Styling ---
-    ws['!cols'] = [{ wch: 30 }, { wch: 20 }];
+    ws['!cols'] = [{ wch: 35 }, { wch: 20 }];
     ws['!merges'] = [];
-    if (ws['A1']) ws['A1'].s = { font: { bold: true, sz: 16 } };
-    
     const border = { top: { style: "thin" as const }, bottom: { style: "thin" as const }, left: { style: "thin" as const }, right: { style: "thin" as const } };
     
-    currentRow = 3; // Start after header
+    // Header style
+    const headerCellRef = XLSX.utils.encode_cell({ r: 0, c: 0 });
+    if (ws[headerCellRef]) ws[headerCellRef].s = { font: { bold: true, sz: 16 } };
+    ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } });
+    
+    let R = 3; // Start row for content
     sections.forEach(section => {
-        currentRow++; // Move to section title row
-        const titleRow = currentRow;
-        ws['!merges']!.push({ s: { r: titleRow, c: 0 }, e: { r: titleRow, c: 1 } });
-        
-        const titleCellRef = XLSX.utils.encode_cell({ r: titleRow, c: 0 });
-        if (ws[titleCellRef]) ws[titleCellRef].s = { font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "4F81BD" } }, alignment: { horizontal: "center" }, border };
-        
-        const mergedCellRef = XLSX.utils.encode_cell({ r: titleRow, c: 1 });
-        if (!ws[mergedCellRef]) ws[mergedCellRef] = {t:'z'};
-        ws[mergedCellRef].s = { fill: { fgColor: { rgb: "4F81BD" } }, border };
-        currentRow++;
+        R++; // Move past spacer
 
-        const tableStartRow = currentRow;
-        const tableEndRow = tableStartRow + section.data.length - 1;
-        for (let R = tableStartRow; R <= tableEndRow; R++) {
-            for (let C = 0; C <= 1; C++) {
-                const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
-                if (ws[cellRef]) {
-                    if(!ws[cellRef].s) ws[cellRef].s = {};
-                    ws[cellRef].s.border = border;
-                    if(R === tableStartRow) ws[cellRef].s.font = { bold: true };
+        // Style Section Title
+        const titleCellRef = XLSX.utils.encode_cell({ r: R, c: 0 });
+        const mergedTitleCellRef = XLSX.utils.encode_cell({ r: R, c: 1 });
+        ws['!merges'].push({ s: { r: R, c: 0 }, e: { r: R, c: 1 } });
+        const titleStyle = {
+            font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } },
+            fill: { fgColor: { rgb: "4F81BD" } },
+            alignment: { horizontal: "center" as const },
+            border
+        };
+        if (ws[titleCellRef]) ws[titleCellRef].s = titleStyle;
+        if (!ws[mergedTitleCellRef]) ws[mergedTitleCellRef] = { t: 's', v:''}; // Create cell to style
+        ws[mergedTitleCellRef].s = { fill: titleStyle.fill, border };
+
+        R++; // Move to data table
+
+        // Style Section Data
+        section.data.forEach((rowData, rowIndex) => {
+            const dataRow = R + rowIndex;
+            for (let C = 0; C < 2; C++) {
+                const cellRef = XLSX.utils.encode_cell({ r: dataRow, c: C });
+                let cell = ws[cellRef];
+                if (!cell) {
+                   ws[cellRef] = { t: 's', v: '' };
+                   cell = ws[cellRef];
+                }
+
+                if (!cell.s) cell.s = {};
+                cell.s.border = border;
+
+                // Table header row
+                if (rowIndex === 0) {
+                    cell.s.font = { bold: true };
+                }
+
+                // Format numbers
+                if (C === 1) {
+                  if (typeof cell.v === 'number') {
+                    cell.t = 'n';
+                    cell.s.numFmt = "#,##0.00";
+                  }
+                  if (typeof cell.v === 'string' && cell.v.endsWith('%')) {
+                    const numVal = parseFloat(cell.v.replace('%', ''));
+                    if (!isNaN(numVal)) {
+                      cell.v = numVal / 100;
+                      cell.t = 'n';
+                      cell.s.numFmt = "0.00%";
+                    }
+                  }
+                  cell.s.alignment = { horizontal: "right" };
                 }
             }
-        }
-        
-        // Special bold rows
-        if(section.title === 'Financial Summary') {
-            const grossProfitRow = tableStartRow + 3;
-            const netProfitRow = tableStartRow + 5;
-            [grossProfitRow, netProfitRow].forEach(row => {
-                const cellRefA = XLSX.utils.encode_cell({r:row, c:0});
-                const cellRefB = XLSX.utils.encode_cell({r:row, c:1});
-                if (ws[cellRefA] && ws[cellRefA].s) ws[cellRefA].s.font = { bold: true };
-                if (ws[cellRefB] && ws[cellRefB].s) ws[cellRefB].s.font = { bold: true };
-            });
-        }
-        if(section.title === 'TDS / TCS Summary') {
-            const totalRow = tableEndRow;
-            const cellRefA = XLSX.utils.encode_cell({r:totalRow, c:0});
-            const cellRefB = XLSX.utils.encode_cell({r:totalRow, c:1});
-            if (ws[cellRefA] && ws[cellRefA].s) ws[cellRefA].s.font = { bold: true };
-            if (ws[cellRefB] && ws[cellRefB].s) ws[cellRefB].s.font = { bold: true };
-        }
-        
-        currentRow = tableEndRow + 1;
+            
+            // Special Bold Rows
+            const isBoldRow = (section.title === 'Financial Summary' && (rowIndex === 3 || rowIndex === 5)) ||
+                              (section.title === 'TDS / TCS Summary' && rowIndex === section.data.length - 1);
+            if (isBoldRow) {
+                const cellRefA = XLSX.utils.encode_cell({r: dataRow, c:0});
+                const cellRefB = XLSX.utils.encode_cell({r: dataRow, c:1});
+                if (ws[cellRefA]?.s) ws[cellRefA].s.font = { bold: true, ...ws[cellRefA].s.font };
+                if (ws[cellRefB]?.s) ws[cellRefB].s.font = { bold: true, ...ws[cellRefB].s.font };
+            }
+        });
+
+        R += section.data.length -1;
     });
 
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Dashboard');
     XLSX.writeFile(wb, `ProAccounting_Dashboard_${format(new Date(), 'yyyy_MM_dd')}.xlsx`);
   };
 
