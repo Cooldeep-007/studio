@@ -1,8 +1,4 @@
 
-
-
-
-
 export type UserRole = 'Owner' | 'Admin' | 'Accountant' | 'Staff';
 
 export type UserProfile = {
@@ -147,7 +143,9 @@ export type VoucherType =
   | 'Journal'
   | 'Contra'
   | 'Debit Note'
-  | 'Credit Note';
+  | 'Credit Note'
+  | 'Proforma Invoice'
+  | 'Adhoc Invoice';
 
 export type VoucherEntry = {
   ledgerId: string;
@@ -202,10 +200,17 @@ export type Voucher = {
   invoiceDetails?: {
     items: InvoiceItem[];
     subtotal: number;
+    totalDiscount: number;
     totalGst: number;
+    tcsAmount?: number;
+    roundOff?: number;
     grandTotal: number;
     placeOfSupply: string;
     dueDate?: Date;
+    remarks?: string;
+    isReverseCharge: boolean;
+    eInvoiceRef?: string;
+    eWayBillNo?: string;
   };
   outstandingAmount?: number;
   // Fields for Payment/Receipt Vouchers
