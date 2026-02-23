@@ -56,12 +56,19 @@ export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
 
     const paymentMode = form.watch('paymentMode');
 
-    const partyLedgerOptions = React.useMemo(() => 
-        ledgers
-            .filter(l => l.group !== 'Bank Accounts' && l.ledgerName !== 'Cash in Hand')
-            .map(l => ({ value: l.id, label: l.ledgerName })), 
-        [ledgers]
-    );
+    const partyLedgerOptions = React.useMemo(() => {
+        let filteredLedgers = ledgers.filter(l => l.group !== 'Bank Accounts' && l.ledgerName !== 'Cash in Hand');
+
+        if (type === 'Payment') {
+            // When paying, you don't pay an income.
+            filteredLedgers = filteredLedgers.filter(l => l.group !== 'Income');
+        } else { // 'Receipt'
+            // When receiving, you don't receive from an expense.
+            filteredLedgers = filteredLedgers.filter(l => l.group !== 'Expense');
+        }
+
+        return filteredLedgers.map(l => ({ value: l.id, label: l.ledgerName }));
+    }, [ledgers, type]);
 
     const bankCashLedgerOptions = React.useMemo(() => 
         ledgers
