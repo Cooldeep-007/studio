@@ -374,16 +374,17 @@ export default function DashboardPage() {
 const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
     const companyName = mockCompanies[0]?.companyName || "Pro Accounting";
-
     const aoa: (string | number | null)[][] = [];
-    const currency = (v: number) => (typeof v === 'number' ? v : 0);
-    const percent = (v: number) => (typeof v === 'number' ? v / 100 : 0);
 
+    // --- Build AOA Data Structure ---
     aoa.push([`${companyName} - Dashboard Summary Report`]);
     aoa.push([null]);
     aoa.push([`Period: ${date?.from ? format(date.from, "PP") : ''} to ${date?.to ? format(date.to, "PP") : ''}`]);
     aoa.push([`Exported on: ${format(new Date(), 'PPP p')}`]);
     aoa.push([null]);
+
+    const currency = (v: number) => (typeof v === 'number' ? v : 0);
+    const percent = (v: number) => (typeof v === 'number' ? v / 100 : 0);
 
     const financialSummaryStartRow = aoa.length;
     aoa.push(['Financial Summary', null, null]);
@@ -394,87 +395,94 @@ const exportToExcel = () => {
         aoa.push(['Direct Expenses', currency(totalDirectExpenses), percent(totalRevenue > 0 ? (totalDirectExpenses / totalRevenue) * 100 : 0)]);
         aoa.push(['Gross Profit', currency(grossProfit), percent(totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0)]);
         aoa.push(['Indirect Expenses', currency(totalIndirectExpenses), percent(totalRevenue > 0 ? (totalIndirectExpenses / totalRevenue) * 100 : 0)]);
-        aoa.push(['Net Profit', currency(netProfit), percent(ratios.netProfitMargin)]);
+        aoa.push(['Net Profit', currency(netProfit), percent(ratios.netProfitMargin || 0)]);
     }
+    const financialSummaryEndRow = aoa.length - 1;
     aoa.push([null]);
 
     const keyBalancesStartRow = aoa.length;
     aoa.push(['Key Balances & Ratios', null, null]);
     aoa.push(['Description', 'Value', null]);
-    aoa.push(['Cash in Hand', currency(cashFlow.cashInHand), null]);
-    aoa.push(['Bank Balance', currency(cashFlow.bankBalance), null]);
-    aoa.push(['Outstanding Receivables', currency(cashFlow.receivables), null]);
-    aoa.push(['Outstanding Payables', currency(cashFlow.payables), null]);
-    aoa.push([null, null, null]);
-    aoa.push(['Net Profit %', percent(ratios.netProfitMargin), null]);
-    aoa.push(['Expense Ratio %', percent(ratios.expenseRatio), null]);
-    aoa.push(['GST Liability', currency(ratios.gstLiability), null]);
+    aoa.push(['Cash in Hand', currency(cashFlow.cashInHand)]);
+    aoa.push(['Bank Balance', currency(cashFlow.bankBalance)]);
+    aoa.push(['Outstanding Receivables', currency(cashFlow.receivables)]);
+    aoa.push(['Outstanding Payables', currency(cashFlow.payables)]);
+    aoa.push([null]);
+    aoa.push(['Net Profit %', percent(ratios.netProfitMargin || 0)]);
+    aoa.push(['Expense Ratio %', percent(ratios.expenseRatio || 0)]);
+    aoa.push(['GST Liability', currency(ratios.gstLiability || 0)]);
+    const keyBalancesEndRow = aoa.length - 1;
     aoa.push([null]);
 
     const tdsStartRow = aoa.length;
     aoa.push(['TDS / TCS Summary', null, null]);
     aoa.push(['Description', 'Amount (INR)', null]);
     tdsSummary.breakdown.forEach(item => {
-        aoa.push([item.name, currency(item.balance), null]);
+        aoa.push([item.name, currency(item.balance)]);
     });
-    aoa.push(['Total Payable', currency(tdsSummary.totalPayable), null]);
-    aoa.push([null]);
+    aoa.push(['Total Payable', currency(tdsSummary.totalPayable)]);
+    const tdsEndRow = aoa.length - 1;
 
+    // --- Create Worksheet & Apply Styles ---
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
     const border = { top: { style: "thin" as const }, bottom: { style: "thin" as const }, left: { style: "thin" as const }, right: { style: "thin" as const } };
     const titleStyle = { font: { bold: true, sz: 16 } };
     const sectionTitleStyle = { font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "4F81BD" } }, alignment: { horizontal: "center" as const } };
     const tableHeaderStyle = { font: { bold: true } };
+    const boldStyle = { font: { bold: true } };
 
-    const max_cols = 3;
-    for (let R = 0; R < aoa.length; ++R) {
-        for (let C = 0; C < max_cols; ++C) {
-            const cell_ref = XLSX.utils.encode_cell({ r: R, c: C });
-            if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' };
-            const cell = ws[cell_ref];
+    for (let R = 0; R < aoa.length; R++) {
+        for (let C = 0; C < 3; C++) {
+            const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+            if (!ws[cellRef]) {
+                ws[cellRef] = { t: 's', v: '' }; // Create empty cell if it doesn't exist
+            }
+            const cell = ws[cellRef];
             if (!cell.s) cell.s = {};
 
-            const isSectionTitle = R === financialSummaryStartRow || R === keyBalancesStartRow || R === tdsStartRow;
-            const isTableHeader = R === financialSummaryStartRow + 1 || R === keyBalancesStartRow + 1 || R === tdsStartRow + 1;
-            const isFinancialTable = R > financialSummaryStartRow + 1 && R < keyBalancesStartRow - 1;
-            const isBalancesTable = R > keyBalancesStartRow + 1 && R < tdsStartRow - 1;
-            const isTdsTable = R > tdsStartRow + 1 && R < aoa.length - 1;
+            const isFinancialTable = R >= financialSummaryStartRow && R <= financialSummaryEndRow;
+            const inKeyBalancesTable = R >= keyBalancesStartRow && R <= keyBalancesEndRow && C < 2;
+            const inTdsTable = R >= tdsStartRow && R <= tdsEndRow && C < 2;
 
-            if (isSectionTitle) {
-                cell.s = { ...cell.s, ...sectionTitleStyle };
-            }
-            if (isTableHeader) {
-                cell.s.font = tableHeaderStyle.font;
-            }
-            if (isFinancialTable || isBalancesTable || isTdsTable || isTableHeader || isSectionTitle) {
+            if (isFinancialTable || inKeyBalancesTable || inTdsTable) {
                 cell.s.border = border;
             }
 
             if (R === 0) cell.s.font = titleStyle.font;
-            if (typeof cell.v === 'number') {
-                 if (C === 2 || (R >= keyBalancesStartRow + 7 && R <= keyBalancesStartRow + 8 && C === 1)) {
-                    cell.s.numFmt = "0.00%";
-                } else {
-                    cell.s.numFmt = "#,##0.00";
-                }
+            if (R === financialSummaryStartRow || R === keyBalancesStartRow || R === tdsStartRow) {
+                cell.s.font = sectionTitleStyle.font;
+                cell.s.fill = sectionTitleStyle.fill;
+                cell.s.alignment = sectionTitleStyle.alignment;
             }
-            if (R === financialSummaryStartRow + 4 || R === financialSummaryStartRow + 6 || R === tdsStartRow + tdsSummary.breakdown.length + 2) {
-                cell.s.font = { ...cell.s.font, bold: true };
+            if (R === financialSummaryStartRow + 1 || R === keyBalancesStartRow + 1 || R === tdsStartRow + 1) {
+                cell.s.font = tableHeaderStyle.font;
+            }
+            if (R === financialSummaryStartRow + 4 || R === financialSummaryStartRow + 6 || R === tdsEndRow) {
+                 cell.s.font = { ...cell.s.font, ...boldStyle };
+            }
+            
+            if (cell.t === 'n') {
+                if (cell.v < 1 && cell.v > 0) { // Assume fractions are percentages
+                     cell.s.numFmt = "0.00%";
+                } else {
+                     cell.s.numFmt = "#,##0.00";
+                }
             }
         }
     }
 
-    ws['!cols'] = [{ wch: 35 }, { wch: 20 }, { wch: 15 }];
     ws['!merges'] = [
         { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
         { s: { r: financialSummaryStartRow, c: 0 }, e: { r: financialSummaryStartRow, c: 2 } },
         { s: { r: keyBalancesStartRow, c: 0 }, e: { r: keyBalancesStartRow, c: 2 } },
         { s: { r: tdsStartRow, c: 0 }, e: { r: tdsStartRow, c: 2 } },
     ];
-
+    ws['!cols'] = [{ wch: 35 }, { wch: 20 }, { wch: 15 }];
+    
+    XLSX.utils.book_append_sheet(wb, ws, 'Dashboard');
     XLSX.writeFile(wb, `ProAccounting_Dashboard_${format(new Date(), 'yyyy_MM_dd')}.xlsx`);
-  };
+};
 
   const handleExport = (formatType: 'pdf' | 'xlsx') => {
     if(!currentPeriodData) {
