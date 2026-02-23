@@ -165,8 +165,18 @@ const calculateMonthlyBreakdown = (vouchers: Voucher[], ledgers: Ledger[]) => {
     }
     if (v.voucherType === 'Sales') {
       monthlyData[month].revenue += v.totalAmount - (v.lineItems[0].taxAmount || 0);
-    } else if (v.voucherType === 'Purchase' || v.voucherType === 'Payment') {
-      monthlyData[month].expenses += v.totalAmount - (v.lineItems[0]?.taxAmount || 0);
+    } else if (v.voucherType === 'Purchase' || v.voucherType === 'Payment' || v.voucherType === 'Journal') {
+        const indirectExpenseLedgers = new Set(ledgers.filter(l => l.parentLedgerId === 'group-indirect-expenses').map(l => l.id));
+        const directExpenseLedgers = new Set(ledgers.filter(l => l.parentLedgerId === 'group-purchase-accounts' || l.id === 'led-purchase-account').map(l => l.id));
+
+        v.lineItems.forEach(li => {
+            if (directExpenseLedgers.has(li.ledgerId) || indirectExpenseLedgers.has(li.ledgerId)) {
+                monthlyData[month].expenses += li.amount;
+            }
+        });
+        if (v.voucherType === 'Purchase') { // Add non-tax amount for purchases
+             monthlyData[month].expenses += v.totalAmount - (v.lineItems[0]?.taxAmount || 0)
+        }
     }
   });
 
@@ -174,7 +184,7 @@ const calculateMonthlyBreakdown = (vouchers: Voucher[], ledgers: Ledger[]) => {
     monthlyData[month].profit = monthlyData[month].revenue - monthlyData[month].expenses;
   });
   
-  return Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })).sort((a,b) => new Date(a.name).getTime() - new Date(b.name).getTime());
+  return Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })).sort((a,b) => new Date(`01 ${a.name}`).getTime() - new Date(`01 ${b.name}`).getTime());
 }
 
 
@@ -195,10 +205,11 @@ export default function DashboardPage() {
       growth,
       ratios,
       alerts,
-      cashFlow
+      cashFlow,
+      tdsSummary,
   } = React.useMemo(() => {
       if (!date?.from || !date?.to) {
-          return { currentPeriodData: null, prevPeriodData: null, growth: {}, ratios: {}, alerts: [], cashFlow: {} };
+          return { currentPeriodData: null, prevPeriodData: null, growth: {}, ratios: {}, alerts: [], cashFlow: {}, tdsSummary: { totalPayable: 0, breakdown: [] } };
       }
 
       const currentPeriodData = processFinancials(mockVouchers, mockLedgers, date.from, date.to);
@@ -240,16 +251,207 @@ export default function DashboardPage() {
         receivables: mockLedgers.filter(l => l.group === 'Sundry Debtor').reduce((acc, l) => acc + l.currentBalance, 0),
         payables: mockLedgers.filter(l => l.group === 'Sundry Creditor').reduce((acc, l) => acc + l.currentBalance, 0),
       }
+      
+      // TDS Summary
+      const tdsPayableLedgers = mockLedgers.filter(l => l.parentLedgerId === 'group-tds-payable');
+      const tdsSummary = {
+        totalPayable: tdsPayableLedgers.reduce((acc, l) => acc + l.currentBalance, 0),
+        breakdown: tdsPayableLedgers.map(l => ({ name: l.ledgerName, balance: l.currentBalance }))
+      };
 
-      return { currentPeriodData, prevPeriodData, growth, ratios, alerts, cashFlow };
+
+      return { currentPeriodData, prevPeriodData, growth, ratios, alerts, cashFlow, tdsSummary };
 
   }, [date]);
 
+ const formatCurrencyForPdf = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+
+  const exportToPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const companyName = mockCompanies[0]?.companyName || 'Pro Accounting';
+    const period = `For: ${date?.from ? format(date.from, "PP") : ''} to ${date?.to ? format(date.to, "PP") : ''}`;
+    const exportDate = format(new Date(), 'PPP p');
+
+    // Add Header
+    doc.setFontSize(18);
+    doc.text(`${companyName} - Dashboard Summary Report`, 14, 20);
+    doc.setFontSize(10);
+    doc.text(`(All amounts in INR)`, 14, 25);
+    doc.setFontSize(12);
+    doc.text(period, 14, 32);
+    doc.setFontSize(10);
+    doc.text(`Exported on: ${exportDate}`, doc.internal.pageSize.getWidth() - 14, 20, { align: 'right' });
+
+
+    // Financial Summary Table
+    if (currentPeriodData) {
+        const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
+        
+        (doc as any).autoTable({
+            startY: 40,
+            head: [['Financial Summary', 'Amount']],
+            headStyles: { halign: 'center', fillColor: [41, 128, 185] },
+            columnStyles: { 1: { halign: 'right' } },
+            body: [
+                ['Revenue', formatCurrencyForPdf(totalRevenue)],
+                ['Direct Expenses', formatCurrencyForPdf(totalDirectExpenses)],
+                ['Gross Profit', formatCurrencyForPdf(grossProfit)],
+                ['Indirect Expenses', formatCurrencyForPdf(totalIndirectExpenses)],
+                ['Net Profit', formatCurrencyForPdf(netProfit)],
+            ],
+            theme: 'grid',
+            didParseCell: (data: any) => {
+                if(data.row.index === 2 || data.row.index === 4) { // Gross & Net Profit
+                     data.cell.styles.fontStyle = 'bold';
+                }
+            }
+        });
+    }
+    
+    let finalY = (doc as any).lastAutoTable.finalY;
+
+    // Key Balances & Ratios
+    (doc as any).autoTable({
+        startY: finalY + 10,
+        head: [['Key Balances & Ratios', 'Value']],
+        headStyles: { halign: 'center', fillColor: [41, 128, 185] },
+        columnStyles: { 1: { halign: 'right' } },
+        body: [
+            ['Cash in Hand', formatCurrencyForPdf(cashFlow.cashInHand)],
+            ['Bank Balance', formatCurrencyForPdf(cashFlow.bankBalance)],
+            ['Outstanding Receivables', formatCurrencyForPdf(cashFlow.receivables)],
+            ['Outstanding Payables', formatCurrencyForPdf(cashFlow.payables)],
+            ['Net Profit %', formatPercentage(ratios.netProfitMargin)],
+            ['Expense Ratio %', formatPercentage(ratios.expenseRatio)],
+            ['GST Liability', formatCurrencyForPdf(ratios.gstLiability)],
+        ],
+        theme: 'grid',
+    });
+
+    // TDS Summary Table
+    (doc as any).autoTable({
+        startY: (doc as any).lastAutoTable.finalY + 10,
+        head: [['TDS / TCS Summary', 'Amount']],
+        headStyles: { halign: 'center', fillColor: [39, 174, 96] },
+        columnStyles: { 1: { halign: 'right' } },
+        body: [
+            ...tdsSummary.breakdown.map(item => [item.name, formatCurrencyForPdf(item.balance)]),
+        ],
+        theme: 'grid',
+    });
+
+    (doc as any).autoTable({
+        startY: (doc as any).lastAutoTable.finalY,
+        body: [['Total Payable', formatCurrencyForPdf(tdsSummary.totalPayable)]],
+        theme: 'grid',
+        bodyStyles: { fontStyle: 'bold', halign: 'right' },
+    });
+
+    // Add Footer
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.getWidth() / 2, 287, { align: 'center' });
+    }
+
+    doc.save(`ProAccounting_Dashboard_${format(new Date(), 'yyyy_MM_dd')}.pdf`);
+};
+
+  const exportToExcel = () => {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet([]);
+    const companyName = mockCompanies[0]?.companyName || "Pro Accounting";
+    
+    // Header
+    XLSX.utils.sheet_add_aoa(ws, [[`${companyName} - Dashboard Summary Report`]], { origin: 'A1' });
+    ws['A1'].s = { font: { bold: true, sz: 16 } };
+    XLSX.utils.sheet_add_aoa(ws, [[`Exported on: ${format(new Date(), 'PPP p')}`]], { origin: 'A2' });
+    XLSX.utils.sheet_add_aoa(ws, [[`Period: ${date?.from ? format(date.from, "PP") : ''} to ${date?.to ? format(date.to, "PP") : ''}`]], { origin: 'A3' });
+
+    let currentRow = 5;
+
+    // Financial Summary
+    if (currentPeriodData) {
+        const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
+        XLSX.utils.sheet_add_aoa(ws, [['Financial Summary']], { origin: `A${currentRow}` });
+        ws[`A${currentRow}`].s = { font: { bold: true, sz: 14 } };
+        currentRow++;
+        const pnlData = [
+            ['Description', 'Amount'],
+            ['Revenue', totalRevenue],
+            ['Direct Expenses', totalDirectExpenses],
+            ['Gross Profit', grossProfit],
+            ['Indirect Expenses', totalIndirectExpenses],
+            ['Net Profit', netProfit],
+        ];
+        XLSX.utils.sheet_add_aoa(ws, pnlData, { origin: `A${currentRow}` });
+        XLSX.utils.sheet_add_aoa(ws, [['Key Balances']], { origin: `D${currentRow}` });
+        ws[`D${currentRow}`].s = { font: { bold: true, sz: 14 } };
+        currentRow++;
+        const balancesData = [
+            ['Cash in Hand', cashFlow.cashInHand],
+            ['Bank Balance', cashFlow.bankBalance],
+            ['Receivables', cashFlow.receivables],
+            ['Payables', cashFlow.payables],
+        ];
+        XLSX.utils.sheet_add_aoa(ws, balancesData, { origin: `D${currentRow}` });
+
+        currentRow += Math.max(pnlData.length, balancesData.length) + 2;
+    }
+
+    // TDS Summary
+    XLSX.utils.sheet_add_aoa(ws, [['TDS / TCS Summary']], { origin: `A${currentRow}` });
+    ws[`A${currentRow}`].s = { font: { bold: true, sz: 14 } };
+    currentRow++;
+    const tdsData = [
+        ['Description', 'Amount'],
+        ...tdsSummary.breakdown.map(item => [item.name, item.balance]),
+        ['Total Payable', tdsSummary.totalPayable],
+    ];
+    XLSX.utils.sheet_add_aoa(ws, tdsData, { origin: `A${currentRow}` });
+
+    // Auto-fit columns
+    const cols = [{ wch: 30 }, { wch: 20 }, { wch: 5 }, { wch: 30 }, { wch: 20 }];
+    ws['!cols'] = cols;
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Dashboard');
+    XLSX.writeFile(wb, `ProAccounting_Dashboard_${format(new Date(), 'yyyy_MM_dd')}.xlsx`);
+};
+
   const handleExport = (formatType: 'pdf' | 'xlsx') => {
-    // ... complete rewrite needed
+    if(!currentPeriodData) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No data available to export.' });
+        return;
+    }
+    setIsExporting(true);
+    toast({ title: 'Exporting...', description: `Your dashboard data is being prepared.` });
+    
+    // Simulate processing time
+    setTimeout(() => {
+        try {
+            if (formatType === 'pdf') {
+                exportToPdf();
+            } else {
+                exportToExcel();
+            }
+            toast({ title: 'Export Successful', description: 'Your file has been downloaded.' });
+        } catch (error) {
+            console.error("Export failed:", error);
+            toast({ variant: 'destructive', title: 'Export Failed', description: 'An unexpected error occurred.' });
+        } finally {
+            setIsExporting(false);
+        }
+    }, 1500);
   }
   
-  if (!currentPeriodData) return <Loader2 className="h-8 w-8 animate-spin" />;
+  if (!currentPeriodData) return <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
 
   const { totalRevenue, totalDirectExpenses, grossProfit, indirectExpensesBreakdown, totalIndirectExpenses, netProfit, monthlyData } = currentPeriodData;
   const totalExpenses = totalDirectExpenses + totalIndirectExpenses;
@@ -275,8 +477,8 @@ export default function DashboardPage() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="outline" disabled={isExporting}>{isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Export</Button></DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => handleExport('pdf')}><FileText className="mr-2 h-4 w-4" />Export as PDF</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleExport('xlsx')}><FileSpreadsheet className="mr-2 h-4 w-4" />Export as Excel</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => handleExport('pdf')}><FileText className="mr-2 h-4 w-4" />Export as PDF</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => handleExport('xlsx')}><FileSpreadsheet className="mr-2 h-4 w-4" />Export as Excel</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -348,6 +550,29 @@ export default function DashboardPage() {
                 </CardContent>
             </Card>
             <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2 text-blue-600"><FileOutput />TDS / TCS Summary</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                    {tdsSummary.breakdown.length > 0 ? (
+                        <>
+                            <div className="flex justify-between font-bold text-base border-b pb-2">
+                                <span>Total Payable</span>
+                                <span>{formatCurrency(tdsSummary.totalPayable)}</span>
+                            </div>
+                            <div className="space-y-2 pt-2">
+                                {tdsSummary.breakdown.map((tds, i) => (
+                                    <div key={i} className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">{tds.name}</span>
+                                        <span className="font-medium">{formatCurrency(tds.balance)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </>
+                    ) : (
+                        <p className="text-sm text-muted-foreground text-center py-4">No TDS/TCS data available.</p>
+                    )}
+                </CardContent>
+            </Card>
+            <Card>
                 <CardHeader><CardTitle>Expense Distribution</CardTitle></CardHeader>
                 <CardContent>
                     <ResponsiveContainer width="100%" height={200}>
@@ -356,6 +581,7 @@ export default function DashboardPage() {
                                 {expenseChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
                             </Pie>
                             <Tooltip formatter={(value: number) => formatCurrency(value, 0)} />
+                             <Legend />
                         </PieChart>
                     </ResponsiveContainer>
                 </CardContent>
