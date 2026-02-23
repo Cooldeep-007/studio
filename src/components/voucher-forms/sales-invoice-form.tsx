@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/accordion';
 import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const lineItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required.'),
