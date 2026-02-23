@@ -21,6 +21,15 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -385,6 +394,92 @@ const defaultValues: Partial<LedgerFormValues> = {
     },
 };
 
+const quickGroupSchema = z.object({
+    parentLedgerId: z.string().min(1, "Parent group is required."),
+});
+type QuickGroupFormValues = z.infer<typeof quickGroupSchema>;
+
+function QuickGroupDialog({
+    open,
+    onOpenChange,
+    groupName,
+    parentGroups,
+    onSave,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    groupName: string;
+    parentGroups: { value: string; label: string }[];
+    onSave: (newGroup: Ledger) => void;
+}) {
+    const form = useForm<QuickGroupFormValues>({
+        resolver: zodResolver(quickGroupSchema),
+        defaultValues: { parentLedgerId: '' },
+    });
+
+    const parentLedgerId = form.watch('parentLedgerId');
+    const selectedParent = parentGroups.find(p => p.value === parentLedgerId);
+
+    const handleSubmit = (data: QuickGroupFormValues) => {
+        const parentLedger = parentGroups.find(p => p.value === data.parentLedgerId);
+        if (!parentLedger) return;
+
+        const newGroup: Ledger = {
+            id: `led-group-${new Date().getTime()}`,
+            ledgerName: groupName,
+            parentLedgerId: data.parentLedgerId,
+            group: 'Assets', // This will be updated by the parent form's logic, but needs a default
+            isGroup: true,
+            openingBalance: 0,
+            currentBalance: 0,
+            balanceType: 'Dr', // Default, can be changed
+            gstApplicable: false,
+            status: 'Active',
+            createdAt: new Date(),
+            lastUpdatedAt: new Date(),
+            firmId: 'firm-abc',
+            companyId: 'comp-001',
+        };
+        onSave(newGroup);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create New Group: {groupName}</DialogTitle>
+                    <DialogDescription>
+                        Select a parent group for this new category.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                        <FormField
+                            control={form.control}
+                            name="parentLedgerId"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Under (Parent Group)</FormLabel>
+                                    <Combobox
+                                        options={parentGroups}
+                                        value={field.value}
+                                        onChange={field.onChange}
+                                        placeholder="Select a parent..."
+                                    />
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <DialogFooter>
+                            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                            <Button type="submit">Create Group</Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 export function AddLedgerSheet({
   open,
@@ -400,6 +495,9 @@ export function AddLedgerSheet({
   initialValues?: Partial<LedgerFormValues>;
 }) {
     const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const [isQuickGroupDialogOpen, setIsQuickGroupDialogOpen] = React.useState(false);
+    const [quickGroupName, setQuickGroupName] = React.useState("");
+
     const parentLedgers = ledgers.filter(l => l.isGroup);
     const parentLedgerOptions = parentLedgers.map(p => ({ value: p.id, label: p.ledgerName }));
 
@@ -502,6 +600,12 @@ export function AddLedgerSheet({
 
     }, [tdsEnabled, isPanMissing, natureOfPayment, deducteeType, form]);
 
+    const handleQuickGroupSave = (newGroup: Ledger) => {
+        onLedgerCreated(newGroup);
+        form.setValue('parentLedgerId', newGroup.id, { shouldValidate: true });
+        setIsQuickGroupDialogOpen(false);
+    };
+
     async function onSubmit(data: LedgerFormValues) {
         setIsSubmitting(true);
         try {
@@ -572,6 +676,7 @@ export function AddLedgerSheet({
     }
     
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-2xl w-full">
         <Form {...form}>
@@ -620,8 +725,12 @@ export function AddLedgerSheet({
                                     value={field.value}
                                     onChange={field.onChange}
                                     placeholder="Select a parent group"
-                                    searchPlaceholder="Search groups..."
+                                    searchPlaceholder="Search or create group..."
                                     emptyText="No group found."
+                                    onCreate={(value) => {
+                                        setQuickGroupName(value);
+                                        setIsQuickGroupDialogOpen(true);
+                                    }}
                                 />
                                 <FormMessage />
                             </FormItem>
@@ -1085,6 +1194,14 @@ export function AddLedgerSheet({
         </Form>
       </SheetContent>
     </Sheet>
+    <QuickGroupDialog
+        open={isQuickGroupDialogOpen}
+        onOpenChange={setIsQuickGroupDialogOpen}
+        groupName={quickGroupName}
+        parentGroups={parentLedgerOptions}
+        onSave={handleQuickGroupSave}
+    />
+    </>
   );
 }
 
