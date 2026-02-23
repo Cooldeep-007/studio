@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -20,6 +21,7 @@ import type { Ledger, Item, InvoiceItem, Company } from '@/lib/types';
 import { Combobox } from '@/components/ui/combobox';
 import { AddItemSheet } from '@/components/add-item-sheet';
 import { indianStates, gstStateCodes } from '@/lib/constants';
+import { Label } from '@/components/ui/label';
 
 const lineItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required.'),
