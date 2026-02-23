@@ -74,19 +74,19 @@ const tallyImportSchema = z.object({
 
 type TallyLedger = {
   '@_NAME': string;
-  PARENT?: string; // Parent can be optional for top-level groups
-  OPENINGBALANCE?: number | string;
-  ISDEEMEDPOSITIVE?: 'Yes' | 'No';
-  GSTCLASSIFICATIONNAME?: string;
-  LEDGERCONTACT?: string;
-  LEDGERPHONE?: string;
-  LEDGEREMAIL?: string;
-  GSTREGISTRATIONTYPE?: 'Regular' | 'Composition' | 'Unregistered' | 'Consumer' | 'Unknown';
-  PARTYGSTIN?: string;
-  ADDRESS?: { V: string[] };
-  STATENAME?: string;
-  PINCODE?: string;
-  INCOMETAXNUMBER?: string;
+  PARENT?: string | string[];
+  OPENINGBALANCE?: number | string | (number | string)[];
+  ISDEEMEDPOSITIVE?: 'Yes' | 'No' | ('Yes' | 'No')[];
+  GSTCLASSIFICATIONNAME?: string | string[];
+  LEDGERCONTACT?: string | string[];
+  LEDGERPHONE?: string | string[];
+  LEDGEREMAIL?: string | string[];
+  GSTREGISTRATIONTYPE?: ('Regular' | 'Composition' | 'Unregistered' | 'Consumer' | 'Unknown') | ('Regular' | 'Composition' | 'Unregistered' | 'Consumer' | 'Unknown')[];
+  PARTYGSTIN?: string | string[];
+  ADDRESS?: { V: string[] } | { V: string[] }[];
+  STATENAME?: string | string[];
+  PINCODE?: string | string[];
+  INCOMETAXNUMBER?: string | string[];
 };
 
 export type TallyPreviewLedger = {
@@ -142,7 +142,6 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
             return { message: "No ledgers found in the XML file or invalid Tally XML format." };
         }
         
-        // --- PRE-FETCH EXISTING DATA ---
         const ledgersCollectionRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'ledgers');
         const existingLedgersSnapshot = await getDocs(query(ledgersCollectionRef));
         
@@ -157,23 +156,22 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
             }
         });
 
-        // --- PROCESS & PREPARE DATA ---
         const previewResult: TallyPreviewLedger[] = [];
         const ledgersToCreate: Ledger[] = [];
         const ledgersToUpdate: { id: string, data: Partial<Ledger> }[] = [];
         let skippedCount = 0;
 
-        for (const tallyLedger of ledgers) {
-            const ledgerName = tallyLedger['@_NAME'];
-            
-            if (!ledgerName) {
-              continue; // Skip ledgers without a name
-            }
+        const getFirstValue = (value: any): any => Array.isArray(value) ? value[0] : value;
 
-            const parentName = tallyLedger.PARENT;
+        for (const tallyLedger of ledgers) {
+            const ledgerName = getFirstValue(tallyLedger['@_NAME']);
+            
+            if (!ledgerName) continue;
+
+            const parentName = getFirstValue(tallyLedger.PARENT);
             
             let openingBalance: number;
-            const rawOpeningBalance = tallyLedger.OPENINGBALANCE;
+            const rawOpeningBalance = getFirstValue(tallyLedger.OPENINGBALANCE);
 
             if (typeof rawOpeningBalance === 'number') {
                 openingBalance = rawOpeningBalance;
@@ -188,15 +186,17 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
             }
             
             let balanceType: 'Dr' | 'Cr' = 'Dr';
-            if (tallyLedger.ISDEEMEDPOSITIVE === 'No' || (typeof rawOpeningBalance === 'string' && rawOpeningBalance.includes('Cr'))) {
+            const isDeemedPositive = getFirstValue(tallyLedger.ISDEEMEDPOSITIVE);
+            if (isDeemedPositive === 'No' || (typeof rawOpeningBalance === 'string' && rawOpeningBalance.includes('Cr'))) {
                 balanceType = 'Cr';
             }
 
             openingBalance = Math.abs(openingBalance);
             
             let classification: TallyPreviewLedger['gstClassification'];
-            if (tallyLedger.GSTCLASSIFICATIONNAME?.toLowerCase().includes('goods')) classification = 'Goods';
-            if (tallyLedger.GSTCLASSIFICATIONNAME?.toLowerCase().includes('service')) classification = 'Services';
+            const gstClassificationName = getFirstValue(tallyLedger.GSTCLASSIFICATIONNAME);
+            if (gstClassificationName?.toLowerCase().includes('goods')) classification = 'Goods';
+            if (gstClassificationName?.toLowerCase().includes('service')) classification = 'Services';
             
             if (!parentName) {
                 previewResult.push({
@@ -221,6 +221,10 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
                 if (importMode === 'update') { status = 'Update'; }
             }
             
+            const gstin = getFirstValue(tallyLedger.PARTYGSTIN);
+            const addressObj = getFirstValue(tallyLedger.ADDRESS);
+            const address = addressObj?.V ? (Array.isArray(addressObj.V) ? addressObj.V.join(', ') : addressObj.V) : undefined;
+            
             const ledgerData: Omit<Ledger, 'id' | 'createdAt' | 'lastUpdatedAt'> = {
                 ledgerName,
                 parentLedgerId: parentInfo.id,
@@ -229,37 +233,36 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
                 currentBalance: openingBalance,
                 balanceType,
                 isGroup: false,
-                gstApplicable: !!tallyLedger.PARTYGSTIN,
+                gstApplicable: !!gstin,
                 status: 'Active',
                 firmId,
                 companyId,
                 contactDetails: {
-                    addressLine1: Array.isArray(tallyLedger.ADDRESS?.V) ? tallyLedger.ADDRESS.V.join(', ') : undefined,
-                    state: tallyLedger.STATENAME,
-                    pincode: tallyLedger.PINCODE,
-                    pan: tallyLedger.INCOMETAXNUMBER,
-                    email: tallyLedger.LEDGEREMAIL,
-                    mobileNumber: tallyLedger.LEDGERPHONE,
+                    addressLine1: address,
+                    state: getFirstValue(tallyLedger.STATENAME),
+                    pincode: getFirstValue(tallyLedger.PINCODE),
+                    pan: getFirstValue(tallyLedger.INCOMETAXNUMBER),
+                    email: getFirstValue(tallyLedger.LEDGEREMAIL),
+                    mobileNumber: getFirstValue(tallyLedger.LEDGERPHONE),
                 },
                 gstDetails: {
-                    gstin: tallyLedger.PARTYGSTIN,
-                    gstRate: 0, // Tally master does not export rate
+                    gstin: gstin,
+                    gstRate: 0,
                     gstClassification: classification,
-                    gstType: tallyLedger.GSTREGISTRATIONTYPE
+                    gstType: getFirstValue(tallyLedger.GSTREGISTRATIONTYPE)
                 }
             };
             
             if (status === 'New') ledgersToCreate.push(ledgerData as Ledger);
             if (status === 'Update' && existing) ledgersToUpdate.push({ id: existing.id, data: ledgerData });
 
-            previewResult.push({ ledgerName, parent: parentName, openingBalance, balanceType, status, gstin: tallyLedger.PARTYGSTIN, gstClassification: classification });
+            previewResult.push({ ledgerName, parent: parentName, openingBalance, balanceType, status, gstin: gstin, gstClassification: classification });
         }
         
         if (dryRun) {
             return { message: "Dry run completed successfully. See preview below.", preview: previewResult };
         }
 
-        // --- EXECUTE FIRESTORE WRITES ---
         const BATCH_SIZE = 400;
         let importedCount = 0;
         let updatedCount = 0;
@@ -305,5 +308,3 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
         };
     }
 }
-
-    
