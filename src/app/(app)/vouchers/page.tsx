@@ -48,7 +48,7 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-const badgeColors: Record<VoucherType, string> = {
+const badgeColors: Record<string, string> = {
   Sales: 'bg-green-100 text-green-800 hover:bg-green-100/80',
   Purchase: 'bg-blue-100 text-blue-800 hover:bg-blue-100/80',
   Payment: 'bg-red-100 text-red-800 hover:bg-red-100/80',
@@ -57,9 +57,11 @@ const badgeColors: Record<VoucherType, string> = {
   Contra: 'bg-orange-100 text-orange-800 hover:bg-orange-100/80',
   'Debit Note': 'bg-pink-100 text-pink-800 hover:bg-pink-100/80',
   'Credit Note': 'bg-indigo-100 text-indigo-800 hover:bg-indigo-100/80',
+  'Adhoc Invoice': 'bg-teal-100 text-teal-800 hover:bg-teal-100/80',
+  'Proforma Invoice': 'bg-cyan-100 text-cyan-800 hover:bg-cyan-100/80',
 };
 
-const voucherTypesForFilter: ('All' | VoucherType)[] = ['All', 'Sales', 'Purchase', 'Journal', 'Debit Note', 'Credit Note'];
+const voucherTypesForFilter: string[] = ['All', 'Sales', 'Purchase', 'Journal', 'Debit Note', 'Credit Note', 'Adhoc Invoice', 'Proforma Invoice'];
 
 export default function VouchersPage() {
   const [voucherTypeFilter, setVoucherTypeFilter] = React.useState<string>('All');
