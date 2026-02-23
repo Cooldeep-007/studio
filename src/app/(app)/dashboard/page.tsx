@@ -30,7 +30,7 @@ import {
   PiggyBank
 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
-import { format, subMonths, subYears, differenceInDays, subDays } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -77,7 +77,7 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { mockVouchers, mockLedgers, mockCompanies } from '@/lib/data';
 import type { Voucher, Ledger, Company } from '@/lib/types';
-import { MOCK_DATA_YEAR } from '@/lib/data';
+import { MOCK_DATA_YEAR, MOCK_PREVIOUS_DATA_YEAR } from '@/lib/data';
 
 // --- Helper Functions ---
 const formatCurrency = (amount: number, minimumFractionDigits = 2) => {
@@ -214,9 +214,10 @@ export default function DashboardPage() {
 
       const currentPeriodData = processFinancials(mockVouchers, mockLedgers, date.from, date.to);
 
-      const periodLength = differenceInDays(date.to, date.from);
-      const prevPeriodStart = subDays(date.from, periodLength + 1);
-      const prevPeriodEnd = subDays(date.to, periodLength + 1);
+      const periodLength = Math.abs(new Date(date.to).getTime() - new Date(date.from).getTime());
+      const prevPeriodStart = new Date(new Date(date.from).getTime() - periodLength - (24 * 60 * 60 * 1000));
+      const prevPeriodEnd = subDays(date.to, Math.round(periodLength / (1000 * 60 * 60 * 24)) + 1);
+
       const prevPeriodData = processFinancials(mockVouchers, mockLedgers, prevPeriodStart, prevPeriodEnd);
       
       const { totalRevenue, totalDirectExpenses, totalIndirectExpenses, netProfit, totalOutputGst, totalInputGst } = currentPeriodData;
@@ -238,7 +239,7 @@ export default function DashboardPage() {
       // Alerts
       const alerts = [];
       if(netProfit < 0) alerts.push({ type: 'error', message: 'Net Profit is negative for the selected period.' });
-      const backdatedVouchers = mockVouchers.filter(v => new Date(v.createdAt) > new Date(v.date) && differenceInDays(new Date(v.createdAt), new Date(v.date)) > 1);
+      const backdatedVouchers = mockVouchers.filter(v => new Date(v.createdAt) > new Date(v.date) && Math.abs(new Date(v.createdAt).getTime() - new Date(v.date).getTime()) / (1000 * 3600 * 24) > 1);
       if(backdatedVouchers.length > 0) alerts.push({ type: 'warning', message: `${backdatedVouchers.length} backdated voucher(s) found.` });
       
       const highReceivables = mockLedgers.filter(l => l.group === 'Sundry Debtor' && l.currentBalance > 50000);
@@ -265,13 +266,11 @@ export default function DashboardPage() {
   }, [date]);
 
  const formatCurrencyForPdf = (amount: number) => {
-    // Return just the number string, without the currency symbol, for PDF rendering
     return new Intl.NumberFormat('en-IN', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     }).format(amount);
   };
-
 
   const exportToPdf = () => {
     const doc = new jsPDF({ orientation: 'landscape' });
@@ -279,7 +278,6 @@ export default function DashboardPage() {
     const period = `For: ${date?.from ? format(date.from, "PP") : ''} to ${date?.to ? format(date.to, "PP") : ''}`;
     const exportDate = format(new Date(), 'PPP p');
 
-    // Add Header
     doc.setFontSize(18);
     doc.text(`${companyName} - Dashboard Summary Report (All amounts in INR)`, 14, 20);
     doc.setFontSize(12);
@@ -287,8 +285,6 @@ export default function DashboardPage() {
     doc.setFontSize(10);
     doc.text(`Exported on: ${exportDate}`, doc.internal.pageSize.getWidth() - 14, 20, { align: 'right' });
 
-
-    // Financial Summary Table
     if (currentPeriodData) {
         const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
         
@@ -306,7 +302,7 @@ export default function DashboardPage() {
             ],
             theme: 'grid',
             didParseCell: (data: any) => {
-                if(data.row.index === 2 || data.row.index === 4) { // Gross & Net Profit
+                if(data.row.index === 2 || data.row.index === 4) {
                      data.cell.styles.fontStyle = 'bold';
                 }
             }
@@ -315,24 +311,40 @@ export default function DashboardPage() {
     
     let finalY = (doc as any).lastAutoTable.finalY;
 
-    // Key Balances & Ratios
     (doc as any).autoTable({
         startY: finalY + 10,
-        head: [['Key Balances', ''], ['Key Ratios', '']],
+        head: [['Key Balances', '']],
         headStyles: { halign: 'center', fillColor: [41, 128, 185] },
-        columnStyles: { 1: { halign: 'right' }, 3: { halign: 'right' } },
+        columnStyles: { 1: { halign: 'right' } },
         body: [
-            ['Cash in Hand', formatCurrencyForPdf(cashFlow.cashInHand), 'Net Profit %', formatPercentage(ratios.netProfitMargin)],
-            ['Bank Balance', formatCurrencyForPdf(cashFlow.bankBalance), 'Expense Ratio %', formatPercentage(ratios.expenseRatio)],
-            ['Outstanding Receivables', formatCurrencyForPdf(cashFlow.receivables), 'GST Liability', formatCurrencyForPdf(ratios.gstLiability)],
-            ['Outstanding Payables', formatCurrencyForPdf(cashFlow.payables), 'GST Liability / Revenue %', formatPercentage(ratios.gstLiabilityRatio)],
+            ['Cash in Hand', formatCurrencyForPdf(cashFlow.cashInHand)],
+            ['Bank Balance', formatCurrencyForPdf(cashFlow.bankBalance)],
+            ['Outstanding Receivables', formatCurrencyForPdf(cashFlow.receivables)],
+            ['Outstanding Payables', formatCurrencyForPdf(cashFlow.payables)],
         ],
         theme: 'grid',
     });
 
-    // TDS Summary Table
+     (doc as any).autoTable({
+        startY: finalY + 10,
+        head: [['Key Ratios', '']],
+        headStyles: { halign: 'center', fillColor: [41, 128, 185] },
+        columnStyles: { 1: { halign: 'right' } },
+        body: [
+            ['Net Profit %', formatPercentage(ratios.netProfitMargin)],
+            ['Expense Ratio %', formatPercentage(ratios.expenseRatio)],
+            ['GST Liability', formatCurrencyForPdf(ratios.gstLiability)],
+            ['GST Liability / Revenue %', formatPercentage(ratios.gstLiabilityRatio)],
+        ],
+        theme: 'grid',
+        tableWidth: 'wrap',
+        margin: { left: (doc.internal.pageSize.getWidth() / 2) + 5 },
+    });
+
+    finalY = (doc as any).lastAutoTable.finalY;
+    
     (doc as any).autoTable({
-        startY: (doc as any).lastAutoTable.finalY + 10,
+        startY: finalY + 10,
         head: [['TDS / TCS Summary', 'Amount']],
         headStyles: { halign: 'center', fillColor: [39, 174, 96] },
         columnStyles: { 1: { halign: 'right' } },
@@ -349,18 +361,17 @@ export default function DashboardPage() {
         bodyStyles: { fontStyle: 'bold', halign: 'right' },
     });
 
-    // Add Footer
     const pageCount = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
         doc.setFontSize(8);
-        doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.getWidth() / 2, 287, { align: 'center' });
+        doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
     }
 
     doc.save(`ProAccounting_Dashboard_${format(new Date(), 'yyyy_MM_dd')}.pdf`);
 };
 
-  const exportToExcel = () => {
+const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
     const companyName = mockCompanies[0]?.companyName || "Pro Accounting";
 
@@ -407,50 +418,40 @@ export default function DashboardPage() {
         aoa.push([item.name, currency(item.balance), null]);
     });
     aoa.push(['Total Payable', currency(tdsSummary.totalPayable), null]);
+    aoa.push([null]);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-    ws['!cols'] = [{ wch: 35 }, { wch: 20 }, { wch: 15 }];
-    ws['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }, // Main title
-        { s: { r: financialSummaryStartRow, c: 0 }, e: { r: financialSummaryStartRow, c: 2 } },
-        { s: { r: keyBalancesStartRow, c: 0 }, e: { r: keyBalancesStartRow, c: 2 } },
-        { s: { r: tdsStartRow, c: 0 }, e: { r: tdsStartRow, c: 2 } },
-    ];
 
     const border = { top: { style: "thin" as const }, bottom: { style: "thin" as const }, left: { style: "thin" as const }, right: { style: "thin" as const } };
     const titleStyle = { font: { bold: true, sz: 16 } };
     const sectionTitleStyle = { font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "4F81BD" } }, alignment: { horizontal: "center" as const } };
     const tableHeaderStyle = { font: { bold: true } };
 
-    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
-    for (let R = 0; R <= range.e.r; ++R) {
-        for (let C = 0; C <= range.e.c; ++C) {
+    const max_cols = 3;
+    for (let R = 0; R < aoa.length; ++R) {
+        for (let C = 0; C < max_cols; ++C) {
             const cell_ref = XLSX.utils.encode_cell({ r: R, c: C });
-            if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' }; // Create cell if it doesn't exist
+            if (!ws[cell_ref]) ws[cell_ref] = { t: 's', v: '' };
             const cell = ws[cell_ref];
             if (!cell.s) cell.s = {};
 
-            const isFinancialTable = R > financialSummaryStartRow && R < keyBalancesStartRow - 1;
-            const isBalancesTable = R > keyBalancesStartRow && R < tdsStartRow - 1;
-            const isTdsTable = R > tdsStartRow && R <= aoa.length;
-            
-            if (isFinancialTable || isBalancesTable || isTdsTable) {
+            const isSectionTitle = R === financialSummaryStartRow || R === keyBalancesStartRow || R === tdsStartRow;
+            const isTableHeader = R === financialSummaryStartRow + 1 || R === keyBalancesStartRow + 1 || R === tdsStartRow + 1;
+            const isFinancialTable = R > financialSummaryStartRow + 1 && R < keyBalancesStartRow - 1;
+            const isBalancesTable = R > keyBalancesStartRow + 1 && R < tdsStartRow - 1;
+            const isTdsTable = R > tdsStartRow + 1 && R < aoa.length - 1;
+
+            if (isSectionTitle) {
+                cell.s = { ...cell.s, ...sectionTitleStyle };
+            }
+            if (isTableHeader) {
+                cell.s.font = tableHeaderStyle.font;
+            }
+            if (isFinancialTable || isBalancesTable || isTdsTable || isTableHeader || isSectionTitle) {
                 cell.s.border = border;
             }
 
-            if (R === financialSummaryStartRow || R === keyBalancesStartRow || R === tdsStartRow) {
-                cell.s = { ...cell.s, ...sectionTitleStyle, border };
-            }
-
-            if (R === financialSummaryStartRow + 1 || R === keyBalancesStartRow + 1 || R === tdsStartRow + 1) {
-                cell.s.font = tableHeaderStyle.font;
-            }
-
-            if (R === 0 && C === 0) {
-                cell.s.font = titleStyle.font;
-            }
-
+            if (R === 0) cell.s.font = titleStyle.font;
             if (typeof cell.v === 'number') {
                  if (C === 2 || (R >= keyBalancesStartRow + 7 && R <= keyBalancesStartRow + 8 && C === 1)) {
                     cell.s.numFmt = "0.00%";
@@ -458,12 +459,19 @@ export default function DashboardPage() {
                     cell.s.numFmt = "#,##0.00";
                 }
             }
-
             if (R === financialSummaryStartRow + 4 || R === financialSummaryStartRow + 6 || R === tdsStartRow + tdsSummary.breakdown.length + 2) {
                 cell.s.font = { ...cell.s.font, bold: true };
             }
         }
     }
+
+    ws['!cols'] = [{ wch: 35 }, { wch: 20 }, { wch: 15 }];
+    ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
+        { s: { r: financialSummaryStartRow, c: 0 }, e: { r: financialSummaryStartRow, c: 2 } },
+        { s: { r: keyBalancesStartRow, c: 0 }, e: { r: keyBalancesStartRow, c: 2 } },
+        { s: { r: tdsStartRow, c: 0 }, e: { r: tdsStartRow, c: 2 } },
+    ];
 
     XLSX.writeFile(wb, `ProAccounting_Dashboard_${format(new Date(), 'yyyy_MM_dd')}.xlsx`);
   };
@@ -476,7 +484,6 @@ export default function DashboardPage() {
     setIsExporting(true);
     toast({ title: 'Exporting...', description: `Your dashboard data is being prepared.` });
     
-    // Simulate processing time
     setTimeout(() => {
         try {
             if (formatType === 'pdf') {
@@ -710,3 +717,5 @@ function RatioCard({ title, value, icon: Icon }: { title: string, value: number,
         </Card>
     )
 }
+
+    
