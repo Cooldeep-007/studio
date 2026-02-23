@@ -61,6 +61,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
+import { Combobox } from "./ui/combobox";
 
 
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
@@ -400,6 +401,7 @@ export function AddLedgerSheet({
 }) {
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const parentLedgers = ledgers.filter(l => l.isGroup);
+    const parentLedgerOptions = parentLedgers.map(p => ({ value: p.id, label: p.ledgerName }));
 
     const form = useForm<LedgerFormValues>({
         resolver: zodResolver(ledgerFormSchema),
@@ -613,16 +615,14 @@ export function AddLedgerSheet({
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Under (Parent Ledger) <span className="text-destructive">*</span></FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select a parent group" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {parentLedgers.map(p => <SelectItem key={p.id} value={p.id}>{p.ledgerName}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
+                                <Combobox
+                                    options={parentLedgerOptions}
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    placeholder="Select a parent group"
+                                    searchPlaceholder="Search groups..."
+                                    emptyText="No group found."
+                                />
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -1087,3 +1087,5 @@ export function AddLedgerSheet({
     </Sheet>
   );
 }
+
+    
