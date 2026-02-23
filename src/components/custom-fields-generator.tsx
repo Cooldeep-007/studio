@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
-import { handleGenerateSchema } from "@/app/actions";
+import { handleGenerateSchema, type CustomFieldFormState } from "@/app/actions";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Sparkles } from "lucide-react";
 
-const initialState = {
+const initialState: CustomFieldFormState = {
   message: "",
   jsonSchema: null,
   errors: null,
@@ -28,10 +28,15 @@ function SubmitButton() {
 }
 
 export function CustomFieldsGenerator() {
-  const [state, formAction] = useActionState(handleGenerateSchema, initialState);
+  const [state, setState] = useState(initialState);
+
+  const clientAction = async (formData: FormData) => {
+    const result = await handleGenerateSchema(state, formData);
+    setState(result);
+  };
 
   return (
-    <form action={formAction}>
+    <form action={clientAction}>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>

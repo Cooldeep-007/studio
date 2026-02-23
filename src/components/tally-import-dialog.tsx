@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useActionState, useFormStatus } from "react-dom";
+import { useFormStatus } from "react-dom";
 import { handleTallyImport, type TallyImportState, type TallyPreviewLedger } from "@/app/actions";
 import type { Company, Ledger } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -52,11 +52,9 @@ const initialState: TallyImportState = {
 // Main component
 export function TallyImportDialog({ companies, ledgers }: { companies: Company[], ledgers: Ledger[] }) {
   const [isOpen, setIsOpen] = React.useState(false);
-  // We need to reset the action state when the dialog is reopened.
-  // The key on the form element will achieve this.
   const [formKey, setFormKey] = React.useState(() => Date.now());
 
-  const [state, formAction] = useActionState(handleTallyImport, initialState);
+  const [state, setState] = React.useState(initialState);
   const { toast } = useToast();
 
   React.useEffect(() => {
@@ -77,10 +75,15 @@ export function TallyImportDialog({ companies, ledgers }: { companies: Company[]
 
   React.useEffect(() => {
     if (!isOpen) {
-      // Reset form key when dialog closes to reset the action state on next open
       setFormKey(Date.now());
+      setState(initialState);
     }
   }, [isOpen]);
+
+  const formActionWrapper = async (formData: FormData) => {
+    const result = await handleTallyImport(state, formData);
+    setState(result);
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -98,7 +101,7 @@ export function TallyImportDialog({ companies, ledgers }: { companies: Company[]
           </DialogDescription>
         </DialogHeader>
         
-        <form action={formAction} key={formKey}>
+        <form action={formActionWrapper} key={formKey}>
             <TallyImportFormContent state={state} companies={companies} setIsOpen={setIsOpen} />
         </form>
 
