@@ -250,7 +250,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           )}
           <div className="relative ml-auto flex-1 md:grow-0"></div>
-          {profile && <UserMenu user={profile} avatarUrl={user?.photoURL || userAvatar?.imageUrl} />}
+          {profile && <UserMenu user={profile} avatarUrl={user?.photoURL || userAvatar?.imageUrl} router={router} />}
         </header>
         <main className="flex-1 p-4 sm:px-6 sm:pb-6">
           {children}
@@ -265,9 +265,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function UserMenu({ user, avatarUrl }: { user: UserProfile; avatarUrl?: string }) {
-  const router = useRouter();
-
+function UserMenu({ user, avatarUrl, router }: { user: UserProfile; avatarUrl?: string, router: ReturnType<typeof useRouter> }) {
   const handleLogout = async () => {
     await signOut();
     router.push('/login');
