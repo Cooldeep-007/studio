@@ -280,11 +280,9 @@ export default function DashboardPage() {
 
     // Add Header
     doc.setFontSize(18);
-    doc.text(`${companyName} - Dashboard Summary Report`, 14, 20);
-    doc.setFontSize(10);
-    doc.text(`(All amounts in INR)`, 14, 25);
+    doc.text(`${companyName} - Dashboard Summary Report (All amounts in INR)`, 14, 20);
     doc.setFontSize(12);
-    doc.text(period, 14, 32);
+    doc.text(period, 14, 28);
     doc.setFontSize(10);
     doc.text(`Exported on: ${exportDate}`, doc.internal.pageSize.getWidth() - 14, 20, { align: 'right' });
 
@@ -296,7 +294,7 @@ export default function DashboardPage() {
         (doc as any).autoTable({
             startY: 40,
             head: [['Financial Summary', 'Amount']],
-            headStyles: { halign: 'center', fillColor: [41, 128, 185] },
+            headStyles: { halign: 'center', fillColor: [41, 128, 185], colspan: 2 },
             columnStyles: { 1: { halign: 'right' } },
             body: [
                 ['Revenue', formatCurrencyForPdf(totalRevenue)],
@@ -368,8 +366,12 @@ export default function DashboardPage() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet([]);
     const companyName = mockCompanies[0]?.companyName || "Pro Accounting";
-    
-    // Header
+
+    // Helpers for Excel
+    const formatCurrencyForExcel = (amount: number) => typeof amount === 'number' ? amount : 0;
+    const formatPercentageForExcel = (value: number) => typeof value === 'number' ? `${value.toFixed(2)}%` : '0.00%';
+
+    // --- Header ---
     XLSX.utils.sheet_add_aoa(ws, [[`${companyName} - Dashboard Summary Report`]], { origin: 'A1' });
     ws['A1'].s = { font: { bold: true, sz: 16 } };
     XLSX.utils.sheet_add_aoa(ws, [[`Exported on: ${format(new Date(), 'PPP p')}`]], { origin: 'A2' });
@@ -377,53 +379,66 @@ export default function DashboardPage() {
 
     let currentRow = 5;
 
-    // Financial Summary
+    // --- Financial Summary Section ---
     if (currentPeriodData) {
-        const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
-        XLSX.utils.sheet_add_aoa(ws, [['Financial Summary']], { origin: `A${currentRow}` });
-        ws[`A${currentRow}`].s = { font: { bold: true, sz: 14 } };
-        currentRow++;
-        const pnlData = [
-            ['Description', 'Amount'],
-            ['Revenue', totalRevenue],
-            ['Direct Expenses', totalDirectExpenses],
-            ['Gross Profit', grossProfit],
-            ['Indirect Expenses', totalIndirectExpenses],
-            ['Net Profit', netProfit],
-        ];
-        XLSX.utils.sheet_add_aoa(ws, pnlData, { origin: `A${currentRow}` });
-        XLSX.utils.sheet_add_aoa(ws, [['Key Balances']], { origin: `D${currentRow}` });
-        ws[`D${currentRow}`].s = { font: { bold: true, sz: 14 } };
-        currentRow++;
-        const balancesData = [
-            ['Cash in Hand', cashFlow.cashInHand],
-            ['Bank Balance', cashFlow.bankBalance],
-            ['Receivables', cashFlow.receivables],
-            ['Payables', cashFlow.payables],
-        ];
-        XLSX.utils.sheet_add_aoa(ws, balancesData, { origin: `D${currentRow}` });
+      const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
+      XLSX.utils.sheet_add_aoa(ws, [['Financial Summary']], { origin: `A${currentRow}` });
+      ws[`A${currentRow}`].s = { font: { bold: true, sz: 14 } };
+      currentRow++;
 
-        currentRow += Math.max(pnlData.length, balancesData.length) + 2;
+      const summaryData = [
+        ['Description', 'Amount'],
+        ['Revenue', formatCurrencyForExcel(totalRevenue)],
+        ['Direct Expenses', formatCurrencyForExcel(totalDirectExpenses)],
+        ['Gross Profit', formatCurrencyForExcel(grossProfit)],
+        ['Indirect Expenses', formatCurrencyForExcel(totalIndirectExpenses)],
+        ['Net Profit', formatCurrencyForExcel(netProfit)],
+      ];
+      XLSX.utils.sheet_add_aoa(ws, summaryData, { origin: `A${currentRow}` });
+      currentRow += summaryData.length + 1; // Add extra space
     }
 
-    // TDS Summary
+    // --- Key Balances & Ratios Section ---
+    XLSX.utils.sheet_add_aoa(ws, [['Key Balances & Ratios']], { origin: `A${currentRow}` });
+    ws[`A${currentRow}`].s = { font: { bold: true, sz: 14 } };
+    currentRow++;
+
+    const ratiosData = [
+      ['Description', 'Value'],
+      ['Cash in Hand', formatCurrencyForExcel(cashFlow.cashInHand)],
+      ['Bank Balance', formatCurrencyForExcel(cashFlow.bankBalance)],
+      ['Outstanding Receivables', formatCurrencyForExcel(cashFlow.receivables)],
+      ['Outstanding Payables', formatCurrencyForExcel(cashFlow.payables)],
+      ['Net Profit %', formatPercentageForExcel(ratios.netProfitMargin)],
+      ['Expense Ratio %', formatPercentageForExcel(ratios.expenseRatio)],
+      ['GST Liability', formatCurrencyForExcel(ratios.gstLiability)],
+    ];
+    XLSX.utils.sheet_add_aoa(ws, ratiosData, { origin: `A${currentRow}` });
+    currentRow += ratiosData.length + 1;
+
+    // --- TDS / TCS Summary Section ---
     XLSX.utils.sheet_add_aoa(ws, [['TDS / TCS Summary']], { origin: `A${currentRow}` });
     ws[`A${currentRow}`].s = { font: { bold: true, sz: 14 } };
     currentRow++;
+
     const tdsData = [
         ['Description', 'Amount'],
-        ...tdsSummary.breakdown.map(item => [item.name, item.balance]),
-        ['Total Payable', tdsSummary.totalPayable],
+        ...tdsSummary.breakdown.map(item => [item.name, formatCurrencyForExcel(item.balance)]),
+        ['Total Payable', formatCurrencyForExcel(tdsSummary.totalPayable)],
     ];
     XLSX.utils.sheet_add_aoa(ws, tdsData, { origin: `A${currentRow}` });
+    
+    const tdsTotalRow = currentRow + tdsData.length - 1;
+    ws[`A${tdsTotalRow}`].s = { font: { bold: true } };
+    ws[`B${tdsTotalRow}`].s = { font: { bold: true } };
 
-    // Auto-fit columns
-    const cols = [{ wch: 30 }, { wch: 20 }, { wch: 5 }, { wch: 30 }, { wch: 20 }];
-    ws['!cols'] = cols;
 
+    // --- Column Widths ---
+    ws['!cols'] = [{ wch: 30 }, { wch: 20 }];
+    
     XLSX.utils.book_append_sheet(wb, ws, 'Dashboard');
     XLSX.writeFile(wb, `ProAccounting_Dashboard_${format(new Date(), 'yyyy_MM_dd')}.xlsx`);
-};
+  };
 
   const handleExport = (formatType: 'pdf' | 'xlsx') => {
     if(!currentPeriodData) {
