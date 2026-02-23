@@ -17,9 +17,16 @@ import {
   FileWarning,
   Notebook,
   AlarmClock,
+  Download,
+  FileSpreadsheet,
+  Loader2,
 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import type { jsPDF as jsPDFType } from 'jspdf';
 import {
   Card,
   CardContent,
@@ -35,6 +42,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { DashboardChart } from '@/components/dashboard-chart';
 import {
@@ -52,9 +65,13 @@ import {
   mockCompanies,
   mockNotes,
 } from '@/lib/data';
-import type { Voucher, Ledger } from '@/lib/types';
+import type { Voucher, Ledger, Company } from '@/lib/types';
 import type { ChartConfig } from '@/components/ui/chart';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { useUser } from '@/firebase/auth/use-user';
+import { useToast } from '@/hooks/use-toast';
+
 
 // Helper function for currency formatting
 const formatCurrency = (amount: number) => {
@@ -66,6 +83,11 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function DashboardPage() {
+  const { profile } = useUser();
+  const { toast } = useToast();
+  const [isExporting, setIsExporting] = React.useState(false);
+  const canExport = profile?.role === 'Owner' || profile?.role === 'Admin';
+  
   const [date, setDate] = React.useState<DateRange | undefined>({
     from: new Date(2023, 0, 1),
     to: new Date(2023, 11, 31),
@@ -265,6 +287,37 @@ export default function DashboardPage() {
     }, {} as any),
   } satisfies ChartConfig;
 
+  const handleExport = async (formatType: 'pdf' | 'xlsx') => {
+      setIsExporting(true);
+      toast({ title: 'Exporting...', description: `Your dashboard data is being prepared as a ${formatType.toUpperCase()} file.` });
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing
+
+      const company = mockCompanies[0];
+      const dateStr = format(new Date(), 'yyyy_MM_dd');
+      const filename = `ProAccounting_Dashboard_${dateStr}`;
+      
+      const exportData = {
+          company: company,
+          dateRange: date ? { from: date.from, to: date.to } : undefined,
+          summary: {
+            totalIncome, totalExpenses, netProfit,
+            bankBalance, cashBalance, tdsPayable,
+            outstandingReceivables, outstandingPayables
+          },
+          voucherCount: filteredVouchers.length,
+          ledgerCount: mockLedgers.length
+      };
+
+      if (formatType === 'xlsx') {
+          exportToExcel(exportData, filename);
+      } else {
+          exportToPdf(exportData, filename);
+      }
+
+      setIsExporting(false);
+      toast({ title: 'Export Successful', description: 'Your file has been downloaded.' });
+  };
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -286,6 +339,26 @@ export default function DashboardPage() {
             </SelectContent>
           </Select>
           <DateRangePicker date={date} setDate={setDate} />
+            {canExport && (
+              <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                      <Button variant="outline" disabled={isExporting}>
+                          {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                          Export
+                      </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => handleExport('pdf')}>
+                          <FileText className="mr-2 h-4 w-4" />
+                          Export as PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport('xlsx')}>
+                          <FileSpreadsheet className="mr-2 h-4 w-4" />
+                          Export as Excel
+                      </DropdownMenuItem>
+                  </DropdownMenuContent>
+              </DropdownMenu>
+            )}
         </div>
       </div>
 
@@ -543,3 +616,158 @@ function RecentTransactions({ vouchers }: { vouchers: Voucher[] }) {
     </Table>
   );
 }
+
+// --- EXPORT HELPERS ---
+
+type ExportData = {
+    company: Company;
+    dateRange?: { from?: Date, to?: Date };
+    summary: {
+        totalIncome: number;
+        totalExpenses: number;
+        netProfit: number;
+        bankBalance: number;
+        cashBalance: number;
+        tdsPayable: number;
+        outstandingReceivables: number;
+        outstandingPayables: number;
+    };
+    voucherCount: number;
+    ledgerCount: number;
+};
+
+const exportToPdf = (data: ExportData, filename: string) => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const { company, dateRange, summary } = data;
+    const exportDate = format(new Date(), 'PPP p');
+    let finalY = 20;
+
+    // Header
+    doc.setFontSize(18);
+    doc.setTextColor(40);
+    doc.text(company.companyName, 14, finalY);
+    finalY += 8;
+    doc.setFontSize(12);
+    doc.text("Dashboard Summary Report", 14, finalY);
+    finalY += 6;
+    doc.setFontSize(10);
+    doc.text(`Exported on: ${exportDate}`, 14, finalY);
+    if (dateRange?.from && dateRange.to) {
+        finalY += 5;
+        doc.text(`Period: ${format(dateRange.from, 'PPP')} to ${format(dateRange.to, 'PPP')}`, 14, finalY);
+    }
+    finalY += 10;
+    
+    // Financial Summary
+    (doc as jsPDFType & { autoTable: (options: any) => void }).autoTable({
+        startY: finalY,
+        head: [['Financial Summary']],
+        body: [
+            ['Total Income', formatCurrency(summary.totalIncome)],
+            ['Total Expenses', formatCurrency(summary.totalExpenses)],
+            [{ content: 'Net Profit / (Loss)', styles: { fontStyle: 'bold' } }, { content: formatCurrency(summary.netProfit), styles: { fontStyle: 'bold' } }],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [22, 163, 74] },
+    });
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Key Metrics side-by-side
+    (doc as jsPDFType & { autoTable: (options: any) => void }).autoTable({
+        startY: finalY,
+        head: [['Key Balances', 'Amount'], ['Outstanding', 'Amount']],
+        body: [
+            [
+                { content: 'Bank Balance' }, { content: formatCurrency(summary.bankBalance) },
+                { content: 'Receivables' }, { content: formatCurrency(summary.outstandingReceivables) },
+            ],
+            [
+                { content: 'Cash in Hand' }, { content: formatCurrency(summary.cashBalance) },
+                { content: 'Payables' }, { content: formatCurrency(summary.outstandingPayables) },
+            ],
+            [
+                { content: 'TDS Payable' }, { content: formatCurrency(summary.tdsPayable) },
+                '', ''
+            ],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72] },
+    });
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Footer
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width / 2, 200, { align: 'center' });
+    }
+
+    doc.save(`${filename}.pdf`);
+};
+
+const exportToExcel = (data: ExportData, filename: string) => {
+    const { company, dateRange, summary, voucherCount, ledgerCount } = data;
+    const exportDate = format(new Date(), 'PPP p');
+
+    const ws_data = [
+        ["Company:", company.companyName],
+        ["Report:", "Dashboard Summary"],
+        ["Export Date:", exportDate],
+    ];
+
+    if (dateRange?.from && dateRange.to) {
+        ws_data.push(["Period:", `${format(dateRange.from, 'PPP')} to ${format(dateRange.to, 'PPP')}`]);
+    }
+    ws_data.push([]); // Spacer row
+
+    ws_data.push(["Financial Summary", ""]);
+    ws_data.push(["Total Income", summary.totalIncome]);
+    ws_data.push(["Total Expenses", summary.totalExpenses]);
+    ws_data.push(["Net Profit / (Loss)", summary.netProfit]);
+    ws_data.push([]);
+
+    ws_data.push(["Key Balances", ""]);
+    ws_data.push(["Bank Balance", summary.bankBalance]);
+    ws_data.push(["Cash in Hand", summary.cashBalance]);
+    ws_data.push(["TDS Payable", summary.tdsPayable]);
+    ws_data.push([]);
+
+    ws_data.push(["Outstanding", ""]);
+    ws_data.push(["Receivables", summary.outstandingReceivables]);
+    ws_data.push(["Payables", summary.outstandingPayables]);
+    ws_data.push([]);
+
+    ws_data.push(["Other Metrics", ""]);
+    ws_data.push(["Vouchers in Period", voucherCount]);
+    ws_data.push(["Total Ledgers", ledgerCount]);
+
+
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    
+    // Auto column width
+    ws['!cols'] = [{ wch: 25 }, { wch: 20 }];
+    
+    // Apply number formatting for currency
+    const currencyFormat = `_("₹"* #,##0.00_);_("₹"* (#,##0.00);_("₹"* "-"??_);_(@_)`;
+    const numberFormat = '#,##0';
+    for (let R = 0; R < ws_data.length; ++R) {
+        if (typeof ws_data[R][1] === 'number') {
+            const cell = ws[XLSX.utils.encode_cell({c:1, r:R})];
+            if(cell) {
+                cell.t = 'n';
+                cell.z = currencyFormat;
+            }
+        }
+    }
+    
+    // Bold headers
+    const boldStyle = { font: { bold: true } };
+    ["A6", "A11", "A16", "A21"].forEach(cellRef => {
+        if(ws[cellRef]) ws[cellRef].s = boldStyle;
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Dashboard Summary');
+    XLSX.writeFile(wb, `${filename}.xlsx`);
+};
