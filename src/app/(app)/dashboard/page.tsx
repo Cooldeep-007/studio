@@ -642,13 +642,23 @@ const exportToPdf = (data: ExportData, filename: string) => {
     const exportDate = format(new Date(), 'PPP p');
     let finalY = 20;
 
+    // Helper to format currency for PDF, removing the symbol that causes issues.
+    const formatCurrencyForPdf = (amount: number) => {
+        const formatted = new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR',
+            minimumFractionDigits: 2,
+        }).format(amount);
+        return formatted.replace('₹', '').trim();
+    };
+
     // Header
     doc.setFontSize(18);
     doc.setTextColor(40);
     doc.text(company.companyName, 14, finalY);
     finalY += 8;
     doc.setFontSize(12);
-    doc.text("Dashboard Summary Report", 14, finalY);
+    doc.text("Dashboard Summary Report (All amounts in INR)", 14, finalY);
     finalY += 6;
     doc.setFontSize(10);
     doc.text(`Exported on: ${exportDate}`, 14, finalY);
@@ -663,9 +673,9 @@ const exportToPdf = (data: ExportData, filename: string) => {
         startY: finalY,
         head: [[{ content: 'Financial Summary', colSpan: 2, styles: { halign: 'center', fillColor: [22, 163, 74] } }]],
         body: [
-            ['Total Income', formatCurrency(summary.totalIncome)],
-            ['Total Expenses', formatCurrency(summary.totalExpenses)],
-            [{ content: 'Net Profit / (Loss)', styles: { fontStyle: 'bold' } }, { content: formatCurrency(summary.netProfit), styles: { fontStyle: 'bold' } }],
+            ['Total Income', formatCurrencyForPdf(summary.totalIncome)],
+            ['Total Expenses', formatCurrencyForPdf(summary.totalExpenses)],
+            [{ content: 'Net Profit / (Loss)', styles: { fontStyle: 'bold' } }, { content: formatCurrencyForPdf(summary.netProfit), styles: { fontStyle: 'bold' } }],
         ],
         theme: 'grid',
     });
@@ -676,9 +686,9 @@ const exportToPdf = (data: ExportData, filename: string) => {
         startY: finalY,
         head: [['Key Balances', 'Amount']],
         body: [
-            ['Bank Balance', formatCurrency(summary.bankBalance)],
-            ['Cash in Hand', formatCurrency(summary.cashBalance)],
-            ['TDS Payable', formatCurrency(summary.tdsPayable)],
+            ['Bank Balance', formatCurrencyForPdf(summary.bankBalance)],
+            ['Cash in Hand', formatCurrencyForPdf(summary.cashBalance)],
+            ['TDS Payable', formatCurrencyForPdf(summary.tdsPayable)],
         ],
         theme: 'grid',
         headStyles: { fillColor: [45, 55, 72] },
@@ -690,8 +700,8 @@ const exportToPdf = (data: ExportData, filename: string) => {
         startY: finalY,
         head: [['Outstanding Balances', 'Amount']],
         body: [
-            ['Receivables', formatCurrency(summary.outstandingReceivables)],
-            ['Payables', formatCurrency(summary.outstandingPayables)],
+            ['Receivables', formatCurrencyForPdf(summary.outstandingReceivables)],
+            ['Payables', formatCurrencyForPdf(summary.outstandingPayables)],
         ],
         theme: 'grid',
         headStyles: { fillColor: [45, 55, 72] },
