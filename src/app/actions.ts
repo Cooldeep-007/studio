@@ -4,7 +4,7 @@
 import { generateCustomFieldSchema } from "@/ai/flows/generate-custom-field-schema";
 import { z } from "zod";
 import { XMLParser } from "fast-xml-parser";
-import { initializeFirebase } from "@/firebase";
+import { initializeFirebase } from "@/firebase/server-init";
 import { collection, doc, getDocs, writeBatch, serverTimestamp, query } from "firebase/firestore";
 import type { Ledger, LedgerGroup } from "@/lib/types";
 
