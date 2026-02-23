@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -117,7 +116,7 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
         const companyState = company?.gstin ? gstStateCodes[company.gstin.substring(0, 2)] : undefined;
         const isIntraState = placeOfSupply && companyState && placeOfSupply === companyState;
 
-        const processedItems: (InvoiceItem & { itemId: string })[] = watchedItems.map(item => {
+        const processedItems: (InvoiceItem & { itemId: string })[] = (watchedItems || []).map(item => {
             const selectedItem = items.find(i => i.id === item.itemId);
             if (!selectedItem) return null;
 
