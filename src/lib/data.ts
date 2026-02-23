@@ -1,4 +1,4 @@
-import type { Company, Ledger, User, Voucher, Note, Item } from './types';
+import type { Company, Ledger, User, Voucher, Note, Item, ComplianceDueDate } from './types';
 
 export const mockUser: User = {
   userId: 'user-123',
@@ -936,4 +936,39 @@ export const mockNotes: Note[] = [
     status: 'Completed',
     createdAt: new Date(MOCK_DATA_YEAR, 10, 5),
   }
+];
+
+export const mockComplianceDueDates: ComplianceDueDate[] = [
+  {
+    id: 'comp-due-001',
+    name: 'GSTR-3B Filing (Nov 2023)',
+    dueDate: new Date(MOCK_DATA_YEAR, 11, 20), // Dec 20, 2023
+    category: 'GST',
+  },
+  {
+    id: 'comp-due-002',
+    name: 'TDS Payment (Nov 2023)',
+    dueDate: new Date(MOCK_DATA_YEAR, 11, 7), // Dec 7, 2023
+    category: 'TDS/TCS',
+  },
+  {
+    id: 'comp-due-003',
+    name: 'GSTR-1 Filing (Nov 2023)',
+    dueDate: new Date(MOCK_DATA_YEAR, 11, 11), // Dec 11, 2023
+    category: 'GST',
+  },
+  {
+    id: 'comp-due-004',
+    name: 'Advance Tax (3rd Installment)',
+    dueDate: new Date(MOCK_DATA_YEAR, 11, 15), // Dec 15, 2023
+    category: 'Income Tax',
+  },
+  {
+    id: 'comp-due-005',
+    name: 'GSTR-3B Filing (Oct 2023)',
+    // To simulate an overdue item, we assume today is Dec 1, 2023.
+    // This was due Nov 20, 2023.
+    dueDate: new Date(MOCK_DATA_YEAR, 10, 20), 
+    category: 'GST',
+  },
 ];

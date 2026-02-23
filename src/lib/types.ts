@@ -192,4 +192,11 @@ export type Item = {
   purchaseLedgerId: string;
 };
 
+export type ComplianceDueDate = {
+  id: string;
+  name: string;
+  dueDate: Date;
+  category: 'GST' | 'TDS/TCS' | 'Income Tax';
+};
   
+

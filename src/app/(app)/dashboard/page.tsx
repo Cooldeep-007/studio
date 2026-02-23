@@ -30,7 +30,7 @@ import {
   PiggyBank
 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
-import { format, subDays } from 'date-fns';
+import { format, subDays, differenceInDays } from 'date-fns';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -72,11 +72,12 @@ import { DateRangePicker } from '@/components/date-range-picker';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
-import { mockVouchers, mockLedgers, mockCompanies } from '@/lib/data';
-import type { Voucher, Ledger, Company } from '@/lib/types';
+import { mockVouchers, mockLedgers, mockCompanies, mockComplianceDueDates } from '@/lib/data';
+import type { Voucher, Ledger, Company, ComplianceDueDate } from '@/lib/types';
 import { MOCK_DATA_YEAR } from '@/lib/data';
 
 // --- Helper Functions ---
@@ -264,6 +265,17 @@ export default function DashboardPage() {
       return { currentPeriodData, prevPeriodData, growth, ratios, alerts, cashFlow, tdsSummary };
 
   }, [date]);
+
+  const upcomingCompliances = React.useMemo(() => {
+    // We mock "today" to a fixed date to ensure the overdue/upcoming logic is consistent for demonstration
+    const today = new Date(MOCK_DATA_YEAR, 11, 1); // Dec 1, 2023
+    return mockComplianceDueDates
+      .map(compliance => {
+        const daysRemaining = differenceInDays(compliance.dueDate, today);
+        return { ...compliance, daysRemaining };
+      })
+      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  }, []);
 
  const formatCurrencyForPdf = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -616,6 +628,52 @@ const exportToExcel = () => {
 
         {/* Side Content */}
         <div className="lg:col-span-2 space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-primary">
+                        <CalendarCheck />
+                        Compliance Calendar
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {upcomingCompliances.length > 0 ? (
+                        <div className="space-y-4">
+                            {upcomingCompliances.map(item => {
+                                let statusText: string;
+                                let statusColor: string;
+                                
+                                if (item.daysRemaining < 0) {
+                                    statusText = `Overdue`;
+                                    statusColor = 'bg-destructive/10 text-destructive border-destructive/20';
+                                } else if (item.daysRemaining === 0) {
+                                    statusText = 'Due Today';
+                                    statusColor = 'bg-red-500 text-white border-red-600';
+                                } else if (item.daysRemaining <= 7) {
+                                    statusText = `in ${item.daysRemaining}d`;
+                                    statusColor = 'bg-yellow-100 text-yellow-800 border-yellow-200';
+                                } else {
+                                    statusText = `in ${item.daysRemaining}d`;
+                                    statusColor = 'bg-secondary text-secondary-foreground';
+                                }
+
+                                return (
+                                    <div key={item.id} className="flex justify-between items-center">
+                                        <div>
+                                            <p className="font-medium">{item.name}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                Due: {format(item.dueDate, 'dd-MMM-yyyy')}
+                                            </p>
+                                        </div>
+                                        <Badge className={cn("whitespace-nowrap", statusColor)}>{statusText}</Badge>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <p className="text-center text-muted-foreground">No upcoming compliances.</p>
+                    )}
+                </CardContent>
+            </Card>
             <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2 text-amber-600"><AlertTriangle />Audit Alerts</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
