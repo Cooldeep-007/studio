@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -156,7 +155,7 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
 
     const handleItemCreate = (searchValue: string, index: number) => {
         setActiveItemIndex(index);
-        setAddItemInitialValues({ description: searchValue });
+        setAddItemInitialValues({ name: searchValue });
         setIsAddItemSheetOpen(true);
     };
     
@@ -264,6 +263,7 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
                                         options={customerOptions} 
                                         {...field} 
                                         placeholder="Select customer..."
+                                        searchPlaceholder="Search or create customer..."
                                         onCreate={(value) => handleLedgerCreate(value, 'Sundry Debtor')}
                                     />
                                     <FormMessage /></FormItem>
@@ -411,8 +411,7 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
             <AddLedgerSheet
                 open={isAddLedgerSheetOpen}
                 onOpenChange={setIsAddLedgerSheetOpen}
-                initialValues={addLedgerInitialValues}
-                ledgers={mockLedgers}
+                ledgers={ledgers}
                 onLedgerCreated={handleLedgerCreated}
             />
             <AddItemSheet
