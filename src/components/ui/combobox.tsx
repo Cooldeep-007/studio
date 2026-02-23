@@ -1,7 +1,8 @@
+
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -34,6 +35,7 @@ interface ComboboxProps {
     searchPlaceholder?: string;
     emptyText?: string;
     className?: string;
+    onCreate?: (value: string) => void;
 }
 
 export function Combobox({
@@ -43,9 +45,23 @@ export function Combobox({
     placeholder = "Select an option",
     searchPlaceholder = "Search...",
     emptyText = "No option found.",
-    className
+    className,
+    onCreate,
 }: ComboboxProps) {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = React.useState(false);
+  const [searchValue, setSearchValue] = React.useState('');
+
+  const handleSelect = (currentValue: string) => {
+    onChange(currentValue === value ? "" : currentValue);
+    setOpen(false);
+  };
+
+  const handleCreate = () => {
+    if (onCreate) {
+        onCreate(searchValue);
+        setOpen(false);
+    }
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -66,18 +82,30 @@ export function Combobox({
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput 
+            placeholder={searchPlaceholder} 
+            value={searchValue}
+            onValueChange={setSearchValue}
+          />
           <CommandList>
             <ScrollArea className="h-72">
-              <CommandEmpty>{emptyText}</CommandEmpty>
+              <CommandEmpty>
+                {onCreate && searchValue ? (
+                    <Button variant="ghost" className="w-full justify-start" onMouseDown={handleCreate}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Create "{searchValue}"
+                    </Button>
+                ) : (
+                    <div className="py-6 text-center text-sm">{emptyText}</div>
+                )}
+              </CommandEmpty>
               <CommandGroup>
                 {options.map((option) => (
                   <CommandItem
                     key={option.value}
                     value={option.label}
                     onSelect={() => {
-                      onChange(option.value === value ? "" : option.value)
-                      setOpen(false)
+                        handleSelect(option.value);
                     }}
                   >
                     <Check

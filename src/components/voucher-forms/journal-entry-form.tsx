@@ -62,6 +62,9 @@ export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
     const { toast } = useToast();
     const [ledgers, setLedgers] = React.useState(() => mockLedgers.filter(l => !l.isGroup));
     const isEditMode = !!initialData;
+    const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
+    const [addLedgerInitialValues, setAddLedgerInitialValues] = React.useState<Partial<Ledger> | undefined>();
+    const [activeLedgerIndex, setActiveLedgerIndex] = React.useState(0);
 
     const form = useForm<JournalEntryFormValues>({
         resolver: zodResolver(journalEntrySchema),
@@ -85,9 +88,15 @@ export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
         name: 'lineItems',
     });
     
-    const handleLedgerCreated = (newLedger: Ledger, index: number) => {
+    const handleAddLedgerClick = (index: number, searchValue?: string) => {
+        setActiveLedgerIndex(index);
+        setAddLedgerInitialValues({ ledgerName: searchValue });
+        setIsAddLedgerSheetOpen(true);
+    };
+
+    const handleLedgerCreated = (newLedger: Ledger) => {
         setLedgers(prev => [...prev, newLedger]);
-        form.setValue(`lineItems.${index}.ledgerId`, newLedger.id, { shouldValidate: true });
+        form.setValue(`lineItems.${activeLedgerIndex}.ledgerId`, newLedger.id, { shouldValidate: true });
     };
 
     const watchedLineItems = form.watch('lineItems');
@@ -108,6 +117,7 @@ export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
     }
 
     return (
+        <>
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 mt-6">
                 <Card>
@@ -147,27 +157,23 @@ export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
                                              )} />
                                         </TableCell>
                                         <TableCell>
-                                            <div className="flex gap-2">
-                                                <FormField
-                                                    control={form.control}
-                                                    name={`lineItems.${index}.ledgerId`}
-                                                    render={({ field: ledgerField }) => (
-                                                        <FormItem className='w-full'>
-                                                        <Combobox
-                                                            options={ledgers.map(l => ({ value: l.id, label: l.ledgerName }))}
-                                                            value={ledgerField.value}
-                                                            onChange={ledgerField.onChange}
-                                                            placeholder="Select ledger"
-                                                            searchPlaceholder="Search ledger..."
-                                                            emptyText="No ledger found."
-                                                        />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <AddLedgerSheet ledgers={mockLedgers} onLedgerCreated={(ledger) => handleLedgerCreated(ledger, index)}>
-                                                    <Button type="button" variant="outline" size="icon" aria-label="Add new ledger"><PlusCircle className="h-4 w-4" /></Button>
-                                                </AddLedgerSheet>
-                                            </div>
+                                            <FormField
+                                                control={form.control}
+                                                name={`lineItems.${index}.ledgerId`}
+                                                render={({ field: ledgerField }) => (
+                                                    <FormItem className='w-full'>
+                                                    <Combobox
+                                                        options={ledgers.map(l => ({ value: l.id, label: l.ledgerName }))}
+                                                        value={ledgerField.value}
+                                                        onChange={ledgerField.onChange}
+                                                        onCreate={(searchValue) => handleAddLedgerClick(index, searchValue)}
+                                                        placeholder="Select ledger"
+                                                        searchPlaceholder="Search or create ledger..."
+                                                        emptyText="No ledger found."
+                                                    />
+                                                    </FormItem>
+                                                )}
+                                            />
                                         </TableCell>
                                         <TableCell>
                                             <FormField control={form.control} name={`lineItems.${index}.amount`} render={({ field }) => (
@@ -225,5 +231,13 @@ export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
                 </Card>
             </form>
         </Form>
+        <AddLedgerSheet
+            open={isAddLedgerSheetOpen}
+            onOpenChange={setIsAddLedgerSheetOpen}
+            initialValues={addLedgerInitialValues}
+            ledgers={mockLedgers}
+            onLedgerCreated={handleLedgerCreated}
+        />
+        </>
     );
 }

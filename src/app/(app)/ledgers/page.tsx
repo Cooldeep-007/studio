@@ -173,6 +173,8 @@ export default function LedgersPage() {
   const [columnFilters, setColumnFilters] = React.useState<Record<string, string>>({});
   const [selectedRows, setSelectedRows] = React.useState<Record<string, boolean>>({});
   const [isExporting, setIsExporting] = React.useState(false);
+  const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
+
 
   const canExport = profile?.role === 'Owner' || profile?.role === 'Admin';
   
@@ -342,6 +344,7 @@ export default function LedgersPage() {
   const visibleCols = allColumns.filter(col => visibleColumns[col.id]);
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Chart of Accounts</h1>
@@ -410,12 +413,10 @@ export default function LedgersPage() {
                     </DropdownMenuContent>
                 </DropdownMenu>
             )}
-            <AddLedgerSheet ledgers={ledgers} onLedgerCreated={handleLedgerCreated}>
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add
-              </Button>
-            </AddLedgerSheet>
+            <Button onClick={() => setIsAddLedgerSheetOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add
+            </Button>
         </div>
       </div>
 
@@ -476,6 +477,13 @@ export default function LedgersPage() {
         </CardContent>
       </Card>
     </div>
+    <AddLedgerSheet 
+        open={isAddLedgerSheetOpen}
+        onOpenChange={setIsAddLedgerSheetOpen}
+        ledgers={ledgers} 
+        onLedgerCreated={handleLedgerCreated} 
+    />
+    </>
   );
 }
 
@@ -539,3 +547,4 @@ const exportToExcel = (data: Record<string, any>[], companyName: string, dateStr
     XLSX.utils.book_append_sheet(wb, ws, 'Ledgers');
     XLSX.writeFile(wb, `ProAccounting_Masters_${dateStr}.xlsx`);
 };
+

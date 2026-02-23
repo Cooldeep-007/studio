@@ -56,19 +56,27 @@ const defaultValues: Partial<ItemFormValues> = {
 };
 
 export function AddItemSheet({
-  children,
+  open,
+  onOpenChange,
+  initialValues,
   onItemCreated,
 }: {
-  children: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialValues?: Partial<ItemFormValues>;
   onItemCreated: (item: Item) => void;
 }) {
-    const [isOpen, setIsOpen] = React.useState(false);
     const { toast } = useToast();
     const form = useForm<ItemFormValues>({
         resolver: zodResolver(itemSchema),
-        defaultValues,
+        defaultValues: { ...defaultValues, ...initialValues },
     });
     const itemType = form.watch('type');
+
+    React.useEffect(() => {
+        form.reset({ ...defaultValues, ...initialValues });
+    }, [initialValues, form]);
+
 
     async function onSubmit(data: ItemFormValues) {
         const salesLedger = mockLedgers.find(l => l.ledgerName === 'Domestic Sales');
@@ -95,13 +103,12 @@ export function AddItemSheet({
             title: 'Item Created',
             description: `${newItem.name} has been added to your item master.`,
         });
-        setIsOpen(false);
+        onOpenChange(false);
         form.reset();
     }
 
     return (
-        <Sheet open={isOpen} onOpenChange={setIsOpen}>
-            <SheetTrigger asChild>{children}</SheetTrigger>
+        <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
@@ -176,7 +183,7 @@ export function AddItemSheet({
                         </div>
 
                         <SheetFooter className="pt-4 mt-auto">
-                            <SheetClose asChild><Button type="button" variant="outline">Cancel</Button></SheetClose>
+                            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
                             <Button type="submit" disabled={form.formState.isSubmitting}>
                                 {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Save Item
