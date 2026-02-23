@@ -3,12 +3,9 @@
 import * as React from "react"
 import { DateRange } from "react-day-picker"
 import { format, parse, isValid, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns"
-import { Calendar as CalendarIcon, AlertTriangle } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
 import { Input } from "./ui/input"
 import { Label } from "./ui/label"
@@ -158,28 +155,6 @@ export function DateRangePicker({ date, setDate, className }: ProDateRangePicker
                 placeholder="dd-mm-yyyy"
             />
         </div>
-        <Popover>
-            <PopoverTrigger asChild>
-                <Button variant={"outline"} className="w-full sm:w-auto mt-auto">
-                    <CalendarIcon className="h-4 w-4" />
-                    <span className="sr-only">Open Calendar</span>
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 flex" align="end">
-                <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={date?.from}
-                    selected={date}
-                    onSelect={(range) => {
-                      setDate(range);
-                      if (range?.from) setFromString(format(range.from, 'dd-MM-yyyy'));
-                      if (range?.to) setToString(format(range.to, 'dd-MM-yyyy'));
-                    }}
-                    numberOfMonths={2}
-                />
-            </PopoverContent>
-        </Popover>
          {error && (
             <div className="w-full">
               <Alert variant="destructive" className="p-2 text-xs">
