@@ -4,7 +4,7 @@
 import * as React from "react";
 import { useActionState, useFormStatus } from "react-dom";
 import { handleTallyImport, type TallyImportState, type TallyPreviewLedger } from "@/app/actions";
-import type { Company } from "@/lib/types";
+import type { Company, Ledger } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
 import { Upload, Loader2, FileCheck2, ListChecks } from "lucide-react";
@@ -50,7 +50,7 @@ const initialState: TallyImportState = {
 };
 
 // Main component
-export function TallyImportDialog({ companies }: { companies: Company[] }) {
+export function TallyImportDialog({ companies, ledgers }: { companies: Company[], ledgers: Ledger[] }) {
   const [isOpen, setIsOpen] = React.useState(false);
   // We need to reset the action state when the dialog is reopened.
   // The key on the form element will achieve this.
@@ -238,6 +238,12 @@ function ImportSummary({ summary, setIsOpen }: { summary: NonNullable<TallyImpor
 
 // Preview view (modified to accept setIsOpen)
 function ImportPreview({ preview, setIsOpen }: { preview: TallyPreviewLedger[], setIsOpen: (open: boolean) => void }) {
+    const formatCurrency = (amount: number) => {
+        if (typeof amount !== 'number' || isNaN(amount)) {
+            return '0.00';
+        }
+        return amount.toFixed(2);
+    }
     return (
         <div className="space-y-4">
             <div className="flex items-center gap-2 text-lg font-semibold"><ListChecks className="h-6 w-6 text-primary" /><span>Import Preview ({preview.length} ledgers)</span></div>
@@ -249,7 +255,7 @@ function ImportPreview({ preview, setIsOpen }: { preview: TallyPreviewLedger[], 
                     {preview.map((ledger, index) => (
                         <TableRow key={index} className={ledger.status === 'Error' ? 'bg-destructive/10' : ''}>
                             <TableCell>{ledger.ledgerName}</TableCell><TableCell>{ledger.parent}</TableCell><TableCell>{ledger.gstClassification || "-"}</TableCell>
-                            <TableCell className="text-right">{(Number(ledger.openingBalance) || 0).toFixed(2)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(ledger.openingBalance)}</TableCell>
                             <TableCell>{ledger.balanceType}</TableCell><TableCell>{ledger.gstin || "-"}</TableCell>
                             <TableCell>
                                 <Badge variant={ledger.status === 'New' ? 'default' : (ledger.status === 'Error' ? 'destructive' : 'secondary')} className={ledger.status === 'New' ? 'bg-green-100 text-green-800' : ''}>{ledger.status}</Badge>
