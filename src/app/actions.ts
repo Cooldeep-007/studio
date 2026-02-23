@@ -1,3 +1,4 @@
+
 'use server';
 
 import { generateCustomFieldSchema } from "@/ai/flows/generate-custom-field-schema";
@@ -68,7 +69,7 @@ const tallyImportSchema = z.object({
 type TallyLedger = {
   '@_NAME': string;
   PARENT: string;
-  OPENINGBALANCE: number;
+  OPENINGBALANCE: number | string;
   ISDEEMEDPOSITIVE: 'Yes' | 'No';
   GSTCLASSIFICATIONNAME?: string;
   LEDGERCONTACT?: string;
@@ -127,9 +128,11 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
         const parser = new XMLParser({ ignoreAttributes: false });
         const jsonObj = parser.parse(xmlContent);
 
-        const ledgers: TallyLedger[] = jsonObj?.ENVELOPE?.BODY?.IMPORTDATA?.REQUESTDATA?.TALLYMESSAGE?.LEDGER || [];
+        const tallyLedgerNode = jsonObj?.ENVELOPE?.BODY?.IMPORTDATA?.REQUESTDATA?.TALLYMESSAGE?.LEDGER;
+        const ledgers: TallyLedger[] = Array.isArray(tallyLedgerNode) ? tallyLedgerNode : tallyLedgerNode ? [tallyLedgerNode] : [];
 
-        if (!Array.isArray(ledgers) || ledgers.length === 0) {
+
+        if (ledgers.length === 0) {
             return { message: "No ledgers found in the XML file or invalid Tally XML format." };
         }
 
@@ -141,8 +144,25 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
         for (const tallyLedger of ledgers) {
             const ledgerName = tallyLedger['@_NAME'];
             const parent = tallyLedger.PARENT;
-            const openingBalance = Math.abs(tallyLedger.OPENINGBALANCE || 0);
-            const balanceType = tallyLedger.ISDEEMEDPOSITIVE === 'No' ? 'Cr' : 'Dr';
+            
+            // Safely parse opening balance
+            let openingBalance = 0;
+            const rawOpeningBalance = tallyLedger.OPENINGBALANCE;
+            if (typeof rawOpeningBalance === 'string') {
+                openingBalance = parseFloat(rawOpeningBalance) || 0;
+            } else if (typeof rawOpeningBalance === 'number') {
+                openingBalance = rawOpeningBalance;
+            }
+            openingBalance = Math.abs(openingBalance); // We only want magnitude
+
+            // Determine balance type
+            let balanceType: 'Dr' | 'Cr' = 'Dr'; // Default to Dr
+            if (tallyLedger.ISDEEMEDPOSITIVE === 'No') {
+                balanceType = 'Cr';
+            } else if (typeof rawOpeningBalance === 'string' && rawOpeningBalance.toLowerCase().includes('cr')) {
+                balanceType = 'Cr';
+            }
+
 
             let classification: TallyPreviewLedger['gstClassification'];
             const gstClassificationName = tallyLedger.GSTCLASSIFICATIONNAME;
