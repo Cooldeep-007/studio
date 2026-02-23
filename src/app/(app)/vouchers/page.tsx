@@ -59,7 +59,7 @@ const badgeColors: Record<VoucherType, string> = {
   'Credit Note': 'bg-indigo-100 text-indigo-800 hover:bg-indigo-100/80',
 };
 
-const voucherTypesForFilter: ('All' | VoucherType)[] = ['All', 'Sales', 'Purchase', 'Receipt', 'Payment', 'Journal', 'Contra', 'Debit Note', 'Credit Note'];
+const voucherTypesForFilter: ('All' | VoucherType)[] = ['All', 'Sales', 'Purchase', 'Journal', 'Debit Note', 'Credit Note'];
 
 export default function VouchersPage() {
   const [voucherTypeFilter, setVoucherTypeFilter] = React.useState<string>('All');
