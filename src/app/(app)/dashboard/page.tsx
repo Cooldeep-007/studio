@@ -661,39 +661,43 @@ const exportToPdf = (data: ExportData, filename: string) => {
     // Financial Summary
     (doc as jsPDFType & { autoTable: (options: any) => void }).autoTable({
         startY: finalY,
-        head: [['Financial Summary']],
+        head: [[{ content: 'Financial Summary', colSpan: 2, styles: { halign: 'center', fillColor: [22, 163, 74] } }]],
         body: [
             ['Total Income', formatCurrency(summary.totalIncome)],
             ['Total Expenses', formatCurrency(summary.totalExpenses)],
             [{ content: 'Net Profit / (Loss)', styles: { fontStyle: 'bold' } }, { content: formatCurrency(summary.netProfit), styles: { fontStyle: 'bold' } }],
         ],
         theme: 'grid',
-        headStyles: { fillColor: [22, 163, 74] },
     });
     finalY = (doc as any).lastAutoTable.finalY + 10;
 
-    // Key Metrics side-by-side
+    // Key Balances Table
     (doc as jsPDFType & { autoTable: (options: any) => void }).autoTable({
         startY: finalY,
-        head: [['Key Balances', 'Amount'], ['Outstanding', 'Amount']],
+        head: [['Key Balances', 'Amount']],
         body: [
-            [
-                { content: 'Bank Balance' }, { content: formatCurrency(summary.bankBalance) },
-                { content: 'Receivables' }, { content: formatCurrency(summary.outstandingReceivables) },
-            ],
-            [
-                { content: 'Cash in Hand' }, { content: formatCurrency(summary.cashBalance) },
-                { content: 'Payables' }, { content: formatCurrency(summary.outstandingPayables) },
-            ],
-            [
-                { content: 'TDS Payable' }, { content: formatCurrency(summary.tdsPayable) },
-                '', ''
-            ],
+            ['Bank Balance', formatCurrency(summary.bankBalance)],
+            ['Cash in Hand', formatCurrency(summary.cashBalance)],
+            ['TDS Payable', formatCurrency(summary.tdsPayable)],
         ],
         theme: 'grid',
         headStyles: { fillColor: [45, 55, 72] },
     });
     finalY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Outstanding Balances Table
+    (doc as jsPDFType & { autoTable: (options: any) => void }).autoTable({
+        startY: finalY,
+        head: [['Outstanding Balances', 'Amount']],
+        body: [
+            ['Receivables', formatCurrency(summary.outstandingReceivables)],
+            ['Payables', formatCurrency(summary.outstandingPayables)],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [45, 55, 72] },
+    });
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+
 
     // Footer
     const pageCount = doc.internal.getNumberOfPages();
