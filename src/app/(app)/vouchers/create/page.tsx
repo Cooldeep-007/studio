@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -21,7 +22,7 @@ import { PaymentReceiptForm } from '@/components/voucher-forms/payment-receipt-f
 import { FileWarning } from 'lucide-react';
 
 
-const voucherTypes = [
+const allVoucherTypes = [
   'Sales Invoice',
   'Purchase Invoice',
   'Payment',
@@ -33,6 +34,8 @@ const voucherTypes = [
   'Adhoc Invoice',
   'Proforma Invoice',
 ];
+
+const bankVoucherTypes = ['Payment', 'Receipt', 'Contra'];
 
 const NotImplemented = ({ type }: { type: string }) => (
     <div className="flex items-center justify-center h-40 mt-6 text-muted-foreground border-2 border-dashed rounded-lg">
@@ -46,7 +49,11 @@ const NotImplemented = ({ type }: { type: string }) => (
 
 
 export default function CreateVoucherPage() {
+  const searchParams = useSearchParams();
+  const context = searchParams.get('context');
   const [voucherType, setVoucherType] = React.useState<string>('');
+
+  const voucherTypes = context === 'bank' ? bankVoucherTypes : allVoucherTypes;
 
   const renderVoucherForm = () => {
     switch (voucherType) {
@@ -82,14 +89,14 @@ export default function CreateVoucherPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Create Voucher</h1>
+        <h1 className="text-2xl font-bold">Add Transaction</h1>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>New Voucher</CardTitle>
+          <CardTitle>New Transaction</CardTitle>
           <CardDescription>
-            Select a voucher type to begin. The form will adapt based on your selection.
+            Select the type of transaction you want to record. The form will adapt based on your selection.
           </CardDescription>
         </CardHeader>
         <CardContent>

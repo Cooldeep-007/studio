@@ -118,10 +118,10 @@ export default function BankStatementPage() {
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-2">
             <DateRangePicker date={date} setDate={setDate} />
-             <Link href="/vouchers/create">
+             <Link href="/vouchers/create?context=bank">
                 <Button className="w-full sm:w-auto">
                     <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Transaction
+                    Add Transaction
                 </Button>
             </Link>
         </div>
