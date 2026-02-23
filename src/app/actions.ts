@@ -74,9 +74,9 @@ const tallyImportSchema = z.object({
 
 type TallyLedger = {
   '@_NAME': string;
-  PARENT: string;
-  OPENINGBALANCE: number | string;
-  ISDEEMEDPOSITIVE: 'Yes' | 'No';
+  PARENT?: string; // Parent can be optional for top-level groups
+  OPENINGBALANCE?: number | string;
+  ISDEEMEDPOSITIVE?: 'Yes' | 'No';
   GSTCLASSIFICATIONNAME?: string;
   LEDGERCONTACT?: string;
   LEDGERPHONE?: string;
@@ -165,6 +165,11 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
 
         for (const tallyLedger of ledgers) {
             const ledgerName = tallyLedger['@_NAME'];
+            
+            if (!ledgerName) {
+              continue; // Skip ledgers without a name
+            }
+
             const parentName = tallyLedger.PARENT;
             
             let openingBalance: number;
@@ -193,11 +198,18 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
             if (tallyLedger.GSTCLASSIFICATIONNAME?.toLowerCase().includes('goods')) classification = 'Goods';
             if (tallyLedger.GSTCLASSIFICATIONNAME?.toLowerCase().includes('service')) classification = 'Services';
             
+            if (!parentName) {
+                previewResult.push({
+                    ledgerName, parent: 'N/A', openingBalance, balanceType, status: 'Error', error: 'Parent group is missing in Tally XML.'
+                });
+                continue;
+            }
+
             const parentInfo = parentLedgerMap.get(parentName.toLowerCase().trim());
 
             if (!parentInfo) {
                 previewResult.push({
-                    ledgerName, parent: parentName, openingBalance, balanceType, status: 'Error', error: 'Parent group not found'
+                    ledgerName, parent: parentName, openingBalance, balanceType, status: 'Error', error: 'Parent group not found in this company.'
                 });
                 continue;
             }
@@ -293,3 +305,5 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
         };
     }
 }
+
+    
