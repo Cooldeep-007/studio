@@ -20,20 +20,19 @@ import { Label } from '@/components/ui/label';
 import { JournalEntryForm } from '@/components/voucher-forms/journal-entry-form';
 import { PaymentReceiptForm } from '@/components/voucher-forms/payment-receipt-form';
 import { ContraEntryForm } from '@/components/voucher-forms/contra-entry-form';
+import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form';
 import { FileWarning } from 'lucide-react';
 
 
 const allVoucherTypes = [
-  'Sales Invoice',
-  'Purchase Invoice',
+  'Sales',
+  'Purchase',
   'Payment',
   'Receipt',
   'Contra',
-  'Journal Entry',
+  'Journal',
   'Debit Note',
   'Credit Note',
-  'Adhoc Invoice',
-  'Proforma Invoice',
 ];
 
 const bankVoucherTypes = ['Payment', 'Receipt', 'Contra'];
@@ -58,26 +57,22 @@ export default function CreateVoucherPage() {
 
   const renderVoucherForm = () => {
     switch (voucherType) {
-      case 'Sales Invoice':
-        return <NotImplemented type="Sales Invoice" />;
-      case 'Purchase Invoice':
-        return <NotImplemented type="Purchase Invoice" />;
+      case 'Sales':
+        return <SalesInvoiceForm />;
+      case 'Purchase':
+        return <NotImplemented type="Purchase" />;
       case 'Payment':
         return <PaymentReceiptForm type="Payment" />;
       case 'Receipt':
         return <PaymentReceiptForm type="Receipt" />;
       case 'Contra':
         return <ContraEntryForm />;
-      case 'Journal Entry':
+      case 'Journal':
         return <JournalEntryForm />;
       case 'Debit Note':
         return <NotImplemented type="Debit Note" />;
       case 'Credit Note':
         return <NotImplemented type="Credit Note" />;
-      case 'Adhoc Invoice':
-        return <NotImplemented type="Adhoc Invoice" />;
-      case 'Proforma Invoice':
-        return <NotImplemented type="Proforma Invoice" />;
       default:
         return (
           <div className="flex items-center justify-center h-40 mt-6 text-muted-foreground">

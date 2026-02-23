@@ -1,5 +1,8 @@
 
 
+
+
+
 export type UserRole = 'Owner' | 'Admin' | 'Accountant' | 'Staff';
 
 export type UserProfile = {
@@ -144,13 +147,33 @@ export type VoucherType =
   | 'Journal'
   | 'Contra'
   | 'Debit Note'
-  | 'Credit Note'
-  | 'Adhoc Invoice'
-  | 'Proforma Invoice';
+  | 'Credit Note';
 
 export type VoucherEntry = {
   ledgerId: string;
   type: 'Dr' | 'Cr';
+  amount: number;
+};
+
+export type InvoiceItem = {
+    itemId: string;
+    name: string;
+    description?: string;
+    quantity: number;
+    rate: number;
+    uqc: string;
+    amount: number;
+    discount?: number;
+    gstRate: number;
+    cgst: number;
+    sgst: number;
+    igst: number;
+    total: number;
+};
+
+export type BillAllocation = {
+  voucherId: string;
+  voucherNumber: string;
   amount: number;
 };
 
@@ -174,7 +197,19 @@ export type Voucher = {
   firmId: string;
   companyId: string;
   createdByUserId: string;
-  partyLedgerId?: string; // Denormalized for quick reference in lists
+  partyLedgerId?: string; 
+  // Fields for Sales/Purchase Vouchers
+  invoiceDetails?: {
+    items: InvoiceItem[];
+    subtotal: number;
+    totalGst: number;
+    grandTotal: number;
+    placeOfSupply: string;
+    dueDate?: Date;
+  };
+  outstandingAmount?: number;
+  // Fields for Payment/Receipt Vouchers
+  billAllocations?: BillAllocation[];
 };
 
 export type Note = {
