@@ -77,7 +77,7 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { mockVouchers, mockLedgers, mockCompanies } from '@/lib/data';
 import type { Voucher, Ledger, Company } from '@/lib/types';
-import { MOCK_DATA_YEAR, MOCK_PREVIOUS_DATA_YEAR } from '@/lib/data';
+import { MOCK_DATA_YEAR } from '@/lib/data';
 
 // --- Helper Functions ---
 const formatCurrency = (amount: number, minimumFractionDigits = 2) => {
@@ -298,7 +298,7 @@ export default function DashboardPage() {
                 ['Direct Expenses', formatCurrencyForPdf(totalDirectExpenses), formatPercentage(totalRevenue > 0 ? (totalDirectExpenses / totalRevenue) * 100 : 0)],
                 ['Gross Profit', formatCurrencyForPdf(grossProfit), formatPercentage(totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0)],
                 ['Indirect Expenses', formatCurrencyForPdf(totalIndirectExpenses), formatPercentage(totalRevenue > 0 ? (totalIndirectExpenses / totalRevenue) * 100 : 0)],
-                ['Net Profit', formatCurrencyForPdf(netProfit), formatPercentage(ratios.netProfitMargin)],
+                ['Net Profit', formatCurrencyForPdf(netProfit), formatPercentage(ratios.netProfitMargin || 0)],
             ],
             theme: 'grid',
             didParseCell: (data: any) => {
@@ -331,10 +331,10 @@ export default function DashboardPage() {
         headStyles: { halign: 'center', fillColor: [41, 128, 185] },
         columnStyles: { 1: { halign: 'right' } },
         body: [
-            ['Net Profit %', formatPercentage(ratios.netProfitMargin)],
-            ['Expense Ratio %', formatPercentage(ratios.expenseRatio)],
-            ['GST Liability', formatCurrencyForPdf(ratios.gstLiability)],
-            ['GST Liability / Revenue %', formatPercentage(ratios.gstLiabilityRatio)],
+            ['Net Profit %', formatPercentage(ratios.netProfitMargin || 0)],
+            ['Expense Ratio %', formatPercentage(ratios.expenseRatio || 0)],
+            ['GST Liability', formatCurrencyForPdf(ratios.gstLiability || 0)],
+            ['GST Liability / Revenue %', formatPercentage(ratios.gstLiabilityRatio || 0)],
         ],
         theme: 'grid',
         tableWidth: 'wrap',
@@ -374,6 +374,7 @@ export default function DashboardPage() {
 const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
     const companyName = mockCompanies[0]?.companyName || "Pro Accounting";
+    
     const aoa: (string | number | null)[][] = [];
 
     // --- Build AOA Data Structure ---
@@ -381,25 +382,27 @@ const exportToExcel = () => {
     aoa.push([null]);
     aoa.push([`Period: ${date?.from ? format(date.from, "PP") : ''} to ${date?.to ? format(date.to, "PP") : ''}`]);
     aoa.push([`Exported on: ${format(new Date(), 'PPP p')}`]);
-    aoa.push([null]);
+    aoa.push([null, null, null]);
 
     const currency = (v: number) => (typeof v === 'number' ? v : 0);
-    const percent = (v: number) => (typeof v === 'number' ? v / 100 : 0);
+    const percent = (v: number) => (typeof v === 'number' && isFinite(v) ? v / 100 : 0);
 
+    // --- Section: Financial Summary ---
     const financialSummaryStartRow = aoa.length;
     aoa.push(['Financial Summary', null, null]);
     aoa.push(['Description', 'Amount (INR)', '% of Revenue']);
     if (currentPeriodData) {
         const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
-        aoa.push(['Revenue', currency(totalRevenue), percent(1)]);
+        aoa.push(['Revenue', currency(totalRevenue), percent(100)]);
         aoa.push(['Direct Expenses', currency(totalDirectExpenses), percent(totalRevenue > 0 ? (totalDirectExpenses / totalRevenue) * 100 : 0)]);
         aoa.push(['Gross Profit', currency(grossProfit), percent(totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0)]);
         aoa.push(['Indirect Expenses', currency(totalIndirectExpenses), percent(totalRevenue > 0 ? (totalIndirectExpenses / totalRevenue) * 100 : 0)]);
         aoa.push(['Net Profit', currency(netProfit), percent(ratios.netProfitMargin || 0)]);
     }
     const financialSummaryEndRow = aoa.length - 1;
-    aoa.push([null]);
+    aoa.push([null, null, null]);
 
+    // --- Section: Key Balances & Ratios ---
     const keyBalancesStartRow = aoa.length;
     aoa.push(['Key Balances & Ratios', null, null]);
     aoa.push(['Description', 'Value', null]);
@@ -411,9 +414,11 @@ const exportToExcel = () => {
     aoa.push(['Net Profit %', percent(ratios.netProfitMargin || 0)]);
     aoa.push(['Expense Ratio %', percent(ratios.expenseRatio || 0)]);
     aoa.push(['GST Liability', currency(ratios.gstLiability || 0)]);
+    aoa.push(['GST Liability / Revenue %', percent(ratios.gstLiabilityRatio || 0)]);
     const keyBalancesEndRow = aoa.length - 1;
-    aoa.push([null]);
+    aoa.push([null, null, null]);
 
+    // --- Section: TDS Summary ---
     const tdsStartRow = aoa.length;
     aoa.push(['TDS / TCS Summary', null, null]);
     aoa.push(['Description', 'Amount (INR)', null]);
@@ -429,41 +434,31 @@ const exportToExcel = () => {
     const border = { top: { style: "thin" as const }, bottom: { style: "thin" as const }, left: { style: "thin" as const }, right: { style: "thin" as const } };
     const titleStyle = { font: { bold: true, sz: 16 } };
     const sectionTitleStyle = { font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "4F81BD" } }, alignment: { horizontal: "center" as const } };
-    const tableHeaderStyle = { font: { bold: true } };
+    const tableHeaderStyle = { font: { bold: true }, border };
     const boldStyle = { font: { bold: true } };
 
+    // --- Create cell objects if they don't exist before styling ---
     for (let R = 0; R < aoa.length; R++) {
         for (let C = 0; C < 3; C++) {
             const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
             if (!ws[cellRef]) {
-                ws[cellRef] = { t: 's', v: '' }; // Create empty cell if it doesn't exist
+                 ws[cellRef] = { t: 's', v: '' }; // Create empty cell
             }
             const cell = ws[cellRef];
             if (!cell.s) cell.s = {};
 
-            const isFinancialTable = R >= financialSummaryStartRow && R <= financialSummaryEndRow;
-            const inKeyBalancesTable = R >= keyBalancesStartRow && R <= keyBalancesEndRow && C < 2;
-            const inTdsTable = R >= tdsStartRow && R <= tdsEndRow && C < 2;
+            const inFinancialTable = R >= financialSummaryStartRow + 1 && R <= financialSummaryEndRow;
+            const inKeyBalancesTable = R >= keyBalancesStartRow + 1 && R <= keyBalancesEndRow;
+            const inTdsTable = R >= tdsStartRow + 1 && R <= tdsEndRow;
 
-            if (isFinancialTable || inKeyBalancesTable || inTdsTable) {
+            // Apply Borders to data tables
+            if ( (inFinancialTable && C < 3) || (inKeyBalancesTable && C < 2) || (inTdsTable && C < 2) ) {
                 cell.s.border = border;
             }
 
-            if (R === 0) cell.s.font = titleStyle.font;
-            if (R === financialSummaryStartRow || R === keyBalancesStartRow || R === tdsStartRow) {
-                cell.s.font = sectionTitleStyle.font;
-                cell.s.fill = sectionTitleStyle.fill;
-                cell.s.alignment = sectionTitleStyle.alignment;
-            }
-            if (R === financialSummaryStartRow + 1 || R === keyBalancesStartRow + 1 || R === tdsStartRow + 1) {
-                cell.s.font = tableHeaderStyle.font;
-            }
-            if (R === financialSummaryStartRow + 4 || R === financialSummaryStartRow + 6 || R === tdsEndRow) {
-                 cell.s.font = { ...cell.s.font, ...boldStyle };
-            }
-            
+            // Apply Number Formatting
             if (cell.t === 'n') {
-                if (cell.v < 1 && cell.v > 0) { // Assume fractions are percentages
+                if (C === 2 && inFinancialTable || (R >= keyBalancesEndRow - 3 && R <= keyBalancesEndRow && C === 1)) { // Percentage columns
                      cell.s.numFmt = "0.00%";
                 } else {
                      cell.s.numFmt = "#,##0.00";
@@ -471,6 +466,30 @@ const exportToExcel = () => {
             }
         }
     }
+    
+    // Style Title and Headers
+    if (ws['A1']) ws['A1'].s = titleStyle;
+    
+    // Style section headers
+    [financialSummaryStartRow, keyBalancesStartRow, tdsStartRow].forEach(startRow => {
+        if(ws[XLSX.utils.encode_cell({r: startRow, c: 0})]) ws[XLSX.utils.encode_cell({r: startRow, c: 0})].s = sectionTitleStyle;
+        if(ws[XLSX.utils.encode_cell({r: startRow, c: 1})]) ws[XLSX.utils.encode_cell({r: startRow, c: 1})].s = sectionTitleStyle;
+        if(ws[XLSX.utils.encode_cell({r: startRow, c: 2})]) ws[XLSX.utils.encode_cell({r: startRow, c: 2})].s = sectionTitleStyle;
+    });
+
+    // Style table headers
+    [financialSummaryStartRow + 1, keyBalancesStartRow + 1, tdsStartRow + 1].forEach(headerRow => {
+        if(ws[XLSX.utils.encode_cell({r: headerRow, c: 0})]) ws[XLSX.utils.encode_cell({r: headerRow, c: 0})].s = tableHeaderStyle;
+        if(ws[XLSX.utils.encode_cell({r: headerRow, c: 1})]) ws[XLSX.utils.encode_cell({r: headerRow, c: 1})].s = tableHeaderStyle;
+        if(ws[XLSX.utils.encode_cell({r: headerRow, c: 2})]) ws[XLSX.utils.encode_cell({r: headerRow, c: 2})].s = tableHeaderStyle;
+    });
+
+    // Style bold rows
+    [financialSummaryStartRow + 4, financialSummaryStartRow + 6, tdsEndRow].forEach(boldRow => {
+        if(ws[XLSX.utils.encode_cell({r: boldRow, c: 0})]) ws[XLSX.utils.encode_cell({r: boldRow, c: 0})].s = {...ws[XLSX.utils.encode_cell({r: boldRow, c: 0})].s, font: boldStyle};
+        if(ws[XLSX.utils.encode_cell({r: boldRow, c: 1})]) ws[XLSX.utils.encode_cell({r: boldRow, c: 1})].s = {...ws[XLSX.utils.encode_cell({r: boldRow, c: 1})].s, font: boldStyle};
+        if(ws[XLSX.utils.encode_cell({r: boldRow, c: 2})]) ws[XLSX.utils.encode_cell({r: boldRow, c: 2})].s = {...ws[XLSX.utils.encode_cell({r: boldRow, c: 2})].s, font: boldStyle};
+    })
 
     ws['!merges'] = [
         { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
