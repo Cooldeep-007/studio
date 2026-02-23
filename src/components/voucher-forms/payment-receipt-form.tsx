@@ -3,10 +3,10 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { CalendarIcon, AlertCircle } from 'lucide-react';
+import { CalendarIcon, AlertCircle, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mockLedgers, mockVouchers } from '@/lib/data';
-import type { Voucher, BillAllocation } from '@/lib/types';
+import type { Voucher, BillAllocation, Ledger } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from 'date-fns';
 import { Textarea } from '../ui/textarea';
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { Combobox } from '../ui/combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -90,6 +90,12 @@ export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProp
     const partyLedgerId = form.watch('partyLedgerId');
     const amount = form.watch('amount');
 
+    const selectedParty = React.useMemo(() => ledgers.find(l => l.id === partyLedgerId), [partyLedgerId, ledgers]);
+    const isTdsApplicable = selectedParty?.tdsTcsConfig?.tdsEnabled && type === 'Payment';
+    const tdsRate = selectedParty?.tdsTcsConfig?.tdsRate || 0;
+    const tdsAmount = isTdsApplicable ? (amount * tdsRate) / 100 : 0;
+    const netPayable = amount - tdsAmount;
+
     React.useEffect(() => {
         if (!partyLedgerId) {
             setOutstandingVouchers([]);
@@ -130,7 +136,7 @@ export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProp
             title: `${type} Voucher ${isEditMode ? 'Updated' : 'Created'}`,
             description: "The voucher has been successfully saved.",
         });
-        console.log("Form Submitted", data);
+        console.log("Form Submitted", {...data, tdsAmount, netPayable});
         if (!isEditMode) {
             form.reset();
             setOutstandingVouchers([]);
@@ -188,7 +194,7 @@ export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProp
                             </div>
                              <FormField control={form.control} name="amount" render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Amount <span className="text-destructive">*</span></FormLabel>
+                                    <FormLabel>Gross Amount <span className="text-destructive">*</span></FormLabel>
                                     <FormControl>
                                         <Input type="number" placeholder="0.00" {...field} />
                                     </FormControl>
@@ -196,6 +202,23 @@ export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProp
                                 </FormItem>
                             )} />
                             
+                            {isTdsApplicable && amount > 0 && (
+                                <Alert variant="default" className="bg-blue-50 border-blue-200">
+                                    <Sparkles className="h-4 w-4 text-blue-500" />
+                                    <AlertTitle className="text-blue-700">TDS Applicable</AlertTitle>
+                                    <AlertDescription>
+                                        <div className="flex justify-between items-center mt-2">
+                                            <span>TDS on {selectedParty?.tdsTcsConfig?.tdsNatureOfPayment} @ {tdsRate}% (Sec {selectedParty?.tdsTcsConfig?.tdsSection}):</span>
+                                            <span className="font-semibold">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(tdsAmount)}</span>
+                                        </div>
+                                         <div className="flex justify-between items-center mt-2 font-bold">
+                                            <span>Net Payable Amount:</span>
+                                            <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(netPayable)}</span>
+                                        </div>
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+
                             {outstandingVouchers.length > 0 && amount > 0 && (
                                 <div className='flex justify-end'>
                                     <Button type="button" variant="secondary" onClick={() => setIsAllocationDialogOpen(true)}>

@@ -21,18 +21,23 @@ import { JournalEntryForm } from '@/components/voucher-forms/journal-entry-form'
 import { PaymentReceiptForm } from '@/components/voucher-forms/payment-receipt-form';
 import { ContraEntryForm } from '@/components/voucher-forms/contra-entry-form';
 import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form';
+import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
+import { AdhocInvoiceForm } from '@/components/voucher-forms/adhoc-invoice-form';
+import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
 import { FileWarning } from 'lucide-react';
 
 
 const allVoucherTypes = [
-  'Sales',
-  'Purchase',
-  'Payment',
-  'Receipt',
-  'Contra',
-  'Journal',
-  'Debit Note',
-  'Credit Note',
+  { value: 'Proforma Invoice', label: 'Proforma Invoice (Non-Accounting)' },
+  { value: 'Sales', label: 'Sales Invoice' },
+  { value: 'Purchase', label: 'Purchase Invoice' },
+  { value: 'Payment', label: 'Payment' },
+  { value: 'Receipt', label: 'Receipt' },
+  { value: 'Contra', label: 'Contra' },
+  { value: 'Adhoc Invoice', label: 'Adhoc Invoice' },
+  { value: 'Debit Note', label: 'Debit Note' },
+  { value: 'Credit Note', label: 'Credit Note' },
+  { value: 'Journal', label: 'Journal (Double Entry)' },
 ];
 
 const bankVoucherTypes = ['Payment', 'Receipt', 'Contra'];
@@ -53,14 +58,16 @@ export default function CreateVoucherPage() {
   const context = searchParams.get('context');
   const [voucherType, setVoucherType] = React.useState<string>('');
 
-  const voucherTypes = context === 'bank' || context === 'cash' ? bankVoucherTypes : allVoucherTypes;
+  const voucherTypes = context === 'bank' || context === 'cash' 
+    ? allVoucherTypes.filter(vt => bankVoucherTypes.includes(vt.value)) 
+    : allVoucherTypes;
 
   const renderVoucherForm = () => {
     switch (voucherType) {
       case 'Sales':
         return <SalesInvoiceForm />;
       case 'Purchase':
-        return <NotImplemented type="Purchase" />;
+        return <PurchaseInvoiceForm />;
       case 'Payment':
         return <PaymentReceiptForm type="Payment" />;
       case 'Receipt':
@@ -69,6 +76,10 @@ export default function CreateVoucherPage() {
         return <ContraEntryForm />;
       case 'Journal':
         return <JournalEntryForm />;
+      case 'Adhoc Invoice':
+        return <AdhocInvoiceForm />;
+      case 'Proforma Invoice':
+        return <ProformaInvoiceForm />;
       case 'Debit Note':
         return <NotImplemented type="Debit Note" />;
       case 'Credit Note':
@@ -105,8 +116,8 @@ export default function CreateVoucherPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {voucherTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
