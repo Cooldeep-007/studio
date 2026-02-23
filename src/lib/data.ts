@@ -229,7 +229,7 @@ export const mockLedgers: Ledger[] = [
   },
   {
     id: 'group-duties-taxes',
-    ledgerName: 'Duties & Taxes',
+    ledgerName: 'Duties &amp; Taxes',
     parentLedgerId: 'group-current-liabilities',
     group: 'Liabilities',
     isGroup: true,
@@ -599,7 +599,7 @@ export const mockLedgers: Ledger[] = [
   },
   {
     id: 'led-salaries',
-    ledgerName: 'Salaries & Wages',
+    ledgerName: 'Salaries &amp; Wages',
     parentLedgerId: 'group-indirect-expenses',
     group: 'Expense',
     isGroup: false,
@@ -740,6 +740,7 @@ export const mockVouchers: Voucher[] = [
     voucherNumber: 'SALE-001',
     voucherType: 'Sales',
     date: new Date(MOCK_DATA_YEAR, 9, 25),
+    createdAt: new Date(MOCK_DATA_YEAR, 9, 25),
     partyLedger: 'led-04', // Client A
     lineItems: [{ ledgerId: 'led-01', amount: 10000, taxRate: 18, taxAmount: 1800 }],
     totalAmount: 11800,
@@ -752,6 +753,7 @@ export const mockVouchers: Voucher[] = [
     voucherNumber: 'PAY-001',
     voucherType: 'Payment',
     date: new Date(MOCK_DATA_YEAR, 9, 26),
+    createdAt: new Date(MOCK_DATA_YEAR, 9, 26),
     partyLedger: 'led-03', // Office Rent
     lineItems: [{ ledgerId: 'led-hdfc', amount: 25000 }], // Paid from HDFC
     totalAmount: 25000,
@@ -764,6 +766,7 @@ export const mockVouchers: Voucher[] = [
     voucherNumber: 'RCPT-001',
     voucherType: 'Receipt',
     date: new Date(MOCK_DATA_YEAR, 9, 27),
+    createdAt: new Date(MOCK_DATA_YEAR, 9, 27),
     partyLedger: 'led-04', // Client A
     lineItems: [{ ledgerId: 'led-hdfc', amount: 5000 }], // Received in HDFC
     totalAmount: 5000,
@@ -776,6 +779,7 @@ export const mockVouchers: Voucher[] = [
     voucherNumber: 'PUR-001',
     voucherType: 'Purchase',
     date: new Date(MOCK_DATA_YEAR, 10, 1),
+    createdAt: new Date(MOCK_DATA_YEAR, 10, 1),
     partyLedger: 'led-05', // Supplier B
     lineItems: [
       {
@@ -795,6 +799,7 @@ export const mockVouchers: Voucher[] = [
     voucherNumber: 'PAY-002',
     voucherType: 'Payment',
     date: new Date(MOCK_DATA_YEAR, 10, 10),
+    createdAt: new Date(MOCK_DATA_YEAR, 10, 10),
     partyLedger: 'led-marketing',
     lineItems: [{ ledgerId: 'led-hdfc', amount: 12000 }],
     totalAmount: 12000,
@@ -807,6 +812,7 @@ export const mockVouchers: Voucher[] = [
     voucherNumber: 'CN-001',
     voucherType: 'Credit Note',
     date: new Date(MOCK_DATA_YEAR, 10, 15),
+    createdAt: new Date(MOCK_DATA_YEAR, 10, 15),
     partyLedger: 'led-04', // Client A
     lineItems: [
       { ledgerId: 'led-sales-return', amount: 2000, taxRate: 18, taxAmount: 360 },
@@ -821,6 +827,7 @@ export const mockVouchers: Voucher[] = [
     voucherNumber: 'DN-001',
     voucherType: 'Debit Note',
     date: new Date(MOCK_DATA_YEAR, 10, 18),
+    createdAt: new Date(MOCK_DATA_YEAR, 10, 18),
     partyLedger: 'led-05', // Supplier B
     lineItems: [
       {
@@ -840,12 +847,54 @@ export const mockVouchers: Voucher[] = [
     voucherNumber: 'JRNL-001',
     voucherType: 'Journal',
     date: new Date(MOCK_DATA_YEAR, 10, 30),
+    createdAt: new Date(MOCK_DATA_YEAR, 10, 30),
     partyLedger: 'led-depreciation', // Dummy party for journal
     lineItems: [
       { ledgerId: 'led-depreciation', type: 'Dr', amount: 5000 },
       { ledgerId: 'led-machinery', type: 'Cr', amount: 5000 },
     ],
     totalAmount: 5000,
+    firmId: 'firm-abc',
+    companyId: 'comp-001',
+    createdBy: 'user-123',
+  },
+  {
+    id: 'vch-009-backdated',
+    voucherNumber: 'PAY-003',
+    voucherType: 'Payment',
+    date: new Date(MOCK_DATA_YEAR, 8, 15), // Backdated to September
+    createdAt: new Date(MOCK_DATA_YEAR, 10, 1), // Created in November
+    partyLedger: 'led-utilities',
+    lineItems: [{ ledgerId: 'led-cash', amount: 8000 }],
+    totalAmount: 8000,
+    firmId: 'firm-abc',
+    companyId: 'comp-001',
+    createdBy: 'user-123',
+  },
+  {
+    id: 'vch-010-prev-fy',
+    voucherNumber: 'SALE-FY22-001',
+    voucherType: 'Sales',
+    date: new Date(MOCK_DATA_YEAR - 1, 11, 10), // March 10, 2023 (Previous FY)
+    createdAt: new Date(MOCK_DATA_YEAR - 1, 11, 10),
+    partyLedger: 'led-04',
+    lineItems: [{ ledgerId: 'led-01', amount: 150000, taxRate: 18, taxAmount: 27000 }],
+    totalAmount: 177000,
+    firmId: 'firm-abc',
+    companyId: 'comp-001',
+    createdBy: 'user-123',
+  },
+  {
+    id: 'vch-011-prev-fy-exp',
+    voucherNumber: 'PUR-FY22-001',
+    voucherType: 'Purchase',
+    date: new Date(MOCK_DATA_YEAR - 1, 10, 20), // Feb 20, 2023 (Previous FY)
+    createdAt: new Date(MOCK_DATA_YEAR - 1, 10, 20),
+    partyLedger: 'led-05',
+    lineItems: [
+      { ledgerId: 'led-purchase-account', amount: 90000, taxRate: 12, taxAmount: 10800 },
+    ],
+    totalAmount: 100800,
     firmId: 'firm-abc',
     companyId: 'comp-001',
     createdBy: 'user-123',

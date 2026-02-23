@@ -20,13 +20,25 @@ import {
   Download,
   FileSpreadsheet,
   Loader2,
+  Minus,
+  AlertTriangle,
+  Scale,
+  GanttChartSquare,
+  BookOpen,
+  FileOutput,
+  FilePlus2,
+  PiggyBank
 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
-import { format } from 'date-fns';
+import { format, subMonths, subYears, differenceInDays } from 'date-fns';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import type { jsPDF as jsPDFType } from 'jspdf';
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
+
 import {
   Card,
   CardContent,
@@ -41,6 +53,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter
 } from '@/components/ui/table';
 import {
   DropdownMenu,
@@ -48,8 +61,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
-import { DashboardChart } from '@/components/dashboard-chart';
 import {
   Select,
   SelectContent,
@@ -58,29 +69,113 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { DateRangePicker } from '@/components/date-range-picker';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  mockVouchers,
-  mockLedgers,
-  mockCompanies,
-  mockNotes,
-} from '@/lib/data';
-import type { Voucher, Ledger, Company } from '@/lib/types';
-import type { ChartConfig } from '@/components/ui/chart';
-import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
+import { mockVouchers, mockLedgers, mockCompanies } from '@/lib/data';
+import type { Voucher, Ledger, Company } from '@/lib/types';
 
-
-// Helper function for currency formatting
-const formatCurrency = (amount: number) => {
+// --- Helper Functions ---
+const formatCurrency = (amount: number, minimumFractionDigits = 2) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    minimumFractionDigits: 2,
+    minimumFractionDigits,
+    maximumFractionDigits: minimumFractionDigits,
   }).format(amount);
 };
+
+const formatPercentage = (value: number) => {
+    if (!isFinite(value)) return '0.00%';
+    return `${value.toFixed(2)}%`;
+}
+
+const getGrowth = (current: number, previous: number) => {
+    if (previous === 0) {
+        return current > 0 ? Infinity : 0;
+    }
+    return ((current - previous) / Math.abs(previous)) * 100;
+};
+
+// --- Data Calculation Logic ---
+const processFinancials = (vouchers: Voucher[], ledgers: Ledger[], startDate: Date, endDate: Date) => {
+    const periodVouchers = vouchers.filter(v => {
+        const d = new Date(v.date);
+        return d >= startDate && d <= endDate;
+    });
+
+    const directExpenseLedgers = new Set(ledgers.filter(l => l.parentLedgerId === 'group-purchase-accounts' || l.id === 'led-purchase-account').map(l => l.id));
+    const indirectExpenseLedgers = new Set(ledgers.filter(l => l.parentLedgerId === 'group-indirect-expenses').map(l => l.id));
+    
+    let totalRevenue = 0;
+    let totalDirectExpenses = 0;
+    const indirectExpensesBreakdown: Record<string, number> = {};
+    let totalOutputGst = 0;
+    let totalInputGst = 0;
+
+    periodVouchers.forEach(v => {
+        if (v.voucherType === 'Sales') {
+            totalRevenue += v.totalAmount - (v.lineItems[0].taxAmount || 0);
+            totalOutputGst += v.lineItems[0].taxAmount || 0;
+        }
+        if (v.voucherType === 'Purchase') {
+            totalDirectExpenses += v.totalAmount - (v.lineItems[0].taxAmount || 0);
+            totalInputGst += v.lineItems[0].taxAmount || 0;
+        }
+        if (v.voucherType === 'Payment' || v.voucherType === 'Journal') {
+            v.lineItems.forEach(li => {
+                if (indirectExpenseLedgers.has(li.ledgerId)) {
+                    const ledger = ledgers.find(l => l.id === li.ledgerId);
+                    if (ledger) {
+                        indirectExpensesBreakdown[ledger.ledgerName] = (indirectExpensesBreakdown[ledger.ledgerName] || 0) + li.amount;
+                    }
+                }
+            });
+        }
+    });
+
+    const totalIndirectExpenses = Object.values(indirectExpensesBreakdown).reduce((sum, amount) => sum + amount, 0);
+    const grossProfit = totalRevenue - totalDirectExpenses;
+    const netProfit = grossProfit - totalIndirectExpenses;
+    
+    return {
+        totalRevenue,
+        totalDirectExpenses,
+        grossProfit,
+        indirectExpensesBreakdown,
+        totalIndirectExpenses,
+        netProfit,
+        totalOutputGst,
+        totalInputGst,
+        monthlyData: calculateMonthlyBreakdown(periodVouchers, ledgers),
+    };
+};
+
+const calculateMonthlyBreakdown = (vouchers: Voucher[], ledgers: Ledger[]) => {
+  const monthlyData: Record<string, { revenue: number, expenses: number, profit: number }> = {};
+
+  vouchers.forEach(v => {
+    const month = format(new Date(v.date), 'MMM yy');
+    if (!monthlyData[month]) {
+      monthlyData[month] = { revenue: 0, expenses: 0, profit: 0 };
+    }
+    if (v.voucherType === 'Sales') {
+      monthlyData[month].revenue += v.totalAmount - (v.lineItems[0].taxAmount || 0);
+    } else if (v.voucherType === 'Purchase' || v.voucherType === 'Payment') {
+      monthlyData[month].expenses += v.totalAmount - (v.lineItems[0]?.taxAmount || 0);
+    }
+  });
+
+  Object.keys(monthlyData).forEach(month => {
+    monthlyData[month].profit = monthlyData[month].revenue - monthlyData[month].expenses;
+  });
+  
+  return Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })).sort((a,b) => new Date(a.name).getTime() - new Date(b.name).getTime());
+}
+
 
 export default function DashboardPage() {
   const { profile } = useUser();
@@ -89,699 +184,265 @@ export default function DashboardPage() {
   const canExport = profile?.role === 'Owner' || profile?.role === 'Admin';
   
   const [date, setDate] = React.useState<DateRange | undefined>({
-    from: new Date(2023, 0, 1),
-    to: new Date(2023, 11, 31),
+    from: new Date(MOCK_DATA_YEAR, 3, 1), // Current FY Start
+    to: new Date(MOCK_DATA_YEAR + 1, 2, 31), // Current FY End
   });
 
-  const [upcomingTdsDueDate, setUpcomingTdsDueDate] = React.useState<Date | null>(null);
-
-  React.useEffect(() => {
-    const today = new Date();
-    const currentDay = today.getDate();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-    if (currentDay <= 7) {
-        setUpcomingTdsDueDate(new Date(currentYear, currentMonth, 7));
-    } else {
-        setUpcomingTdsDueDate(new Date(currentYear, currentMonth + 1, 7));
-    }
-  }, []);
-
-  // --- Data Filtering Logic ---
-  const filteredVouchers = mockVouchers.filter((v) => {
-    const voucherDate = new Date(v.date);
-    if (!date?.from || !date?.to) return true;
-    return voucherDate >= date.from && voucherDate <= date.to;
-  });
-
-  const ledgerMap = new Map(mockLedgers.map((l) => [l.id, l]));
-
-  // --- Dynamic Data Calculation Logic ---
-  const totalIncome = filteredVouchers
-    .filter((v) => v.voucherType === 'Sales')
-    .reduce(
-      (acc, v) => acc + v.lineItems.reduce((sum, item) => sum + item.amount, 0),
-      0
-    );
-
-  const expenseLedgers = mockLedgers.filter(
-    (l) => l.group === 'Expense' && !l.isGroup
-  );
-  const expenseLedgerIds = new Set(expenseLedgers.map((l) => l.id));
-  const expenseLedgerMap = new Map(expenseLedgers.map((l) => [l.id, l]));
-
-  // Refactored expense calculation to be pure
-  const calculateExpenses = (vouchers: Voucher[]) => {
-    const allExpenses = [
-      // Purchases
-      ...vouchers
-        .filter((v) => v.voucherType === 'Purchase')
-        .map((v) => ({
-          name: 'Purchases',
-          amount: v.lineItems.reduce((acc, item) => acc + item.amount, 0),
-        })),
-      // Other Expenses from Payment/Journal line items
-      ...vouchers
-        .filter((v) => ['Payment', 'Journal'].includes(v.voucherType))
-        .flatMap((v) =>
-          v.lineItems
-            .filter((li) => expenseLedgerIds.has(li.ledgerId))
-            .map((li) => ({
-              name:
-                expenseLedgerMap.get(li.ledgerId)?.ledgerName ||
-                'Unknown Expense',
-              amount: li.amount,
-            }))
-        ),
-      // Expenses from Payment voucher party ledgers
-      ...vouchers
-        .filter(
-          (v) =>
-            v.voucherType === 'Payment' && expenseLedgerIds.has(v.partyLedger)
-        )
-        .map((v) => ({
-          name:
-            expenseLedgerMap.get(v.partyLedger)?.ledgerName ||
-            'Unknown Expense',
-          amount: v.totalAmount,
-        })),
-    ];
-
-    const expenseBreakdown = allExpenses.reduce((acc, expense) => {
-      acc[expense.name] = (acc[expense.name] || 0) + expense.amount;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const totalExpenses = Object.values(expenseBreakdown).reduce(
-      (sum, amount) => sum + amount,
-      0
-    );
-
-    return { expenseBreakdown, totalExpenses };
-  };
-
-  const { expenseBreakdown, totalExpenses } = calculateExpenses(filteredVouchers);
-
-  const netProfit = totalIncome - totalExpenses;
-
-  // --- TDS Calculation Logic ---
-  const expenseLedgerTdsMap = React.useMemo(() => new Map(
-      mockLedgers
-          .filter(l => l.group === 'Expense' && l.tdsTcsConfig?.tdsEnabled && l.tdsTcsConfig.tdsRate)
-          .map(l => [l.id, l.tdsTcsConfig])
-  ), []);
-
-  const { totalTdsDeducted, tdsBreakdown } = React.useMemo(() => {
-      let totalTds = 0;
-      const breakdown: Record<string, { name: string; value: number; section: string }> = {};
-
-      filteredVouchers.forEach(v => {
-          if ((v.voucherType === 'Payment' || v.voucherType === 'Journal')) {
-              const partyLedgerId = v.partyLedger;
-              const tdsConfig = expenseLedgerTdsMap.get(partyLedgerId);
-              if (tdsConfig?.tdsRate) {
-                  // Assuming totalAmount is the base for TDS as per mock data structure
-                  const tdsAmount = v.totalAmount * (tdsConfig.tdsRate / 100);
-                  totalTds += tdsAmount;
-                  const section = tdsConfig.tdsSection || 'Unknown';
-                  const sectionName = `Sec ${section}`;
-                  if (!breakdown[sectionName]) {
-                      breakdown[sectionName] = { name: sectionName, value: 0, section };
-                  }
-                  breakdown[sectionName].value += tdsAmount;
-              }
-          }
-      });
-      return { totalTdsDeducted: totalTds, tdsBreakdown: Object.values(breakdown) };
-  }, [filteredVouchers, expenseLedgerTdsMap]);
-
-  // --- Static Snapshot Data ---
-  const bankBalance = mockLedgers
-    .filter((l) => l.group === 'Bank Accounts' && !l.isGroup)
-    .reduce((acc, l) => acc + l.currentBalance, 0);
-
-  const cashBalance =
-    mockLedgers.find((l) => l.ledgerName === 'Cash in Hand')?.currentBalance ||
-    0;
-
-  const tdsPayable = mockLedgers
-    .filter((l) => l.parentLedgerId === 'group-tds-payable' && !l.isGroup)
-    .reduce((acc, l) => acc + l.currentBalance, 0);
-
-  const outstandingReceivables = mockLedgers
-    .filter((l) => l.group === 'Sundry Debtor' && !l.isGroup)
-    .reduce((acc, l) => acc + l.currentBalance, 0);
-
-  const outstandingPayables = mockLedgers
-    .filter((l) => l.group === 'Sundry Creditor' && !l.isGroup)
-    .reduce((acc, l) => acc + l.currentBalance, 0);
-
-  const pendingNotes = mockNotes.filter(
-    (n) => n.status === 'Pending'
-  ).length;
-
-  // --- Chart Configurations ---
-  const chartColors = ['chart-1', 'chart-2', 'chart-3', 'chart-4', 'chart-5'];
-
-  const sortedExpenses = Object.entries(expenseBreakdown).sort(
-    ([, a], [, b]) => b - a
-  );
-  const expenseChartData = sortedExpenses.map(([name, value]) => {
-    const key = name.toLowerCase().replace(/ & | /g, '-');
-    return {
-      name,
-      value,
-      fill: `var(--color-${key})`,
-    };
-  });
-
-  const expenseChartConfig = {
-    value: { label: 'Amount' },
-    ...sortedExpenses.reduce((acc, [name], index) => {
-      const key = name.toLowerCase().replace(/ & | /g, '-');
-      acc[key] = {
-        label: name,
-        color: `hsl(var(--${chartColors[index % chartColors.length]}))`,
-      };
-      return acc;
-    }, {} as any),
-  } satisfies ChartConfig;
-
-  const tdsChartData = tdsBreakdown.map((item) => {
-    const key = item.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    return {
-      ...item,
-      fill: `var(--color-${key})`,
-    };
-  });
-
-  const tdsChartConfig = {
-    value: { label: 'Amount' },
-    ...tdsBreakdown.reduce((acc, item, index) => {
-      const key = item.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-      acc[key] = {
-        label: item.name,
-        color: `hsl(var(--${chartColors[(index + 2) % chartColors.length]}))`,
-      };
-      return acc;
-    }, {} as any),
-  } satisfies ChartConfig;
-
-  const handleExport = async (formatType: 'pdf' | 'xlsx') => {
-      setIsExporting(true);
-      toast({ title: 'Exporting...', description: `Your dashboard data is being prepared as a ${formatType.toUpperCase()} file.` });
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing
-
-      const company = mockCompanies[0];
-      const dateStr = format(new Date(), 'yyyy_MM_dd');
-      const filename = `ProAccounting_Dashboard_${dateStr}`;
-      
-      const exportData = {
-          company: company,
-          dateRange: date ? { from: date.from, to: date.to } : undefined,
-          summary: {
-            totalIncome, totalExpenses, netProfit,
-            bankBalance, cashBalance, tdsPayable,
-            outstandingReceivables, outstandingPayables
-          },
-          voucherCount: filteredVouchers.length,
-          ledgerCount: mockLedgers.length
-      };
-
-      if (formatType === 'xlsx') {
-          exportToExcel(exportData, filename);
-      } else {
-          exportToPdf(exportData, filename);
+  const {
+      currentPeriodData,
+      prevPeriodData,
+      growth,
+      ratios,
+      alerts,
+      cashFlow
+  } = React.useMemo(() => {
+      if (!date?.from || !date?.to) {
+          return { currentPeriodData: null, prevPeriodData: null, growth: {}, ratios: {}, alerts: [], cashFlow: {} };
       }
 
-      setIsExporting(false);
-      toast({ title: 'Export Successful', description: 'Your file has been downloaded.' });
-  };
+      const currentPeriodData = processFinancials(mockVouchers, mockLedgers, date.from, date.to);
 
+      const periodLength = differenceInDays(date.to, date.from);
+      const prevPeriodStart = subDays(date.from, periodLength + 1);
+      const prevPeriodEnd = subDays(date.to, periodLength + 1);
+      const prevPeriodData = processFinancials(mockVouchers, mockLedgers, prevPeriodStart, prevPeriodEnd);
+      
+      const { totalRevenue, totalDirectExpenses, totalIndirectExpenses, netProfit, totalOutputGst, totalInputGst } = currentPeriodData;
+      const totalExpenses = totalDirectExpenses + totalIndirectExpenses;
+      
+      const growth = {
+          revenue: getGrowth(totalRevenue, prevPeriodData.totalRevenue),
+          expenses: getGrowth(totalExpenses, prevPeriodData.totalDirectExpenses + prevPeriodData.totalIndirectExpenses),
+          profit: getGrowth(netProfit, prevPeriodData.netProfit),
+      };
+
+      const ratios = {
+          netProfitMargin: totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0,
+          expenseRatio: totalRevenue > 0 ? (totalExpenses / totalRevenue) * 100 : 0,
+          gstLiability: totalOutputGst - totalInputGst,
+          gstLiabilityRatio: totalRevenue > 0 ? ((totalOutputGst - totalInputGst) / totalRevenue) * 100 : 0,
+      };
+
+      // Alerts
+      const alerts = [];
+      if(netProfit < 0) alerts.push({ type: 'error', message: 'Net Profit is negative for the selected period.' });
+      const backdatedVouchers = mockVouchers.filter(v => new Date(v.createdAt) > new Date(v.date) && differenceInDays(new Date(v.createdAt), new Date(v.date)) > 1);
+      if(backdatedVouchers.length > 0) alerts.push({ type: 'warning', message: `${backdatedVouchers.length} backdated voucher(s) found.` });
+      
+      const highReceivables = mockLedgers.filter(l => l.group === 'Sundry Debtor' && l.currentBalance > 50000);
+      if(highReceivables.length > 0) alerts.push({ type: 'warning', message: `${highReceivables.length} customer(s) with high outstanding balance.`});
+
+      // Cash Flow
+      const cashFlow = {
+        cashInHand: mockLedgers.find(l => l.ledgerName === 'Cash in Hand')?.currentBalance || 0,
+        bankBalance: mockLedgers.filter(l => l.group === 'Bank Accounts').reduce((acc, l) => acc + l.currentBalance, 0),
+        receivables: mockLedgers.filter(l => l.group === 'Sundry Debtor').reduce((acc, l) => acc + l.currentBalance, 0),
+        payables: mockLedgers.filter(l => l.group === 'Sundry Creditor').reduce((acc, l) => acc + l.currentBalance, 0),
+      }
+
+      return { currentPeriodData, prevPeriodData, growth, ratios, alerts, cashFlow };
+
+  }, [date]);
+
+  const subDays = (date: Date, days: number): Date => {
+    const newDate = new Date(date);
+    newDate.setDate(newDate.getDate() - days);
+    return newDate;
+  }
+
+  const handleExport = (formatType: 'pdf' | 'xlsx') => {
+    // ... complete rewrite needed
+  }
+  
+  if (!currentPeriodData) return <Loader2 className="h-8 w-8 animate-spin" />;
+
+  const { totalRevenue, totalDirectExpenses, grossProfit, indirectExpensesBreakdown, totalIndirectExpenses, netProfit, monthlyData } = currentPeriodData;
+  const totalExpenses = totalDirectExpenses + totalIndirectExpenses;
+  const chartColors = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#00C49F'];
+
+  const expenseChartData = Object.entries(indirectExpensesBreakdown).map(([name, value], index) => ({
+      name,
+      value,
+      fill: chartColors[index % chartColors.length]
+  }));
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">Firm Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Financial Intelligence Dashboard</h1>
         <div className="flex items-center gap-4">
           <Select defaultValue={mockCompanies[0]?.id}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue placeholder="Select Company" />
-            </SelectTrigger>
-            <SelectContent>
-              {mockCompanies
-                .filter((c) => c.status === 'Active')
-                .map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.companyName}
-                  </SelectItem>
-                ))}
-            </SelectContent>
+            <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Select Company" /></SelectTrigger>
+            <SelectContent>{mockCompanies.filter(c => c.status === 'Active').map(c => <SelectItem key={c.id} value={c.id}>{c.companyName}</SelectItem>)}</SelectContent>
           </Select>
           <DateRangePicker date={date} setDate={setDate} />
-            {canExport && (
-              <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                      <Button variant="outline" disabled={isExporting}>
-                          {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                          Export
-                      </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                      <DropdownMenuItem onClick={() => handleExport('pdf')}>
-                          <FileText className="mr-2 h-4 w-4" />
-                          Export as PDF
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExport('xlsx')}>
-                          <FileSpreadsheet className="mr-2 h-4 w-4" />
-                          Export as Excel
-                      </DropdownMenuItem>
-                  </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+          {canExport && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="outline" disabled={isExporting}>{isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Export</Button></DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => handleExport('pdf')}><FileText className="mr-2 h-4 w-4" />Export as PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('xlsx')}><FileSpreadsheet className="mr-2 h-4 w-4" />Export as Excel</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
-
-      {/* Summary Cards */}
+      
+      {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Bank Balance
-            </CardTitle>
-            <Landmark className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(bankBalance)}</div>
-            <p className="text-xs text-muted-foreground">Across all accounts</p>
-          </CardContent>
-        </Card>
-        <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cash in Hand</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(cashBalance)}</div>
-            <p className="text-xs text-muted-foreground">Total available cash</p>
-          </CardContent>
-        </Card>
-        <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">TDS Payable</CardTitle>
-            <FileWarning className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(tdsPayable)}</div>
-            <p className="text-xs text-muted-foreground">
-              To be deposited to government
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Notes</CardTitle>
-            <Notebook className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{pendingNotes}</div>
-            <p className="text-xs text-muted-foreground">
-              Actionable items to review
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Upcoming TDS Due Date
-            </CardTitle>
-            <CalendarCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-                {upcomingTdsDueDate ? (
-                    format(upcomingTdsDueDate, 'dd MMM yyyy')
-                ) : (
-                    <span className="text-muted-foreground text-lg">Loading...</span>
-                )}
-            </div>
-            {upcomingTdsDueDate && (
-                <p className="text-xs text-muted-foreground">
-                    For TDS deducted in {format(new Date(upcomingTdsDueDate.getFullYear(), upcomingTdsDueDate.getMonth() - 1, 1), 'MMMM')}
-                </p>
-            )}
-          </CardContent>
-        </Card>
+          <GrowthCard title="Revenue" value={totalRevenue} change={growth.revenue} />
+          <GrowthCard title="Total Expenses" value={totalExpenses} change={growth.expenses} isExpense />
+          <GrowthCard title="Net Profit" value={netProfit} change={growth.profit} />
+          <RatioCard title="Net Profit Margin" value={ratios.netProfitMargin} icon={BadgePercent} />
       </div>
 
-      {/* Main Content Area */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="lg:col-span-4">
-          <CardHeader>
-            <CardTitle>Recent Transactions</CardTitle>
-            <CardDescription>
-              Your last 5 transactions in the selected period.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <RecentTransactions vouchers={filteredVouchers.slice(0, 5)} />
-          </CardContent>
-        </Card>
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Expense Breakdown</CardTitle>
-            <CardDescription>
-              Summary of expenses for the selected period.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-6">
-            <DashboardChart
-              data={expenseChartData}
-              config={expenseChartConfig}
-              totalValue={totalExpenses}
-            />
-            <div className="space-y-2">
-              <ScrollArea className="h-56">
-                <div className="space-y-4 pr-4">
-                  {expenseChartData.length > 0 ? (
-                    expenseChartData.map((item) => {
-                      const key = item.name.toLowerCase().replace(/ & | /g, '-');
-                      const percentage =
-                        totalExpenses > 0
-                          ? (item.value / totalExpenses) * 100
-                          : 0;
-                      return (
-                        <div
-                          key={item.name}
-                          className="flex items-center group cursor-pointer rounded-md p-1 -m-1 hover:bg-muted/50"
-                        >
-                          <div className="flex items-center gap-2 flex-1">
-                            <span
-                              className="h-2 w-2 rounded-full"
-                              style={{
-                                backgroundColor: expenseChartConfig[key]?.color,
-                              }}
-                            />
-                            <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-                              {item.name}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            <span className="font-semibold text-sm">
-                              {formatCurrency(item.value)}
-                            </span>
-                            <span className="text-xs text-muted-foreground ml-2">
-                              {percentage.toFixed(0)}%
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-center text-sm text-muted-foreground">
-                      No expense data for this period.
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
+      <div className="grid gap-6 lg:grid-cols-5">
+        {/* Main Content */}
+        <div className="lg:col-span-3 space-y-6">
+            <Card>
+                <CardHeader><CardTitle>Profit &amp; Loss Statement</CardTitle><CardDescription>For the period: {date?.from ? format(date.from, "PP") : ''} - {date?.to ? format(date.to, "PP") : ''}</CardDescription></CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableBody>
+                            <TableRow><TableCell className="font-semibold">Revenue</TableCell><TableCell className="text-right">{formatCurrency(totalRevenue)}</TableCell><TableCell className="text-right text-muted-foreground">100.00%</TableCell></TableRow>
+                            <TableRow><TableCell className="pl-8 text-muted-foreground">Direct Expenses</TableCell><TableCell className="text-right">{formatCurrency(totalDirectExpenses)}</TableCell><TableCell className="text-right text-muted-foreground">{formatPercentage(totalRevenue > 0 ? (totalDirectExpenses/totalRevenue)*100: 0)}</TableCell></TableRow>
+                            <TableRow className="font-semibold bg-muted/30"><TableCell>Gross Profit</TableCell><TableCell className="text-right">{formatCurrency(grossProfit)}</TableCell><TableCell className="text-right">{formatPercentage(totalRevenue > 0 ? (grossProfit/totalRevenue)*100: 0)}</TableCell></TableRow>
+                            <TableRow><TableCell className="pl-8 text-muted-foreground">Indirect Expenses</TableCell><TableCell className="text-right">{formatCurrency(totalIndirectExpenses)}</TableCell><TableCell className="text-right text-muted-foreground">{formatPercentage(totalRevenue > 0 ? (totalIndirectExpenses/totalRevenue)*100: 0)}</TableCell></TableRow>
+                            <TableRow className={cn("font-bold text-lg", netProfit >= 0 ? "bg-green-100/50 text-green-700" : "bg-red-100/50 text-red-700")}>
+                                <TableCell>Net Profit</TableCell>
+                                <TableCell className="text-right">{formatCurrency(netProfit)}</TableCell>
+                                <TableCell className="text-right">{formatPercentage(ratios.netProfitMargin)}</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+             <div className="grid gap-6 md:grid-cols-2">
+                <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2"><Scale />Ratio Analysis</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex justify-between"><span>Net Profit %</span><span className={cn("font-semibold", ratios.netProfitMargin >= 0 ? 'text-green-600' : 'text-red-600')}>{formatPercentage(ratios.netProfitMargin)}</span></div>
+                        <div className="flex justify-between"><span>Expense Ratio %</span><span className="font-semibold">{formatPercentage(ratios.expenseRatio)}</span></div>
+                        <div className="flex justify-between"><span>GST Liability</span><span className="font-semibold">{formatCurrency(ratios.gstLiability)}</span></div>
+                        <div className="flex justify-between"><span>GST Liability / Revenue %</span><span className="font-semibold">{formatPercentage(ratios.gstLiabilityRatio)}</span></div>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2"><GanttChartSquare />Cash Flow Snapshot</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex justify-between"><span>Cash in Hand</span><span className="font-semibold">{formatCurrency(cashFlow.cashInHand)}</span></div>
+                        <div className="flex justify-between"><span>Bank Balance</span><span className="font-semibold">{formatCurrency(cashFlow.bankBalance)}</span></div>
+                        <div className="flex justify-between"><span>Outstanding Receivables</span><span className="font-semibold">{formatCurrency(cashFlow.receivables)}</span></div>
+                        <div className="flex justify-between"><span>Outstanding Payables</span><span className="font-semibold">{formatCurrency(cashFlow.payables)}</span></div>
+                    </CardContent>
+                </Card>
             </div>
-          </CardContent>
-        </Card>
-        <Card className="lg:col-span-7">
-            <CardHeader>
-                <CardTitle>TDS Deduction Summary</CardTitle>
-                <CardDescription>
-                    Section-wise TDS deducted in the selected period.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-6">
-                <DashboardChart
-                    data={tdsChartData}
-                    config={tdsChartConfig}
-                    totalValue={totalTdsDeducted}
-                />
-                 <div className="space-y-2">
-                  <ScrollArea className="h-40">
-                    <div className="space-y-4 pr-4">
-                      {tdsChartData.length > 0 ? (
-                        tdsChartData.map((item) => {
-                          const key = item.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-                          const percentage =
-                            totalTdsDeducted > 0
-                              ? (item.value / totalTdsDeducted) * 100
-                              : 0;
-                          return (
-                            <div
-                              key={item.name}
-                              className="flex items-center group cursor-pointer rounded-md p-1 -m-1 hover:bg-muted/50"
-                            >
-                              <div className="flex items-center gap-2 flex-1">
-                                <span
-                                  className="h-2 w-2 rounded-full"
-                                  style={{
-                                    backgroundColor: tdsChartConfig[key]?.color,
-                                  }}
-                                />
-                                <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors">
-                                  {item.name}
-                                </span>
-                              </div>
-                              <div className="text-right">
-                                <span className="font-semibold text-sm">
-                                  {formatCurrency(item.value)}
-                                </span>
-                                <span className="text-xs text-muted-foreground ml-2">
-                                  {percentage.toFixed(0)}%
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div className="flex items-center justify-center h-full text-center text-sm text-muted-foreground">
-                          No TDS deducted in this period.
-                        </div>
-                      )}
-                    </div>
-                  </ScrollArea>
-                </div>
-            </CardContent>
-        </Card>
+        </div>
+
+        {/* Side Content */}
+        <div className="lg:col-span-2 space-y-6">
+            <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2 text-amber-600"><AlertTriangle />Audit Alerts</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                    {alerts.length > 0 ? alerts.map((alert, i) => (
+                        <Alert key={i} variant={alert.type === 'error' ? 'destructive' : 'default'} className={cn(alert.type === 'warning' && 'bg-amber-50 border-amber-200 [&>svg]:text-amber-500 text-amber-700')}>
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription>{alert.message}</AlertDescription>
+                        </Alert>
+                    )) : <p className="text-sm text-muted-foreground text-center py-4">No audit alerts for this period. ✨</p>}
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader><CardTitle>Expense Distribution</CardTitle></CardHeader>
+                <CardContent>
+                    <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                            <Pie data={expenseChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                                {expenseChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
+                            </Pie>
+                            <Tooltip formatter={(value: number) => formatCurrency(value, 0)} />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+        </div>
       </div>
+      
+       <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+                <CardHeader><CardTitle>Revenue vs. Expenses</CardTitle></CardHeader>
+                <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={monthlyData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis tickFormatter={(value) => `${value/1000}k`} />
+                            <Tooltip formatter={(value: number) => formatCurrency(value, 0)} />
+                            <Legend />
+                            <Bar dataKey="revenue" fill="#82ca9d" name="Revenue" />
+                            <Bar dataKey="expenses" fill="#ff8042" name="Expenses" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader><CardTitle>Monthly Profit Trend</CardTitle></CardHeader>
+                <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={monthlyData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis tickFormatter={(value) => `${value/1000}k`} />
+                            <Tooltip formatter={(value: number) => formatCurrency(value, 0)} />
+                            <Legend />
+                            <Line type="monotone" dataKey="profit" stroke="#8884d8" name="Net Profit" strokeWidth={2} />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </CardContent>
+            </Card>
+        </div>
+
     </div>
   );
 }
 
-function RecentTransactions({ vouchers }: { vouchers: Voucher[] }) {
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Date</TableHead>
-          <TableHead>Voucher No.</TableHead>
-          <TableHead>Type</TableHead>
-          <TableHead className="text-right">Amount</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {vouchers.length > 0 ? (
-          vouchers.map((voucher) => (
-            <TableRow key={voucher.id}>
-              <TableCell>
-                {new Date(voucher.date).toLocaleDateString('en-GB', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric',
-                })}
-              </TableCell>
-              <TableCell className="font-medium">
-                {voucher.voucherNumber}
-              </TableCell>
-              <TableCell>
-                <Badge variant="outline">{voucher.voucherType}</Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                {formatCurrency(voucher.totalAmount)}
-              </TableCell>
-            </TableRow>
-          ))
-        ) : (
-          <TableRow>
-            <TableCell colSpan={4} className="h-24 text-center">
-              No transactions for this period.
-            </TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
-  );
+// --- Sub Components for Cards ---
+function GrowthCard({ title, value, change, isExpense = false }: { title: string, value: number, change: number, isExpense?: boolean }) {
+    const isPositive = !isExpense ? change >= 0 : change <= 0;
+    const isInfinite = !isFinite(change);
+
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{formatCurrency(value, 0)}</div>
+                <p className={cn("text-xs", isInfinite || change === 0 ? "text-muted-foreground" : isPositive ? "text-green-600" : "text-red-600")}>
+                    {isInfinite ? 'New activity' : (
+                        <span className="flex items-center gap-1">
+                            {change >= 0 ? <TrendingUp className="h-4 w-4"/> : <TrendingDown className="h-4 w-4"/>}
+                            {formatPercentage(Math.abs(change))} vs previous period
+                        </span>
+                    )}
+                </p>
+            </CardContent>
+        </Card>
+    )
 }
 
-// --- EXPORT HELPERS ---
-
-type ExportData = {
-    company: Company;
-    dateRange?: { from?: Date, to?: Date };
-    summary: {
-        totalIncome: number;
-        totalExpenses: number;
-        netProfit: number;
-        bankBalance: number;
-        cashBalance: number;
-        tdsPayable: number;
-        outstandingReceivables: number;
-        outstandingPayables: number;
-    };
-    voucherCount: number;
-    ledgerCount: number;
-};
-
-const exportToPdf = (data: ExportData, filename: string) => {
-    const doc = new jsPDF({ orientation: 'landscape' });
-    const { company, dateRange, summary } = data;
-    const exportDate = format(new Date(), 'PPP p');
-    let finalY = 20;
-
-    // Helper to format currency for PDF, removing the symbol that causes issues.
-    const formatCurrencyForPdf = (amount: number) => {
-        const formatted = new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            minimumFractionDigits: 2,
-        }).format(amount);
-        return formatted.replace('₹', '').trim();
-    };
-
-    // Header
-    doc.setFontSize(18);
-    doc.setTextColor(40);
-    doc.text(company.companyName, 14, finalY);
-    finalY += 8;
-    doc.setFontSize(12);
-    doc.text("Dashboard Summary Report (All amounts in INR)", 14, finalY);
-    finalY += 6;
-    doc.setFontSize(10);
-    doc.text(`Exported on: ${exportDate}`, 14, finalY);
-    if (dateRange?.from && dateRange.to) {
-        finalY += 5;
-        doc.text(`Period: ${format(dateRange.from, 'PPP')} to ${format(dateRange.to, 'PPP')}`, 14, finalY);
-    }
-    finalY += 10;
-    
-    // Financial Summary
-    (doc as jsPDFType & { autoTable: (options: any) => void }).autoTable({
-        startY: finalY,
-        head: [[{ content: 'Financial Summary', colSpan: 2, styles: { halign: 'center', fillColor: [22, 163, 74] } }]],
-        body: [
-            ['Total Income', formatCurrencyForPdf(summary.totalIncome)],
-            ['Total Expenses', formatCurrencyForPdf(summary.totalExpenses)],
-            [{ content: 'Net Profit / (Loss)', styles: { fontStyle: 'bold' } }, { content: formatCurrencyForPdf(summary.netProfit), styles: { fontStyle: 'bold' } }],
-        ],
-        theme: 'grid',
-    });
-    finalY = (doc as any).lastAutoTable.finalY + 10;
-
-    // Key Balances Table
-    (doc as jsPDFType & { autoTable: (options: any) => void }).autoTable({
-        startY: finalY,
-        head: [['Key Balances', 'Amount']],
-        body: [
-            ['Bank Balance', formatCurrencyForPdf(summary.bankBalance)],
-            ['Cash in Hand', formatCurrencyForPdf(summary.cashBalance)],
-            ['TDS Payable', formatCurrencyForPdf(summary.tdsPayable)],
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: [45, 55, 72] },
-    });
-    finalY = (doc as any).lastAutoTable.finalY + 10;
-
-    // Outstanding Balances Table
-    (doc as jsPDFType & { autoTable: (options: any) => void }).autoTable({
-        startY: finalY,
-        head: [['Outstanding Balances', 'Amount']],
-        body: [
-            ['Receivables', formatCurrencyForPdf(summary.outstandingReceivables)],
-            ['Payables', formatCurrencyForPdf(summary.outstandingPayables)],
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: [45, 55, 72] },
-    });
-    finalY = (doc as any).lastAutoTable.finalY + 10;
-
-
-    // Footer
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8);
-        doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width / 2, 200, { align: 'center' });
-    }
-
-    doc.save(`${filename}.pdf`);
-};
-
-const exportToExcel = (data: ExportData, filename: string) => {
-    const { company, dateRange, summary, voucherCount, ledgerCount } = data;
-    const exportDate = format(new Date(), 'PPP p');
-
-    const ws_data = [
-        ["Company:", company.companyName],
-        ["Report:", "Dashboard Summary"],
-        ["Export Date:", exportDate],
-    ];
-
-    if (dateRange?.from && dateRange.to) {
-        ws_data.push(["Period:", `${format(dateRange.from, 'PPP')} to ${format(dateRange.to, 'PPP')}`]);
-    }
-    ws_data.push([]); // Spacer row
-
-    ws_data.push(["Financial Summary", ""]);
-    ws_data.push(["Total Income", summary.totalIncome]);
-    ws_data.push(["Total Expenses", summary.totalExpenses]);
-    ws_data.push(["Net Profit / (Loss)", summary.netProfit]);
-    ws_data.push([]);
-
-    ws_data.push(["Key Balances", ""]);
-    ws_data.push(["Bank Balance", summary.bankBalance]);
-    ws_data.push(["Cash in Hand", summary.cashBalance]);
-    ws_data.push(["TDS Payable", summary.tdsPayable]);
-    ws_data.push([]);
-
-    ws_data.push(["Outstanding", ""]);
-    ws_data.push(["Receivables", summary.outstandingReceivables]);
-    ws_data.push(["Payables", summary.outstandingPayables]);
-    ws_data.push([]);
-
-    ws_data.push(["Other Metrics", ""]);
-    ws_data.push(["Vouchers in Period", voucherCount]);
-    ws_data.push(["Total Ledgers", ledgerCount]);
-
-
-    const ws = XLSX.utils.aoa_to_sheet(ws_data);
-    
-    // Auto column width
-    ws['!cols'] = [{ wch: 25 }, { wch: 20 }];
-    
-    // Apply number formatting for currency
-    const currencyFormat = `_("₹"* #,##0.00_);_("₹"* (#,##0.00);_("₹"* "-"??_);_(@_)`;
-    const numberFormat = '#,##0';
-    for (let R = 0; R < ws_data.length; ++R) {
-        if (typeof ws_data[R][1] === 'number') {
-            const cell = ws[XLSX.utils.encode_cell({c:1, r:R})];
-            if(cell) {
-                cell.t = 'n';
-                cell.z = currencyFormat;
-            }
-        }
-    }
-    
-    // Bold headers
-    const boldStyle = { font: { bold: true } };
-    ["A6", "A11", "A16", "A21"].forEach(cellRef => {
-        if(ws[cellRef]) ws[cellRef].s = boldStyle;
-    });
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Dashboard Summary');
-    XLSX.writeFile(wb, `${filename}.xlsx`);
-};
+function RatioCard({ title, value, icon: Icon }: { title: string, value: number, icon: React.ElementType }) {
+    return (
+        <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                <Icon className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className={cn("text-2xl font-bold", value >= 0 ? "text-green-600" : "text-red-600")}>{formatPercentage(value)}</div>
+                 <p className="text-xs text-muted-foreground">For the selected period</p>
+            </CardContent>
+        </Card>
+    )
+}

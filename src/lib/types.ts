@@ -1,4 +1,5 @@
 
+
 export type UserRole = 'Owner' | 'Admin' | 'Accountant' | 'Staff';
 
 export type UserProfile = {
@@ -158,6 +159,7 @@ export type Voucher = {
   voucherNumber: string;
   voucherType: VoucherType;
   date: Date;
+  createdAt: Date;
   partyLedger: string;
   lineItems: VoucherLineItem[];
   totalAmount: number;
