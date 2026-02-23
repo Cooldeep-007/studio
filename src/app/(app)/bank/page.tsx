@@ -19,7 +19,8 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Landmark, PlusCircle } from 'lucide-react';
-import { mockLedgers } from '@/lib/data';
+import { mockLedgers, mockVouchers } from '@/lib/data';
+import type { Ledger } from '@/lib/types';
 
 // Helper function for currency formatting
 const formatCurrency = (amount: number) => {
@@ -36,9 +37,33 @@ export default function BankPage() {
     []
   );
 
+  const bankBalances = React.useMemo(() => {
+    const balances = new Map<string, number>();
+    bankAccounts.forEach(acc => {
+        const opening = (acc.openingBalance || 0) * (acc.balanceType === 'Cr' ? -1 : 1);
+        balances.set(acc.id, opening);
+    });
+
+    mockVouchers.forEach(voucher => {
+        voucher.entries.forEach(entry => {
+            if (balances.has(entry.ledgerId)) {
+                let currentBalance = balances.get(entry.ledgerId)!;
+                if (entry.type === 'Dr') {
+                    currentBalance += entry.amount;
+                } else {
+                    currentBalance -= entry.amount;
+                }
+                balances.set(entry.ledgerId, currentBalance);
+            }
+        });
+    });
+    return balances;
+  }, [bankAccounts]);
+
+
   const totalBankBalance = React.useMemo(
-    () => bankAccounts.reduce((acc, account) => acc + account.currentBalance, 0),
-    [bankAccounts]
+    () => Array.from(bankBalances.values()).reduce((acc, balance) => acc + balance, 0),
+    [bankBalances]
   );
 
   return (
@@ -108,7 +133,7 @@ export default function BankPage() {
                     </TableCell>
                     <TableCell>{account.bankDetails?.ifscCode || 'N/A'}</TableCell>
                     <TableCell className="text-right">
-                      {formatCurrency(account.currentBalance)}
+                      {formatCurrency(bankBalances.get(account.id) || 0)}
                     </TableCell>
                   </TableRow>
                 ))
