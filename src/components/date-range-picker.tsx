@@ -1,211 +1,193 @@
 "use client"
 
 import * as React from "react"
-import { 
-    format, 
-    addDays, 
-    startOfYear, 
-    endOfYear, 
-    startOfMonth, 
-    endOfMonth,
-    getYear,
-} from "date-fns"
-import { Calendar as CalendarIcon } from "lucide-react"
 import { DateRange } from "react-day-picker"
+import { format, parse, isValid, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns"
+import { Calendar as CalendarIcon, AlertTriangle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import { 
-    Select, 
-    SelectContent, 
-    SelectItem, 
-    SelectTrigger, 
-    SelectValue 
-} from "./ui/select"
-import { Separator } from "./ui/separator"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
+import { Input } from "./ui/input"
 import { Label } from "./ui/label"
+import { Alert, AlertDescription } from "./ui/alert"
 
-// Helper to get Indian financial year
+// --- Helper Functions ---
 const getFinancialYear = (date: Date): { start: Date; end: Date; label: string } => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    // In India, FY starts in April (month 3)
-    if (month >= 3) {
-        return { start: new Date(year, 3, 1), end: new Date(year + 1, 2, 31), label: `FY ${year}-${(year + 1).toString().slice(-2)}` };
-    } else {
-        return { start: new Date(year - 1, 3, 1), end: new Date(year, 2, 31), label: `FY ${year - 1}-${year.toString().slice(-2)}` };
-    }
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  if (month >= 3) { // April or later
+    return { start: new Date(year, 3, 1), end: new Date(year + 1, 2, 31), label: `FY ${year}-${(year + 1).toString().slice(-2)}` };
+  } else { // Jan, Feb, March
+    return { start: new Date(year - 1, 3, 1), end: new Date(year, 2, 31), label: `FY ${year - 1}-${year.toString().slice(-2)}` };
+  }
 };
 
-const financialYears = Array.from({ length: 5 }, (_, i) => {
-    const date = new Date();
-    date.setFullYear(date.getFullYear() - i);
-    return getFinancialYear(date);
-});
+const tryParseDate = (value: string): { date: Date, type: 'day' | 'month' } | null => {
+  if (!value) return null;
 
-const quarters = [
-    { label: 'Q1: Apr-Jun', value: 'q1' },
-    { label: 'Q2: Jul-Sep', value: 'q2' },
-    { label: 'Q3: Oct-Dec', value: 'q3' },
-    { label: 'Q4: Jan-Mar', value: 'q4' },
-];
-
-interface DateRangePickerProps extends React.HTMLAttributes<HTMLDivElement> {
-  date: DateRange | undefined;
-  setDate: (date: DateRange | undefined) => void;
-}
-
-export function DateRangePicker({
-  className,
-  date,
-  setDate
-}: DateRangePickerProps) {
-  
-  const handlePeriodSelect = (type: 'fy' | 'quarter' | 'month', value: string) => {
-      const now = new Date();
-      
-      if (type === 'fy') {
-          const selectedFy = financialYears.find(fy => getYear(fy.start).toString() === value);
-          if (selectedFy) {
-              setDate({ from: selectedFy.start, to: selectedFy.end });
-          }
-      }
-      if (type === 'quarter') {
-          const currentFY = getFinancialYear(date?.from || now);
-          let year = getYear(currentFY.start);
-          let from: Date, to: Date;
-          switch (value) {
-              case 'q1': 
-                from = new Date(year, 3, 1);
-                to = new Date(year, 5, 30);
-                break;
-              case 'q2':
-                from = new Date(year, 6, 1);
-                to = new Date(year, 8, 30);
-                break;
-              case 'q3':
-                from = new Date(year, 9, 1);
-                to = new Date(year, 11, 31);
-                break;
-              case 'q4':
-                from = new Date(year + 1, 0, 1);
-                to = new Date(year + 1, 2, 31);
-                break;
-              default:
-                return;
-          }
-           setDate({ from, to });
-      }
-       if (type === 'month') {
-          const currentFY = getFinancialYear(date?.from || now);
-          const monthIndex = parseInt(value, 10);
-          const year = (monthIndex >= 3) ? getYear(currentFY.start) : getYear(currentFY.end);
-          const from = startOfMonth(new Date(year, monthIndex, 1));
-          const to = endOfMonth(from);
-          setDate({ from, to });
-      }
+  const dayFormats = ['dd-MM-yyyy', 'dd/MM/yyyy', 'd-M-yy', 'd/M/yy', 'yyyy-MM-dd', 'PP', 'P'];
+  for (const fmt of dayFormats) {
+    const parsedDate = parse(value, fmt, new Date());
+    if (isValid(parsedDate) && parsedDate.getFullYear() > 1900) {
+      return { date: parsedDate, type: 'day' };
+    }
   }
 
-  const currentFinancialYear = getFinancialYear(date?.from || new Date());
+  const monthFormats = ['MM-yyyy', 'MMM yyyy', 'MM/yyyy'];
+  for (const fmt of monthFormats) {
+    const parsedDate = parse(value, fmt, new Date());
+    if (isValid(parsedDate) && parsedDate.getFullYear() > 1900) {
+      return { date: startOfMonth(parsedDate), type: 'month' };
+    }
+  }
 
+  return null;
+};
+
+// --- Component Interface ---
+interface ProDateRangePickerProps {
+  date: DateRange | undefined;
+  setDate: (date: DateRange | undefined) => void;
+  className?: string;
+}
+
+export function DateRangePicker({ date, setDate, className }: ProDateRangePickerProps) {
+  const [fromString, setFromString] = React.useState<string>(date?.from ? format(date.from, 'dd-MM-yyyy') : '');
+  const [toString, setToString] = React.useState<string>(date?.to ? format(date.to, 'dd-MM-yyyy') : '');
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setFromString(date?.from ? format(date.from, 'dd-MM-yyyy') : '');
+    setToString(date?.to ? format(date.to, 'dd-MM-yyyy') : '');
+  }, [date]);
+
+  const handleApply = () => {
+    setError(null);
+    const fromParsed = tryParseDate(fromString);
+    const toParsed = tryParseDate(toString);
+
+    if (!fromParsed || !toParsed) {
+      setError("Invalid date format. Please use formats like DD-MM-YYYY or Apr 2024.");
+      return;
+    }
+
+    let finalFrom = fromParsed.date;
+    let finalTo = toParsed.date;
+
+    if (fromParsed.type === 'month') {
+        finalFrom = startOfMonth(fromParsed.date);
+    }
+     if (toParsed.type === 'month') {
+        finalTo = endOfMonth(toParsed.date);
+    }
+
+    if (finalFrom > finalTo) {
+      setError("'From' date cannot be after 'To' date.");
+      return;
+    }
+
+    setDate({ from: finalFrom, to: finalTo });
+  };
+
+  const handlePresetChange = (value: string) => {
+    const now = new Date();
+    let from: Date, to: Date;
+
+    switch (value) {
+      case 'thisMonth':
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+        break;
+      case 'lastMonth':
+        const lastMonth = subMonths(now, 1);
+        from = startOfMonth(lastMonth);
+        to = endOfMonth(lastMonth);
+        break;
+      case 'thisFy':
+        const currentFy = getFinancialYear(now);
+        from = currentFy.start;
+        to = currentFy.end;
+        break;
+      case 'lastFy':
+        const lastFy = getFinancialYear(subMonths(now, 12));
+        from = lastFy.start;
+        to = lastFy.end;
+        break;
+      default:
+        return;
+    }
+    setDate({ from, to });
+  };
+  
   return (
-    <div className={cn("grid gap-2", className)}>
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            id="date"
-            variant={"outline"}
-            className={cn(
-              "w-full sm:w-[260px] justify-start text-left font-normal",
-              !date && "text-muted-foreground"
-            )}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {date?.from ? (
-              date.to ? (
-                <>
-                  {format(date.from, "LLL dd, y")} -{" "}
-                  {format(date.to, "LLL dd, y")}
-                </>
-              ) : (
-                format(date.from, "LLL dd, y")
-              )
-            ) : (
-              <span>Pick a date range</span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0 flex" align="end">
-             <div className="flex flex-col items-start gap-1 p-3 w-[220px] border-r">
-                <div className="space-y-2 w-full">
-                    <Label>Financial Year</Label>
-                    <Select onValueChange={(value) => handlePeriodSelect('fy', value)} defaultValue={getYear(getFinancialYear(date?.from || new Date()).start).toString()}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select FY" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {financialYears.map(fy => <SelectItem key={fy.label} value={getYear(fy.start).toString()}>{fy.label}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
-                 <div className="space-y-2 w-full mt-2">
-                    <Label>Quarter</Label>
-                    <Select onValueChange={(value) => handlePeriodSelect('quarter', value)}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select Quarter" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {quarters.map(q => <SelectItem key={q.value} value={q.value}>{q.label}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
-                 <div className="space-y-2 w-full mt-2">
-                    <Label>Month</Label>
-                    <Select onValueChange={(value) => handlePeriodSelect('month', value)}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select Month" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {Array.from({length: 12}, (_, i) => i).map(monthIndex => (
-                                <SelectItem key={monthIndex} value={monthIndex.toString()}>
-                                    {format(new Date(0, monthIndex), 'MMMM')}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                <Separator className="my-4" />
-                
-                <div className="text-sm font-medium text-muted-foreground mb-2 px-2">Presets</div>
-                <Button variant="ghost" className="w-full justify-start" onClick={() => setDate({ from: addDays(new Date(), -6), to: new Date() })}>Last 7 Days</Button>
-                <Button variant="ghost" className="w-full justify-start" onClick={() => setDate({ from: addDays(new Date(), -29), to: new Date() })}>Last 30 Days</Button>
-                <Button variant="ghost" className="w-full justify-start" onClick={() => setDate({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}>This Month</Button>
-                <Button variant="ghost" className="w-full justify-start" onClick={() => {
-                    const now = new Date();
-                    const lastMonthStart = startOfMonth(addDays(now, -30));
-                    setDate({ from: lastMonthStart, to: endOfMonth(lastMonthStart) });
-                }}>Last Month</Button>
-                <Button variant="ghost" className="w-full justify-start" onClick={() => setDate({ from: startOfYear(new Date()), to: endOfYear(new Date()) })}>This Calendar Year</Button>
-            </div>
-            <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={date?.from}
-                selected={date}
-                onSelect={setDate}
-                numberOfMonths={2}
-                fromDate={currentFinancialYear.start}
-                toDate={currentFinancialYear.end}
+    <div className={cn("flex flex-wrap items-end gap-4 rounded-lg border p-4 shadow-sm bg-card", className)}>
+        <div className="flex-grow sm:flex-shrink-0 sm:flex-grow-0 sm:w-48">
+            <Label>Quick Presets</Label>
+            <Select onValueChange={handlePresetChange}>
+                <SelectTrigger>
+                    <SelectValue placeholder="Select period" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="thisMonth">This Month</SelectItem>
+                    <SelectItem value="lastMonth">Last Month</SelectItem>
+                    <SelectItem value="thisFy">This Financial Year</SelectItem>
+                    <SelectItem value="lastFy">Last Financial Year</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
+        <div className="flex-grow space-y-1">
+            <Label htmlFor="from-date">From Date</Label>
+            <Input
+                id="from-date"
+                value={fromString}
+                onChange={(e) => setFromString(e.target.value)}
+                onBlur={handleApply}
+                placeholder="dd-mm-yyyy"
             />
-        </PopoverContent>
-      </Popover>
+        </div>
+        <div className="flex-grow space-y-1">
+            <Label htmlFor="to-date">To Date</Label>
+            <Input
+                id="to-date"
+                value={toString}
+                onChange={(e) => setToString(e.target.value)}
+                onBlur={handleApply}
+                placeholder="dd-mm-yyyy"
+            />
+        </div>
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button variant={"outline"} className="w-full sm:w-auto mt-auto">
+                    <CalendarIcon className="h-4 w-4" />
+                    <span className="sr-only">Open Calendar</span>
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 flex" align="end">
+                <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={date?.from}
+                    selected={date}
+                    onSelect={(range) => {
+                      setDate(range);
+                      if (range?.from) setFromString(format(range.from, 'dd-MM-yyyy'));
+                      if (range?.to) setToString(format(range.to, 'dd-MM-yyyy'));
+                    }}
+                    numberOfMonths={2}
+                />
+            </PopoverContent>
+        </Popover>
+         {error && (
+            <div className="w-full">
+              <Alert variant="destructive" className="p-2 text-xs">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            </div>
+        )}
     </div>
   )
 }

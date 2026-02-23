@@ -549,7 +549,6 @@ const exportToExcel = () => {
             <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Select Company" /></SelectTrigger>
             <SelectContent>{mockCompanies.filter(c => c.status === 'Active').map(c => <SelectItem key={c.id} value={c.id}>{c.companyName}</SelectItem>)}</SelectContent>
           </Select>
-          <DateRangePicker date={date} setDate={setDate} />
           {canExport && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="outline" disabled={isExporting}>{isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Export</Button></DropdownMenuTrigger>
@@ -562,6 +561,8 @@ const exportToExcel = () => {
         </div>
       </div>
       
+      <DateRangePicker date={date} setDate={setDate} />
+
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <GrowthCard title="Revenue" value={totalRevenue} change={growth.revenue} />
@@ -744,5 +745,3 @@ function RatioCard({ title, value, icon: Icon }: { title: string, value: number,
         </Card>
     )
 }
-
-    

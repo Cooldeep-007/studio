@@ -261,20 +261,23 @@ export default function ReportsPage() {
           <CardTitle>Filters</CardTitle>
           <CardDescription>Select filters to generate your report.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4 items-center">
-            <Select value={reportType} onValueChange={setReportType}>
-              <SelectTrigger className="w-full sm:w-[240px]">
-                <SelectValue placeholder="Select Report Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="voucher-register">Voucher Register</SelectItem>
-                <SelectItem value="trial-balance">Trial Balance</SelectItem>
-                <SelectItem value="pnl">Profit & Loss</SelectItem>
-                <SelectItem value="balance-sheet">Balance Sheet</SelectItem>
-              </SelectContent>
-            </Select>
-            <DateRangePicker date={date} setDate={setDate} />
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-4 items-end">
+            <div className="flex-grow sm:flex-grow-0">
+                <label className="text-sm font-medium mb-2 block">Report Type</label>
+                <Select value={reportType} onValueChange={setReportType}>
+                <SelectTrigger className="w-full sm:w-[240px]">
+                    <SelectValue placeholder="Select Report Type" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="voucher-register">Voucher Register</SelectItem>
+                    <SelectItem value="trial-balance">Trial Balance</SelectItem>
+                    <SelectItem value="pnl">Profit & Loss</SelectItem>
+                    <SelectItem value="balance-sheet">Balance Sheet</SelectItem>
+                </SelectContent>
+                </Select>
+            </div>
+            <DateRangePicker date={date} setDate={setDate} className="flex-grow" />
             <Button className="w-full sm:w-auto" onClick={handleGenerateReport} disabled={!reportType || !date}>
               <Filter className="mr-2 h-4 w-4" />
               View Report
@@ -375,5 +378,3 @@ export default function ReportsPage() {
     </div>
   );
 }
-
-    

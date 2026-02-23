@@ -148,26 +148,28 @@ export default function VouchersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-2xl font-bold">Vouchers</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col md:flex-row items-center gap-2">
             <DateRangePicker date={date} setDate={setDate} />
-            <Select value={groupBy} onValueChange={setGroupBy}>
-                <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Group by" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="voucherType">Voucher Type</SelectItem>
-                    <SelectItem value="month">Month</SelectItem>
-                    <SelectItem value="financialYear">Financial Year</SelectItem>
-                </SelectContent>
-            </Select>
-            <Link href="/vouchers/create">
-            <Button>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Create Voucher
-            </Button>
-            </Link>
+            <div className="flex w-full md:w-auto items-center gap-2">
+                <Select value={groupBy} onValueChange={setGroupBy}>
+                    <SelectTrigger className="w-full md:w-[180px]">
+                        <SelectValue placeholder="Group by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="voucherType">Voucher Type</SelectItem>
+                        <SelectItem value="month">Month</SelectItem>
+                        <SelectItem value="financialYear">Financial Year</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Link href="/vouchers/create">
+                <Button className="w-full md:w-auto">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Create
+                </Button>
+                </Link>
+            </div>
         </div>
       </div>
 
