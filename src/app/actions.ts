@@ -126,7 +126,7 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
     const validatedFields = tallyImportSchema.safeParse(rawData);
     
     if (!validatedFields.success) {
-        return { message: "Form validation failed.", error: JSON.stringify(validatedFields.error.flatten().fieldErrors) };
+        return { message: "Form validation failed.", error: JSON.stringify(validatedFields.error.flatten().fieldErrors), preview: null, summary: null };
     }
 
     const { xmlContent, companyId, firmId, importMode, dryRun } = validatedFields.data;
@@ -145,14 +145,14 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
         const tallyMessages = jsonObj?.ENVELOPE?.BODY?.IMPORTDATA?.REQUESTDATA?.TALLYMESSAGE;
 
         if (!tallyMessages || !Array.isArray(tallyMessages) || tallyMessages.length === 0) {
-            return { message: "No valid TALLYMESSAGE data found in the XML file.", error: "Could not find TALLYMESSAGE array in XML." };
+            return { message: "No valid TALLYMESSAGE data found in the XML file.", error: "Could not find TALLYMESSAGE array in XML.", preview: null, summary: null };
         }
 
         // Use flatMap to robustly extract all LEDGER objects from all messages
         const ledgers: TallyLedger[] = tallyMessages.flatMap((msg: any) => msg.LEDGER || []);
 
         if (ledgers.length === 0) {
-            return { message: "No ledgers found in the imported Tally file." };
+            return { message: "No ledgers found in the imported Tally file.", preview: null, summary: null };
         }
         
         const ledgersCollectionRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'ledgers');
@@ -273,7 +273,7 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
         }
         
         if (dryRun) {
-            return { message: "Dry run completed successfully. See preview below.", preview: previewResult };
+            return { message: "Dry run completed successfully. See preview below.", preview: previewResult, summary: null, error: null };
         }
 
         const BATCH_SIZE = 400;
@@ -310,13 +310,17 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
                 updated: updatedCount,
                 skipped: skippedCount,
                 errors: previewResult.filter(p => p.status === 'Error').length
-            }
+            },
+            preview: null,
+            error: null,
         };
 
     } catch (e: any) {
         console.error("Tally Import Error:", e);
         return {
             message: "An error occurred during import.",
+            summary: null,
+            preview: null,
             error: "Failed to parse XML file. Please ensure it is a valid Tally Ledger Master XML. " + e.message,
         };
     }
