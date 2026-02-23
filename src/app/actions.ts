@@ -73,7 +73,7 @@ const tallyImportSchema = z.object({
 });
 
 type TallyLedger = {
-  '@_NAME': string;
+  '@_NAME': string | string[];
   PARENT?: string | string[];
   OPENINGBALANCE?: number | string | (number | string)[];
   ISDEEMEDPOSITIVE?: 'Yes' | 'No' | ('Yes' | 'No')[];
@@ -132,14 +132,27 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
     const { xmlContent, companyId, firmId, importMode, dryRun } = validatedFields.data;
     
     try {
-        const parser = new XMLParser({ ignoreAttributes: false, parseAttributeValue: true, trimValues: true });
+        const parser = new XMLParser({
+            ignoreAttributes: false,
+            parseAttributeValue: true,
+            trimValues: true,
+            // Ensure TALLYMESSAGE and LEDGER are always arrays for consistent processing
+            isArray: (tagName) => ['TALLYMESSAGE', 'LEDGER'].includes(tagName),
+        });
         const jsonObj = parser.parse(xmlContent);
 
-        const tallyLedgerNode = jsonObj?.ENVELOPE?.BODY?.IMPORTDATA?.REQUESTDATA?.TALLYMESSAGE?.LEDGER;
-        const ledgers: TallyLedger[] = Array.isArray(tallyLedgerNode) ? tallyLedgerNode : tallyLedgerNode ? [tallyLedgerNode] : [];
+        // Extract TALLYMESSAGE array, which is now guaranteed by the parser config
+        const tallyMessages = jsonObj?.ENVELOPE?.BODY?.IMPORTDATA?.REQUESTDATA?.TALLYMESSAGE;
+
+        if (!tallyMessages || !Array.isArray(tallyMessages) || tallyMessages.length === 0) {
+            return { message: "No valid TALLYMESSAGE data found in the XML file.", error: "Could not find TALLYMESSAGE array in XML." };
+        }
+
+        // Use flatMap to robustly extract all LEDGER objects from all messages
+        const ledgers: TallyLedger[] = tallyMessages.flatMap((msg: any) => msg.LEDGER || []);
 
         if (ledgers.length === 0) {
-            return { message: "No ledgers found in the XML file or invalid Tally XML format." };
+            return { message: "No ledgers found in the imported Tally file." };
         }
         
         const ledgersCollectionRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'ledgers');
