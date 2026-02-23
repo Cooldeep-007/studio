@@ -547,4 +547,3 @@ const exportToExcel = (data: Record<string, any>[], companyName: string, dateStr
     XLSX.utils.book_append_sheet(wb, ws, 'Ledgers');
     XLSX.writeFile(wb, `ProAccounting_Masters_${dateStr}.xlsx`);
 };
-

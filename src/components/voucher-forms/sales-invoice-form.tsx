@@ -1,10 +1,11 @@
+
 'use client';
 
 import * as React from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { CalendarIcon, PlusCircle, Trash2, X, Sparkles, Building, Hash, Percent, FileText, Phone, Mail } from 'lucide-react';
+import { CalendarIcon, PlusCircle, Trash2, X, Sparkles, Building, Hash, Percent, FileText, Phone, Mail, AlertTriangle } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AddLedgerSheet } from '../add-ledger-sheet';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const lineItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required.'),
@@ -230,7 +232,7 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
         const roundedTotal = Math.round(grandTotal);
         const roundOff = roundedTotal - grandTotal;
 
-        return { items: processedItems, subtotal, totalDiscount, totalCgst, totalSgst, totalIgst, totalGst, tcsAmount, grandTotal: roundedTotal, roundOff, isIntraState };
+        return { items: processedItems, subtotal, totalDiscount, totalCgst, totalSgst, totalIgst, totalGst, tcsAmount, grandTotal: roundedTotal, roundOff, isIntraState, taxableValueForTcs };
     }, [watchedForm, items, company]);
 
 
@@ -363,7 +365,18 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
                             <Separator />
 
                             {/* FOOTER */}
-                            <div className="flex justify-end">
+                            <div className="flex justify-between items-start gap-6">
+                                <div className="w-1/2">
+                                    {calculations.tcsAmount > 0 && (
+                                        <Alert variant="default" className="bg-amber-50 border-amber-200">
+                                            <Sparkles className="h-4 w-4 text-amber-600" />
+                                            <AlertTitle className="text-amber-700">TCS Applicable</AlertTitle>
+                                            <AlertDescription>
+                                            TCS @ {watchedForm.tcsRate?.toFixed(2)}% of {formatCurrency(calculations.taxableValueForTcs)} will be collected, adding {formatCurrency(calculations.tcsAmount)} to the total.
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+                                </div>
                                 <div className="w-full max-w-sm space-y-2 text-sm">
                                     <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(calculations.subtotal + calculations.totalDiscount)}</span></div>
                                     <div className="flex justify-between"><span>Discount</span><span className="text-red-600">-{formatCurrency(calculations.totalDiscount)}</span></div>
@@ -411,6 +424,7 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
             <AddLedgerSheet
                 open={isAddLedgerSheetOpen}
                 onOpenChange={setIsAddLedgerSheetOpen}
+                initialValues={addLedgerInitialValues}
                 ledgers={ledgers}
                 onLedgerCreated={handleLedgerCreated}
             />

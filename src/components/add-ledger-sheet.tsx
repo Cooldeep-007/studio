@@ -19,8 +19,6 @@ import {
   SheetTitle,
   SheetDescription,
   SheetFooter,
-  SheetTrigger,
-  SheetClose,
 } from "@/components/ui/sheet";
 import {
   Accordion,
@@ -388,15 +386,18 @@ const defaultValues: Partial<LedgerFormValues> = {
 
 
 export function AddLedgerSheet({
-  children,
+  open,
+  onOpenChange,
   ledgers,
   onLedgerCreated,
+  initialValues,
 }: {
-  children: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   ledgers: Ledger[];
   onLedgerCreated: (ledger: Ledger) => void;
+  initialValues?: Partial<LedgerFormValues>;
 }) {
-    const [isOpen, setIsOpen] = React.useState(false);
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const parentLedgers = ledgers.filter(l => l.isGroup);
 
@@ -404,6 +405,13 @@ export function AddLedgerSheet({
         resolver: zodResolver(ledgerFormSchema),
         defaultValues,
     });
+    
+    React.useEffect(() => {
+        if (open) {
+          form.reset({ ...defaultValues, ...initialValues });
+        }
+    }, [open, initialValues, form]);
+
 
     const parentLedgerId = form.watch("parentLedgerId");
     const gstin = form.watch("gstDetails.gstin");
@@ -547,7 +555,7 @@ export function AddLedgerSheet({
                 title: "Ledger Created Successfully",
                 description: `${data.ledgerName} has been added to your Chart of Accounts.`,
             });
-            setIsOpen(false);
+            onOpenChange(false);
             form.reset(defaultValues);
         } catch (error) {
             console.error(error);
@@ -562,8 +570,7 @@ export function AddLedgerSheet({
     }
     
   return (
-    <Sheet open={isOpen} onOpenChange={setIsOpen}>
-      <SheetTrigger asChild>{children}</SheetTrigger>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-2xl w-full">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
@@ -594,7 +601,7 @@ export function AddLedgerSheet({
                             <FormItem className="md:col-span-2">
                                 <FormLabel>Ledger Name <span className="text-destructive">*</span></FormLabel>
                                 <FormControl>
-                                    <Input placeholder="e.g., Sales Account" {...field} />
+                                    <Input placeholder="e.g., Sales Account" {...field} autoFocus/>
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -1068,9 +1075,7 @@ export function AddLedgerSheet({
             </TooltipProvider>
             </ScrollArea>
             <SheetFooter className="pt-4 mt-auto">
-              <SheetClose asChild>
-                <Button type="button" variant="outline">Cancel</Button>
-              </SheetClose>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isSubmitting ? "Saving..." : "Save Ledger"}
