@@ -293,15 +293,15 @@ export default function DashboardPage() {
         
         (doc as any).autoTable({
             startY: 40,
-            head: [['Financial Summary', '']],
-            headStyles: { halign: 'center', fillColor: [41, 128, 185], colspan: 2 },
-            columnStyles: { 1: { halign: 'right' } },
+            head: [['Financial Summary', '', '% of Revenue']],
+            headStyles: { halign: 'center', fillColor: [41, 128, 185], colspan: 3 },
+            columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
             body: [
-                ['Revenue', formatCurrencyForPdf(totalRevenue)],
-                ['Direct Expenses', formatCurrencyForPdf(totalDirectExpenses)],
-                ['Gross Profit', formatCurrencyForPdf(grossProfit)],
-                ['Indirect Expenses', formatCurrencyForPdf(totalIndirectExpenses)],
-                ['Net Profit', formatCurrencyForPdf(netProfit)],
+                ['Revenue', formatCurrencyForPdf(totalRevenue), '100.00%'],
+                ['Direct Expenses', formatCurrencyForPdf(totalDirectExpenses), formatPercentage(totalRevenue > 0 ? (totalDirectExpenses / totalRevenue) * 100 : 0)],
+                ['Gross Profit', formatCurrencyForPdf(grossProfit), formatPercentage(totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0)],
+                ['Indirect Expenses', formatCurrencyForPdf(totalIndirectExpenses), formatPercentage(totalRevenue > 0 ? (totalIndirectExpenses / totalRevenue) * 100 : 0)],
+                ['Net Profit', formatCurrencyForPdf(netProfit), formatPercentage(ratios.netProfitMargin)],
             ],
             theme: 'grid',
             didParseCell: (data: any) => {
@@ -317,7 +317,7 @@ export default function DashboardPage() {
     // Key Balances & Ratios
     (doc as any).autoTable({
         startY: finalY + 10,
-        head: [['Key Balances', ''], ['Outstanding Balances', '']],
+        head: [['Key Balances', ''], ['Key Ratios', '']],
         headStyles: { halign: 'center', fillColor: [41, 128, 185] },
         columnStyles: { 1: { halign: 'right' }, 3: { halign: 'right' } },
         body: [
@@ -361,150 +361,130 @@ export default function DashboardPage() {
 
   const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
-    const aoa: (string | number)[][] = [];
     const companyName = mockCompanies[0]?.companyName || "Pro Accounting";
-
-    // --- Data Preparation ---
-    const currency = (v: number) => typeof v === 'number' ? v : 0;
-    const percent = (v: number) => typeof v === 'number' ? `${v.toFixed(2)}%` : '0.00%';
+    
+    // --- Data Preparation as Array of Arrays (AOA) ---
+    const aoa: (string | number | null)[][] = [];
+    const currency = (v: number) => (typeof v === 'number' ? v : 0);
+    const percent = (v: number) => (typeof v === 'number' ? v / 100 : 0);
 
     aoa.push([`${companyName} - Dashboard Summary Report`]);
-    aoa.push([`Exported on: ${format(new Date(), 'PPP p')}`]);
+    aoa.push([]); // Spacer
     aoa.push([`Period: ${date?.from ? format(date.from, "PP") : ''} to ${date?.to ? format(date.to, "PP") : ''}`]);
-    aoa.push(['', '']); // Spacer
+    aoa.push([`Exported on: ${format(new Date(), 'PPP p')}`]);
+    aoa.push([]); // Spacer
 
-    const sections: { title: string; data: (string | number)[][] }[] = [];
-
+    // --- Section 1: Financial Summary ---
+    aoa.push(['Financial Summary', null, null]);
+    aoa.push(['Description', 'Amount (INR)', '% of Revenue']);
     if (currentPeriodData) {
-      sections.push({
-        title: 'Financial Summary',
-        data: [
-          ['Description', 'Amount'],
-          ['Revenue', currency(currentPeriodData.totalRevenue)],
-          ['Direct Expenses', currency(currentPeriodData.totalDirectExpenses)],
-          ['Gross Profit', currency(currentPeriodData.grossProfit)],
-          ['Indirect Expenses', currency(currentPeriodData.totalIndirectExpenses)],
-          ['Net Profit', currency(currentPeriodData.netProfit)],
-        ],
-      });
+      const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
+      aoa.push(['Revenue', currency(totalRevenue), percent(100)]);
+      aoa.push(['Direct Expenses', currency(totalDirectExpenses), percent(totalRevenue > 0 ? (totalDirectExpenses / totalRevenue) * 100 : 0)]);
+      aoa.push(['Gross Profit', currency(grossProfit), percent(totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0)]);
+      aoa.push(['Indirect Expenses', currency(totalIndirectExpenses), percent(totalRevenue > 0 ? (totalIndirectExpenses / totalRevenue) * 100 : 0)]);
+      aoa.push(['Net Profit', currency(netProfit), percent(ratios.netProfitMargin)]);
     }
+    aoa.push([]); // Spacer
 
-    sections.push({
-      title: 'Key Balances & Ratios',
-      data: [
-        ['Description', 'Value'],
-        ['Cash in Hand', currency(cashFlow.cashInHand)],
-        ['Bank Balance', currency(cashFlow.bankBalance)],
-        ['Outstanding Receivables', currency(cashFlow.receivables)],
-        ['Outstanding Payables', currency(cashFlow.payables)],
-        ['', ''], // Spacer in data
-        ['Net Profit %', percent(ratios.netProfitMargin)],
-        ['Expense Ratio %', percent(ratios.expenseRatio)],
-        ['GST Liability', currency(ratios.gstLiability)],
-      ],
-    });
+    // --- Section 2: Key Balances & Ratios ---
+    aoa.push(['Key Balances & Ratios', null, null]);
+    aoa.push(['Description', 'Value', null]);
+    aoa.push(['Cash in Hand', currency(cashFlow.cashInHand), null]);
+    aoa.push(['Bank Balance', currency(cashFlow.bankBalance), null]);
+    aoa.push(['Outstanding Receivables', currency(cashFlow.receivables), null]);
+    aoa.push(['Outstanding Payables', currency(cashFlow.payables), null]);
+    aoa.push(['', '', '']);
+    aoa.push(['Net Profit %', percent(ratios.netProfitMargin), null]);
+    aoa.push(['Expense Ratio %', percent(ratios.expenseRatio), null]);
+    aoa.push(['GST Liability', currency(ratios.gstLiability), null]);
+    aoa.push([]); // Spacer
 
-    sections.push({
-      title: 'TDS / TCS Summary',
-      data: [
-        ['Description', 'Amount'],
-        ...tdsSummary.breakdown.map(item => [item.name, currency(item.balance)]),
-        ['Total Payable', currency(tdsSummary.totalPayable)],
-      ],
+    // --- Section 3: TDS/TCS ---
+    aoa.push(['TDS / TCS Summary', null, null]);
+    aoa.push(['Description', 'Amount (INR)', null]);
+    tdsSummary.breakdown.forEach(item => {
+      aoa.push([item.name, currency(item.balance), null]);
     });
-
-    let rowOffset = 0;
-    sections.forEach((section, index) => {
-      if (index > 0) {
-        aoa.push(['', '']); // Spacer row
-      }
-      aoa.push([section.title]);
-      aoa.push(...section.data);
-    });
+    aoa.push(['Total Payable', currency(tdsSummary.totalPayable), null]);
 
     const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    // --- Column Widths ---
+    ws['!cols'] = [{ wch: 35 }, { wch: 20 }, { wch: 15 }];
     
+    // --- Merges for Titles ---
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }, // Main title
+      { s: { r: 5, c: 0 }, e: { r: 5, c: 2 } }, // Financial Summary
+      { s: { r: 13, c: 0 }, e: { r: 13, c: 2 } }, // Key Balances
+      { s: { r: 23, c: 0 }, e: { r: 23, c: 2 } }, // TDS
+    ];
+
     // --- Styling ---
-    ws['!cols'] = [{ wch: 35 }, { wch: 20 }];
-    ws['!merges'] = [];
     const border = { top: { style: "thin" as const }, bottom: { style: "thin" as const }, left: { style: "thin" as const }, right: { style: "thin" as const } };
-    
-    // Header style
-    const headerCellRef = XLSX.utils.encode_cell({ r: 0, c: 0 });
-    if (ws[headerCellRef]) ws[headerCellRef].s = { font: { bold: true, sz: 16 } };
-    ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } });
-    
-    let R = 3; // Start row for content
-    sections.forEach(section => {
-        R++; // Move past spacer
+    const titleStyle = { font: { bold: true, sz: 16 } };
+    const sectionTitleStyle = { font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "4F81BD" } }, alignment: { horizontal: "center" as const } };
+    const tableHeaderStyle = { font: { bold: true } };
 
-        // Style Section Title
-        const titleCellRef = XLSX.utils.encode_cell({ r: R, c: 0 });
-        const mergedTitleCellRef = XLSX.utils.encode_cell({ r: R, c: 1 });
-        ws['!merges'].push({ s: { r: R, c: 0 }, e: { r: R, c: 1 } });
-        const titleStyle = {
-            font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } },
-            fill: { fgColor: { rgb: "4F81BD" } },
-            alignment: { horizontal: "center" as const },
-            border
-        };
-        if (ws[titleCellRef]) ws[titleCellRef].s = titleStyle;
-        if (!ws[mergedTitleCellRef]) ws[mergedTitleCellRef] = { t: 's', v:''}; // Create cell to style
-        ws[mergedTitleCellRef].s = { fill: titleStyle.fill, border };
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    for (let R = 0; R <= range.e.r; ++R) {
+        for (let C = 0; C <= range.e.c; ++C) {
+            const cell_ref = XLSX.utils.encode_cell({ r: R, c: C });
+            let cell = ws[cell_ref];
 
-        R++; // Move to data table
-
-        // Style Section Data
-        section.data.forEach((rowData, rowIndex) => {
-            const dataRow = R + rowIndex;
-            for (let C = 0; C < 2; C++) {
-                const cellRef = XLSX.utils.encode_cell({ r: dataRow, c: C });
-                let cell = ws[cellRef];
+            // Apply borders to all tables and their headers
+            if (R >= 5) {
+                if (!aoa[R] || aoa[R].length === 0 || aoa[R].every(c => c === null)) continue; // Skip empty spacer rows
                 if (!cell) {
-                   ws[cellRef] = { t: 's', v: '' };
-                   cell = ws[cellRef];
+                    ws[cell_ref] = { t: 's', v: '' }; // Create cell if it doesn't exist
+                    cell = ws[cell_ref];
                 }
-
                 if (!cell.s) cell.s = {};
                 cell.s.border = border;
+            }
 
-                // Table header row
-                if (rowIndex === 0) {
-                    cell.s.font = { bold: true };
-                }
-
-                // Format numbers
-                if (C === 1) {
-                  if (typeof cell.v === 'number') {
-                    cell.t = 'n';
-                    cell.s.numFmt = "#,##0.00";
-                  }
-                  if (typeof cell.v === 'string' && cell.v.endsWith('%')) {
-                    const numVal = parseFloat(cell.v.replace('%', ''));
-                    if (!isNaN(numVal)) {
-                      cell.v = numVal / 100;
-                      cell.t = 'n';
-                      cell.s.numFmt = "0.00%";
-                    }
-                  }
-                  cell.s.alignment = { horizontal: "right" };
-                }
+            // Style section titles
+            if ((R === 5 || R === 13 || R === 23) && C === 0) {
+                 if (!cell.s) cell.s = {};
+                 cell.s = { ...cell.s, ...sectionTitleStyle };
+                 // Style merged cells
+                 ws[XLSX.utils.encode_cell({r:R, c:1})].s = { fill: sectionTitleStyle.fill, border };
+                 ws[XLSX.utils.encode_cell({r:R, c:2})].s = { fill: sectionTitleStyle.fill, border };
             }
             
-            // Special Bold Rows
-            const isBoldRow = (section.title === 'Financial Summary' && (rowIndex === 3 || rowIndex === 5)) ||
-                              (section.title === 'TDS / TCS Summary' && rowIndex === section.data.length - 1);
-            if (isBoldRow) {
-                const cellRefA = XLSX.utils.encode_cell({r: dataRow, c:0});
-                const cellRefB = XLSX.utils.encode_cell({r: dataRow, c:1});
-                if (ws[cellRefA]?.s) ws[cellRefA].s.font = { bold: true, ...ws[cellRefA].s.font };
-                if (ws[cellRefB]?.s) ws[cellRefB].s.font = { bold: true, ...ws[cellRefB].s.font };
+            // Style table headers
+            if(R === 6 || R === 14 || R === 24) {
+                 if(cell) {
+                    if (!cell.s) cell.s = {};
+                    cell.s.font = tableHeaderStyle.font;
+                 }
             }
-        });
+            
+            // Style Main Title
+            if(R === 0 && cell) {
+                 if (!cell.s) cell.s = {};
+                 cell.s.font = titleStyle.font;
+            }
 
-        R += section.data.length -1;
-    });
+            // Format numbers
+            if (cell && typeof cell.v === 'number') {
+                if (!cell.s) cell.s = {};
+                if (C === 2 || (R >= 20 && R <= 21 && C===1)) { // Percentage columns
+                    cell.s.numFmt = "0.00%";
+                } else {
+                    cell.s.numFmt = "#,##0.00";
+                }
+            }
 
+             // Bold Profit Rows & Total Rows
+             if (cell && (R === 9 || R === 11 || R === 22 || R === (aoa.length-1))) {
+                 if (!cell.s) cell.s = {};
+                 cell.s.font = { ...cell.s.font, bold: true };
+             }
+        }
+    }
+    
     XLSX.writeFile(wb, `ProAccounting_Dashboard_${format(new Date(), 'yyyy_MM_dd')}.xlsx`);
   };
 
