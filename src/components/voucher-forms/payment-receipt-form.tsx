@@ -43,13 +43,15 @@ type FormValues = z.infer<typeof paymentReceiptSchema>;
 
 interface PaymentReceiptFormProps {
     type: 'Payment' | 'Receipt';
+    initialData?: Voucher;
 }
 
-export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
+export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProps) {
     const { toast } = useToast();
     const [ledgers] = React.useState(() => mockLedgers.filter(l => !l.isGroup));
     const [outstandingVouchers, setOutstandingVouchers] = React.useState<Voucher[]>([]);
     const [isAllocationDialogOpen, setIsAllocationDialogOpen] = React.useState(false);
+    const isEditMode = !!initialData;
 
     const form = useForm<FormValues>({
         resolver: zodResolver(paymentReceiptSchema),
@@ -63,6 +65,24 @@ export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
             billAllocations: [],
         },
     });
+
+    React.useEffect(() => {
+        if (initialData) {
+            const bankCashLedger = initialData.entries.find(e => e.ledgerId !== initialData.partyLedgerId);
+            form.reset({
+                date: new Date(initialData.date),
+                amount: initialData.totalDebit,
+                partyLedgerId: initialData.partyLedgerId,
+                bankCashLedgerId: bankCashLedger?.ledgerId,
+                narration: initialData.narration,
+                referenceNumber: initialData.referenceNumber,
+                paymentMode: initialData.paymentMode,
+                chequeNumber: initialData.chequeNumber,
+                chequeDate: initialData.chequeDate ? new Date(initialData.chequeDate) : undefined,
+                billAllocations: initialData.billAllocations,
+            });
+        }
+    }, [initialData, form]);
 
     const paymentMode = form.watch('paymentMode');
     const partyLedgerId = form.watch('partyLedgerId');
@@ -105,12 +125,14 @@ export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
 
     function onSubmit(data: FormValues) {
         toast({
-            title: `${type} Voucher Created`,
+            title: `${type} Voucher ${isEditMode ? 'Updated' : 'Created'}`,
             description: "The voucher has been successfully saved.",
         });
         console.log("Form Submitted", data);
-        form.reset();
-        setOutstandingVouchers([]);
+        if (!isEditMode) {
+            form.reset();
+            setOutstandingVouchers([]);
+        }
     }
     
     const handleSaveAllocations = (allocations: BillAllocation[]) => {
@@ -134,7 +156,7 @@ export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 mt-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>{type} Voucher</CardTitle>
+                            <CardTitle>{isEditMode ? `Edit ${type}` : type} Voucher</CardTitle>
                             <CardDescription>Record a {type.toLowerCase()} transaction.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
@@ -187,7 +209,7 @@ export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <FormField control={form.control} name="paymentMode" render={({ field }) => (
                                                 <FormItem><FormLabel>Payment Mode</FormLabel>
-                                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                    <Select onValueChange={field.onChange} value={field.value}>
                                                         <FormControl><SelectTrigger><SelectValue placeholder="Select Mode" /></SelectTrigger></FormControl>
                                                         <SelectContent>
                                                             {['Card', 'Cheque', 'NEFT/RTGS', 'UPI', 'Cash'].map(mode => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}
@@ -224,13 +246,13 @@ export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
                                 <Alert>
                                     <AlertCircle className="h-4 w-4" />
                                     <AlertDescription>
-                                        This will <span className="font-semibold text-red-600">Debit {debitLedger.ledgerName}</span> and <span className="font-semibold text-green-600">Credit {creditLedger.ledgerName}</span> by {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount)}.
+                                        This will <span className="font-semibold text-green-600">Debit {debitLedger.ledgerName}</span> and <span className="font-semibold text-red-600">Credit {creditLedger.ledgerName}</span> by {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount)}.
                                     </AlertDescription>
                                 </Alert>
                             )}
                         </CardContent>
                         <CardFooter>
-                             <Button type="submit" disabled={form.formState.isSubmitting}>Post {type}</Button>
+                             <Button type="submit" disabled={form.formState.isSubmitting}>{isEditMode ? 'Update' : 'Post'} {type}</Button>
                         </CardFooter>
                     </Card>
                 </form>

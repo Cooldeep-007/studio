@@ -6,7 +6,7 @@ import * as z from 'zod';
 import { PlusCircle, Trash2, CalendarIcon, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mockLedgers } from '@/lib/data';
-import type { Ledger } from '@/lib/types';
+import type { Ledger, Voucher } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -54,15 +54,31 @@ const defaultValues: JournalEntryFormValues = {
   ],
 };
 
-export function JournalEntryForm() {
+interface JournalEntryFormProps {
+    initialData?: Voucher;
+}
+
+export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
     const { toast } = useToast();
     const [ledgers, setLedgers] = React.useState(() => mockLedgers.filter(l => !l.isGroup));
+    const isEditMode = !!initialData;
 
     const form = useForm<JournalEntryFormValues>({
         resolver: zodResolver(journalEntrySchema),
-        defaultValues,
+        defaultValues: isEditMode ? undefined : defaultValues,
         mode: 'onChange',
     });
+
+    React.useEffect(() => {
+        if (initialData) {
+            form.reset({
+                date: new Date(initialData.date),
+                reference: initialData.referenceNumber,
+                narration: initialData.narration,
+                lineItems: initialData.entries.map(e => ({ ledgerId: e.ledgerId, type: e.type, amount: e.amount })),
+            });
+        }
+    }, [initialData, form]);
 
     const { fields, append, remove } = useFieldArray({
         control: form.control,
@@ -83,10 +99,12 @@ export function JournalEntryForm() {
     function onSubmit(data: JournalEntryFormValues) {
         console.log(data);
         toast({
-            title: "Journal Entry Posted",
+            title: `Journal Entry ${isEditMode ? 'Updated' : 'Posted'}`,
             description: "The journal voucher has been successfully saved.",
         });
-        form.reset();
+        if (!isEditMode) {
+            form.reset();
+        }
     }
 
     return (
@@ -94,7 +112,7 @@ export function JournalEntryForm() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 mt-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Journal Entry</CardTitle>
+                        <CardTitle>{isEditMode ? 'Edit Journal Entry' : 'Journal Entry'}</CardTitle>
                         <CardDescription>For adjustments, provisions, and other non-cash/bank transactions.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
@@ -202,7 +220,7 @@ export function JournalEntryForm() {
                         )}
                     </CardContent>
                     <CardFooter>
-                         <Button type="submit" disabled={form.formState.isSubmitting}>Post Entry</Button>
+                         <Button type="submit" disabled={form.formState.isSubmitting}>{isEditMode ? 'Update' : 'Post'} Entry</Button>
                     </CardFooter>
                 </Card>
             </form>

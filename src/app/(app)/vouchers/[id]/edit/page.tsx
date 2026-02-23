@@ -65,22 +65,19 @@ export default function EditVoucherPage() {
         );
     }
 
-    // In a real implementation, you would pass the voucher data to the forms
-    // to pre-populate them, e.g., <SalesInvoiceForm initialData={voucher} />.
-    // For now, we render the blank form.
     switch (voucher.voucherType) {
       case 'Sales':
-        return <SalesInvoiceForm />;
+        return <SalesInvoiceForm initialData={voucher} />;
       case 'Purchase':
         return <NotImplemented type="Purchase" />;
       case 'Payment':
-        return <PaymentReceiptForm type="Payment" />;
+        return <PaymentReceiptForm type="Payment" initialData={voucher} />;
       case 'Receipt':
-        return <PaymentReceiptForm type="Receipt" />;
+        return <PaymentReceiptForm type="Receipt" initialData={voucher} />;
       case 'Contra':
-        return <ContraEntryForm />;
+        return <ContraEntryForm initialData={voucher} />;
       case 'Journal':
-        return <JournalEntryForm />;
+        return <JournalEntryForm initialData={voucher} />;
       case 'Debit Note':
         return <NotImplemented type="Debit Note" />;
       case 'Credit Note':
@@ -99,7 +96,7 @@ export default function EditVoucherPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Edit Voucher</h1>
         <Button variant="outline" onClick={() => router.back()}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Voucher
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Vouchers
         </Button>
       </div>
       

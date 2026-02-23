@@ -17,7 +17,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { mockLedgers, mockItems, mockCompanies } from '@/lib/data';
-import type { Ledger, Item, InvoiceItem, Company } from '@/lib/types';
+import type { Ledger, Item, InvoiceItem, Company, Voucher } from '@/lib/types';
 import { Combobox } from '@/components/ui/combobox';
 import { AddItemSheet } from '@/components/add-item-sheet';
 import { indianStates, gstStateCodes } from '@/lib/constants';
@@ -45,11 +45,16 @@ const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
 };
 
-export function SalesInvoiceForm() {
+interface SalesInvoiceFormProps {
+    initialData?: Voucher;
+}
+
+export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
     const { toast } = useToast();
     const [ledgers] = React.useState<Ledger[]>(() => mockLedgers.filter(l => !l.isGroup));
     const [items, setItems] = React.useState<Item[]>(() => mockItems);
     const [company] = React.useState<Company | undefined>(() => mockCompanies.find(c => c.id === 'comp-001'));
+    const isEditMode = !!initialData;
 
     const form = useForm<FormValues>({
         resolver: zodResolver(salesInvoiceSchema),
@@ -58,6 +63,24 @@ export function SalesInvoiceForm() {
             items: [{ itemId: '', quantity: 1, rate: 0 }],
         },
     });
+
+    React.useEffect(() => {
+        if (initialData && initialData.invoiceDetails) {
+            form.reset({
+                invoiceDate: new Date(initialData.date),
+                dueDate: initialData.invoiceDetails.dueDate ? new Date(initialData.invoiceDetails.dueDate) : undefined,
+                customerLedgerId: initialData.partyLedgerId,
+                placeOfSupply: initialData.invoiceDetails.placeOfSupply,
+                narration: initialData.narration,
+                items: initialData.invoiceDetails.items.map(item => ({
+                    itemId: item.itemId,
+                    description: item.description,
+                    quantity: item.quantity,
+                    rate: item.rate,
+                })),
+            });
+        }
+    }, [initialData, form]);
 
     const { fields, append, remove } = useFieldArray({
         control: form.control,
@@ -134,10 +157,12 @@ export function SalesInvoiceForm() {
     function onSubmit(data: FormValues) {
         console.log({ ...data, calculations });
         toast({
-            title: 'Sales Invoice Created',
+            title: `Sales Invoice ${isEditMode ? 'Updated' : 'Created'}`,
             description: 'The sales voucher has been successfully saved.',
         });
-        form.reset();
+        if (!isEditMode) {
+            form.reset();
+        }
     }
 
     return (
@@ -145,8 +170,8 @@ export function SalesInvoiceForm() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 mt-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Sales Invoice</CardTitle>
-                        <CardDescription>Create a new sales voucher with item details.</CardDescription>
+                        <CardTitle>{isEditMode ? 'Edit Sales Invoice' : 'Sales Invoice'}</CardTitle>
+                        <CardDescription>{isEditMode ? 'Edit the sales voucher.' : 'Create a new sales voucher with item details.'}</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
@@ -218,7 +243,7 @@ export function SalesInvoiceForm() {
 
                     </CardContent>
                     <CardFooter>
-                        <Button type="submit" disabled={form.formState.isSubmitting}>Create Sales Voucher</Button>
+                        <Button type="submit" disabled={form.formState.isSubmitting}>{isEditMode ? 'Update' : 'Create'} Sales Voucher</Button>
                     </CardFooter>
                 </Card>
             </form>

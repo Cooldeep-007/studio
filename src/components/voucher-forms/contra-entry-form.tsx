@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { CalendarIcon, AlertCircle, ArrowRightLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mockLedgers } from '@/lib/data';
+import type { Voucher } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -33,9 +34,14 @@ const contraEntrySchema = z.object({
 
 type FormValues = z.infer<typeof contraEntrySchema>;
 
-export function ContraEntryForm() {
+interface ContraEntryFormProps {
+    initialData?: Voucher;
+}
+
+export function ContraEntryForm({ initialData }: ContraEntryFormProps) {
     const { toast } = useToast();
     const [ledgers] = React.useState(() => mockLedgers.filter(l => !l.isGroup));
+    const isEditMode = !!initialData;
 
     const form = useForm<FormValues>({
         resolver: zodResolver(contraEntrySchema),
@@ -48,6 +54,19 @@ export function ContraEntryForm() {
             referenceNumber: '',
         },
     });
+    
+    React.useEffect(() => {
+        if (initialData) {
+            form.reset({
+                date: new Date(initialData.date),
+                amount: initialData.totalDebit,
+                narration: initialData.narration,
+                referenceNumber: initialData.referenceNumber,
+                fromAccountId: initialData.entries.find(e => e.type === 'Cr')?.ledgerId || '',
+                toAccountId: initialData.entries.find(e => e.type === 'Dr')?.ledgerId || '',
+            });
+        }
+    }, [initialData, form]);
 
     const bankCashLedgerOptions = React.useMemo(() => 
         ledgers
@@ -58,11 +77,13 @@ export function ContraEntryForm() {
 
     function onSubmit(data: FormValues) {
         toast({
-            title: `Contra Voucher Created`,
+            title: `Contra Voucher ${isEditMode ? 'Updated' : 'Created'}`,
             description: "The fund transfer has been successfully recorded.",
         });
         console.log("Form Submitted", data);
-        form.reset();
+        if (!isEditMode) {
+            form.reset();
+        }
     }
 
     const { fromAccountId, toAccountId, amount } = form.watch();
@@ -74,7 +95,7 @@ export function ContraEntryForm() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 mt-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Contra Entry</CardTitle>
+                        <CardTitle>{isEditMode ? 'Edit Contra Entry' : 'Contra Entry'}</CardTitle>
                         <CardDescription>Record a transfer between your cash and bank accounts.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
@@ -130,7 +151,7 @@ export function ContraEntryForm() {
                         )}
                     </CardContent>
                     <CardFooter>
-                         <Button type="submit" disabled={form.formState.isSubmitting}>Post Contra</Button>
+                         <Button type="submit" disabled={form.formState.isSubmitting}>{isEditMode ? 'Update' : 'Post'} Contra</Button>
                     </CardFooter>
                 </Card>
             </form>
