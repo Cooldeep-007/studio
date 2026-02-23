@@ -20,7 +20,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Landmark, PlusCircle } from 'lucide-react';
 import { mockLedgers } from '@/lib/data';
-import type { Ledger } from '@/lib/types';
 
 // Helper function for currency formatting
 const formatCurrency = (amount: number) => {
@@ -53,7 +52,7 @@ export default function BankPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="space-y-1">
             <CardTitle>Total Bank Balance</CardTitle>
             <CardDescription>
@@ -127,5 +126,3 @@ export default function BankPage() {
     </div>
   );
 }
-
-    
