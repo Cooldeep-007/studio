@@ -136,20 +136,17 @@ export async function handleTallyImport(prevState: TallyImportState, formData: F
             ignoreAttributes: false,
             parseAttributeValue: true,
             trimValues: true,
-            // Ensure TALLYMESSAGE and LEDGER are always arrays for consistent processing
             isArray: (tagName) => ['TALLYMESSAGE', 'LEDGER'].includes(tagName),
         });
         const jsonObj = parser.parse(xmlContent);
 
-        // Extract TALLYMESSAGE array, which is now guaranteed by the parser config
         const tallyMessages = jsonObj?.ENVELOPE?.BODY?.IMPORTDATA?.REQUESTDATA?.TALLYMESSAGE;
 
         if (!tallyMessages || !Array.isArray(tallyMessages) || tallyMessages.length === 0) {
             return { message: "No valid TALLYMESSAGE data found in the XML file.", error: "Could not find TALLYMESSAGE array in XML.", preview: null, summary: null };
         }
 
-        // Use flatMap to robustly extract all LEDGER objects from all messages
-        const ledgers: TallyLedger[] = tallyMessages.flatMap((msg: any) => msg.LEDGER || []);
+        const ledgers: TallyLedger[] = tallyMessages.flatMap((msg: any) => (msg.LEDGER ? (Array.isArray(msg.LEDGER) ? msg.LEDGER : [msg.LEDGER]) : []));
 
         if (ledgers.length === 0) {
             return { message: "No ledgers found in the imported Tally file.", preview: null, summary: null };
