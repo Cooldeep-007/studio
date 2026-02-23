@@ -293,7 +293,7 @@ export default function DashboardPage() {
         
         (doc as any).autoTable({
             startY: 40,
-            head: [['Financial Summary', 'Amount']],
+            head: [['Financial Summary', '']],
             headStyles: { halign: 'center', fillColor: [41, 128, 185], colspan: 2 },
             columnStyles: { 1: { halign: 'right' } },
             body: [
@@ -317,17 +317,14 @@ export default function DashboardPage() {
     // Key Balances & Ratios
     (doc as any).autoTable({
         startY: finalY + 10,
-        head: [['Key Balances & Ratios', 'Value']],
+        head: [['Key Balances', ''], ['Outstanding Balances', '']],
         headStyles: { halign: 'center', fillColor: [41, 128, 185] },
-        columnStyles: { 1: { halign: 'right' } },
+        columnStyles: { 1: { halign: 'right' }, 3: { halign: 'right' } },
         body: [
-            ['Cash in Hand', formatCurrencyForPdf(cashFlow.cashInHand)],
-            ['Bank Balance', formatCurrencyForPdf(cashFlow.bankBalance)],
-            ['Outstanding Receivables', formatCurrencyForPdf(cashFlow.receivables)],
-            ['Outstanding Payables', formatCurrencyForPdf(cashFlow.payables)],
-            ['Net Profit %', formatPercentage(ratios.netProfitMargin)],
-            ['Expense Ratio %', formatPercentage(ratios.expenseRatio)],
-            ['GST Liability', formatCurrencyForPdf(ratios.gstLiability)],
+            ['Cash in Hand', formatCurrencyForPdf(cashFlow.cashInHand), 'Net Profit %', formatPercentage(ratios.netProfitMargin)],
+            ['Bank Balance', formatCurrencyForPdf(cashFlow.bankBalance), 'Expense Ratio %', formatPercentage(ratios.expenseRatio)],
+            ['Outstanding Receivables', formatCurrencyForPdf(cashFlow.receivables), 'GST Liability', formatCurrencyForPdf(ratios.gstLiability)],
+            ['Outstanding Payables', formatCurrencyForPdf(cashFlow.payables), 'GST Liability / Revenue %', formatPercentage(ratios.gstLiabilityRatio)],
         ],
         theme: 'grid',
     });
@@ -364,78 +361,126 @@ export default function DashboardPage() {
 
   const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet([]);
+    const aoa: (string | number)[][] = [];
     const companyName = mockCompanies[0]?.companyName || "Pro Accounting";
 
-    // Helpers for Excel
-    const formatCurrencyForExcel = (amount: number) => typeof amount === 'number' ? amount : 0;
-    const formatPercentageForExcel = (value: number) => typeof value === 'number' ? `${value.toFixed(2)}%` : '0.00%';
+    // --- Data Preparation ---
+    const currency = (v: number) => typeof v === 'number' ? v : 0;
+    const percent = (v: number) => typeof v === 'number' ? `${v.toFixed(2)}%` : '0.00%';
 
-    // --- Header ---
-    XLSX.utils.sheet_add_aoa(ws, [[`${companyName} - Dashboard Summary Report`]], { origin: 'A1' });
-    ws['A1'].s = { font: { bold: true, sz: 16 } };
-    XLSX.utils.sheet_add_aoa(ws, [[`Exported on: ${format(new Date(), 'PPP p')}`]], { origin: 'A2' });
-    XLSX.utils.sheet_add_aoa(ws, [[`Period: ${date?.from ? format(date.from, "PP") : ''} to ${date?.to ? format(date.to, "PP") : ''}`]], { origin: 'A3' });
+    aoa.push([`${companyName} - Dashboard Summary Report`]);
+    aoa.push([`Exported on: ${format(new Date(), 'PPP p')}`]);
+    aoa.push([`Period: ${date?.from ? format(date.from, "PP") : ''} to ${date?.to ? format(date.to, "PP") : ''}`]);
+    aoa.push([]); // Spacer
 
-    let currentRow = 5;
+    const sections: { title: string; data: (string | number)[][] }[] = [];
 
-    // --- Financial Summary Section ---
     if (currentPeriodData) {
-      const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
-      XLSX.utils.sheet_add_aoa(ws, [['Financial Summary']], { origin: `A${currentRow}` });
-      ws[`A${currentRow}`].s = { font: { bold: true, sz: 14 } };
-      currentRow++;
-
-      const summaryData = [
-        ['Description', 'Amount'],
-        ['Revenue', formatCurrencyForExcel(totalRevenue)],
-        ['Direct Expenses', formatCurrencyForExcel(totalDirectExpenses)],
-        ['Gross Profit', formatCurrencyForExcel(grossProfit)],
-        ['Indirect Expenses', formatCurrencyForExcel(totalIndirectExpenses)],
-        ['Net Profit', formatCurrencyForExcel(netProfit)],
-      ];
-      XLSX.utils.sheet_add_aoa(ws, summaryData, { origin: `A${currentRow}` });
-      currentRow += summaryData.length + 1; // Add extra space
+      sections.push({
+        title: 'Financial Summary',
+        data: [
+          ['Description', 'Amount'],
+          ['Revenue', currency(currentPeriodData.totalRevenue)],
+          ['Direct Expenses', currency(currentPeriodData.totalDirectExpenses)],
+          ['Gross Profit', currency(currentPeriodData.grossProfit)],
+          ['Indirect Expenses', currency(currentPeriodData.totalIndirectExpenses)],
+          ['Net Profit', currency(currentPeriodData.netProfit)],
+        ],
+      });
     }
 
-    // --- Key Balances & Ratios Section ---
-    XLSX.utils.sheet_add_aoa(ws, [['Key Balances & Ratios']], { origin: `A${currentRow}` });
-    ws[`A${currentRow}`].s = { font: { bold: true, sz: 14 } };
-    currentRow++;
+    sections.push({
+      title: 'Key Balances & Ratios',
+      data: [
+        ['Description', 'Value'],
+        ['Cash in Hand', currency(cashFlow.cashInHand)],
+        ['Bank Balance', currency(cashFlow.bankBalance)],
+        ['Outstanding Receivables', currency(cashFlow.receivables)],
+        ['Outstanding Payables', currency(cashFlow.payables)],
+        ['Net Profit %', percent(ratios.netProfitMargin)],
+        ['Expense Ratio %', percent(ratios.expenseRatio)],
+        ['GST Liability', currency(ratios.gstLiability)],
+      ],
+    });
 
-    const ratiosData = [
-      ['Description', 'Value'],
-      ['Cash in Hand', formatCurrencyForExcel(cashFlow.cashInHand)],
-      ['Bank Balance', formatCurrencyForExcel(cashFlow.bankBalance)],
-      ['Outstanding Receivables', formatCurrencyForExcel(cashFlow.receivables)],
-      ['Outstanding Payables', formatCurrencyForExcel(cashFlow.payables)],
-      ['Net Profit %', formatPercentageForExcel(ratios.netProfitMargin)],
-      ['Expense Ratio %', formatPercentageForExcel(ratios.expenseRatio)],
-      ['GST Liability', formatCurrencyForExcel(ratios.gstLiability)],
-    ];
-    XLSX.utils.sheet_add_aoa(ws, ratiosData, { origin: `A${currentRow}` });
-    currentRow += ratiosData.length + 1;
-
-    // --- TDS / TCS Summary Section ---
-    XLSX.utils.sheet_add_aoa(ws, [['TDS / TCS Summary']], { origin: `A${currentRow}` });
-    ws[`A${currentRow}`].s = { font: { bold: true, sz: 14 } };
-    currentRow++;
-
-    const tdsData = [
+    sections.push({
+      title: 'TDS / TCS Summary',
+      data: [
         ['Description', 'Amount'],
-        ...tdsSummary.breakdown.map(item => [item.name, formatCurrencyForExcel(item.balance)]),
-        ['Total Payable', formatCurrencyForExcel(tdsSummary.totalPayable)],
-    ];
-    XLSX.utils.sheet_add_aoa(ws, tdsData, { origin: `A${currentRow}` });
+        ...tdsSummary.breakdown.map(item => [item.name, currency(item.balance)]),
+        ['Total Payable', currency(tdsSummary.totalPayable)],
+      ],
+    });
+
+    let currentRow = 0;
+    sections.forEach(section => {
+      if (currentRow > 0) {
+        aoa.push([]); // Spacer row
+      }
+      aoa.push([section.title]);
+      aoa.push(...section.data);
+      currentRow = aoa.length;
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
     
-    const tdsTotalRow = currentRow + tdsData.length - 1;
-    ws[`A${tdsTotalRow}`].s = { font: { bold: true } };
-    ws[`B${tdsTotalRow}`].s = { font: { bold: true } };
-
-
-    // --- Column Widths ---
+    // --- Styling ---
     ws['!cols'] = [{ wch: 30 }, { wch: 20 }];
+    ws['!merges'] = [];
+    if (ws['A1']) ws['A1'].s = { font: { bold: true, sz: 16 } };
     
+    const border = { top: { style: "thin" as const }, bottom: { style: "thin" as const }, left: { style: "thin" as const }, right: { style: "thin" as const } };
+    
+    currentRow = 3; // Start after header
+    sections.forEach(section => {
+        currentRow++; // Move to section title row
+        const titleRow = currentRow;
+        ws['!merges']!.push({ s: { r: titleRow, c: 0 }, e: { r: titleRow, c: 1 } });
+        
+        const titleCellRef = XLSX.utils.encode_cell({ r: titleRow, c: 0 });
+        if (ws[titleCellRef]) ws[titleCellRef].s = { font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "4F81BD" } }, alignment: { horizontal: "center" }, border };
+        
+        const mergedCellRef = XLSX.utils.encode_cell({ r: titleRow, c: 1 });
+        if (!ws[mergedCellRef]) ws[mergedCellRef] = {t:'z'};
+        ws[mergedCellRef].s = { fill: { fgColor: { rgb: "4F81BD" } }, border };
+        currentRow++;
+
+        const tableStartRow = currentRow;
+        const tableEndRow = tableStartRow + section.data.length - 1;
+        for (let R = tableStartRow; R <= tableEndRow; R++) {
+            for (let C = 0; C <= 1; C++) {
+                const cellRef = XLSX.utils.encode_cell({ r: R, c: C });
+                if (ws[cellRef]) {
+                    if(!ws[cellRef].s) ws[cellRef].s = {};
+                    ws[cellRef].s.border = border;
+                    if(R === tableStartRow) ws[cellRef].s.font = { bold: true };
+                }
+            }
+        }
+        
+        // Special bold rows
+        if(section.title === 'Financial Summary') {
+            const grossProfitRow = tableStartRow + 3;
+            const netProfitRow = tableStartRow + 5;
+            [grossProfitRow, netProfitRow].forEach(row => {
+                const cellRefA = XLSX.utils.encode_cell({r:row, c:0});
+                const cellRefB = XLSX.utils.encode_cell({r:row, c:1});
+                if (ws[cellRefA] && ws[cellRefA].s) ws[cellRefA].s.font = { bold: true };
+                if (ws[cellRefB] && ws[cellRefB].s) ws[cellRefB].s.font = { bold: true };
+            });
+        }
+        if(section.title === 'TDS / TCS Summary') {
+            const totalRow = tableEndRow;
+            const cellRefA = XLSX.utils.encode_cell({r:totalRow, c:0});
+            const cellRefB = XLSX.utils.encode_cell({r:totalRow, c:1});
+            if (ws[cellRefA] && ws[cellRefA].s) ws[cellRefA].s.font = { bold: true };
+            if (ws[cellRefB] && ws[cellRefB].s) ws[cellRefB].s.font = { bold: true };
+        }
+        
+        currentRow = tableEndRow + 1;
+    });
+
+
     XLSX.utils.book_append_sheet(wb, ws, 'Dashboard');
     XLSX.writeFile(wb, `ProAccounting_Dashboard_${format(new Date(), 'yyyy_MM_dd')}.xlsx`);
   };
