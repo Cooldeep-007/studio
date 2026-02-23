@@ -59,21 +59,9 @@ const badgeColors: Record<VoucherType, string> = {
   'Credit Note': 'bg-indigo-100 text-indigo-800 hover:bg-indigo-100/80',
 };
 
-const getFinancialYearLabel = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    // In India, FY starts in April (month 3)
-    if (month >= 3) {
-        return `FY ${year}-${(year + 1).toString().slice(-2)}`;
-    } else {
-        return `FY ${year - 1}-${year.toString().slice(-2)}`;
-    }
-};
-
 const voucherTypesForFilter: ('All' | VoucherType)[] = ['All', 'Sales', 'Purchase', 'Receipt', 'Payment', 'Journal', 'Contra', 'Debit Note', 'Credit Note'];
 
 export default function VouchersPage() {
-  const [groupBy, setGroupBy] = React.useState('voucherType');
   const [voucherTypeFilter, setVoucherTypeFilter] = React.useState<string>('All');
   const [date, setDate] = React.useState<DateRange | undefined>({
       from: startOfMonth(new Date()),
@@ -101,64 +89,28 @@ export default function VouchersPage() {
   }, [date, voucherTypeFilter]);
 
   const groupedVouchers = React.useMemo(() => {
-    if (groupBy === 'voucherType') {
-      return filteredVouchers.reduce(
-        (acc, voucher) => {
-          const type = voucher.voucherType;
-          if (!acc[type]) {
-            acc[type] = [];
-          }
-          acc[type].push(voucher);
-          return acc;
-        },
-        {} as Record<string, Voucher[]>
-      );
-    }
-    if (groupBy === 'month') {
-        return filteredVouchers.reduce((acc, voucher) => {
-            const monthYear = format(new Date(voucher.date), 'MMMM yyyy');
-            if (!acc[monthYear]) {
-                acc[monthYear] = [];
-            }
-            acc[monthYear].push(voucher);
-            return acc;
-        }, {} as Record<string, Voucher[]>);
-    }
-    if (groupBy === 'financialYear') {
-        return filteredVouchers.reduce((acc, voucher) => {
-            const fyLabel = getFinancialYearLabel(new Date(voucher.date));
-            if (!acc[fyLabel]) {
-                acc[fyLabel] = [];
-            }
-            acc[fyLabel].push(voucher);
-            return acc;
-        }, {} as Record<string, Voucher[]>);
-    }
-    return {};
-  }, [groupBy, filteredVouchers]);
+    return filteredVouchers.reduce(
+      (acc, voucher) => {
+        const type = voucher.voucherType;
+        if (!acc[type]) {
+          acc[type] = [];
+        }
+        acc[type].push(voucher);
+        return acc;
+      },
+      {} as Record<string, Voucher[]>
+    );
+  }, [filteredVouchers]);
   
   const sortedGroupKeys = React.useMemo(() => {
     const keys = Object.keys(groupedVouchers);
-    if (groupBy === 'voucherType') {
-        const voucherTypeOrder: VoucherType[] = ['Sales', 'Purchase', 'Receipt', 'Payment', 'Journal', 'Contra', 'Debit Note', 'Credit Note'];
-        return keys.sort((a, b) => {
-            const aIndex = voucherTypeOrder.indexOf(a as VoucherType);
-            const bIndex = voucherTypeOrder.indexOf(b as VoucherType);
-            return (aIndex > -1 ? aIndex : 99) - (bIndex > -1 ? bIndex : 99);
-        });
-    }
-    if (groupBy === 'month') {
-      return keys.sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-    }
-    if (groupBy === 'financialYear') {
-        return keys.sort((a, b) => {
-             const yearA = parseInt(a.substring(3, 7));
-             const yearB = parseInt(b.substring(3, 7));
-             return yearB - yearA;
-        });
-    }
-    return keys;
-  }, [groupedVouchers, groupBy]);
+    const voucherTypeOrder: VoucherType[] = ['Sales', 'Purchase', 'Receipt', 'Payment', 'Journal', 'Contra', 'Debit Note', 'Credit Note'];
+    return keys.sort((a, b) => {
+        const aIndex = voucherTypeOrder.indexOf(a as VoucherType);
+        const bIndex = voucherTypeOrder.indexOf(b as VoucherType);
+        return (aIndex > -1 ? aIndex : 99) - (bIndex > -1 ? bIndex : 99);
+    });
+  }, [groupedVouchers]);
 
   return (
     <div className="space-y-6">
@@ -169,20 +121,10 @@ export default function VouchersPage() {
             <div className="flex w-full md:w-auto items-center gap-2">
                  <Select value={voucherTypeFilter} onValueChange={setVoucherTypeFilter}>
                     <SelectTrigger className="w-full md:w-[180px]">
-                        <SelectValue placeholder="Filter by Type" />
+                        <SelectValue placeholder="Voucher Type" />
                     </SelectTrigger>
                     <SelectContent>
                        {voucherTypesForFilter.map(type => <SelectItem key={type} value={type}>{type}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Select value={groupBy} onValueChange={setGroupBy}>
-                    <SelectTrigger className="w-full md:w-[150px]">
-                        <SelectValue placeholder="Group by" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="voucherType">Voucher Type</SelectItem>
-                        <SelectItem value="month">Month</SelectItem>
-                        <SelectItem value="financialYear">Financial Year</SelectItem>
                     </SelectContent>
                 </Select>
                 <Link href="/vouchers/create">
@@ -219,13 +161,9 @@ export default function VouchersPage() {
                   <AccordionItem value={`${key}-item`} key={key}>
                     <AccordionTrigger className="hover:no-underline hover:bg-muted/50 px-4 rounded-md">
                       <div className="flex items-center gap-4">
-                        {groupBy === 'voucherType' ? (
-                          <Badge className={badgeColors[key as VoucherType] || 'bg-secondary text-secondary-foreground'}>
-                            {key}
-                          </Badge>
-                        ) : (
-                          <span className="font-semibold text-lg">{key}</span>
-                        )}
+                        <Badge className={badgeColors[key as VoucherType] || 'bg-secondary text-secondary-foreground'}>
+                          {key}
+                        </Badge>
                         <span className="text-muted-foreground">({vouchers.length} vouchers)</span>
                       </div>
                     </AccordionTrigger>
@@ -235,7 +173,7 @@ export default function VouchersPage() {
                           <TableRow>
                             <TableHead className="w-1/4">Date</TableHead>
                             <TableHead className="w-1/4">Voucher No.</TableHead>
-                            <TableHead className="w-1/4">{groupBy === 'voucherType' ? 'Party' : 'Type'}</TableHead>
+                            <TableHead className="w-1/4">Party</TableHead>
                             <TableHead className="text-right w-1/4">Amount</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -245,14 +183,7 @@ export default function VouchersPage() {
                               <TableCell>{format(new Date(voucher.date), 'dd/MM/yyyy')}</TableCell>
                               <TableCell className="font-medium">{voucher.voucherNumber}</TableCell>
                                <TableCell>
-                                 {groupBy === 'voucherType'
-                                   ? ledgerMap.get(voucher.partyLedger) || voucher.partyLedger
-                                   : (
-                                     <Badge className={badgeColors[voucher.voucherType] || 'bg-secondary text-secondary-foreground'}>
-                                       {voucher.voucherType}
-                                     </Badge>
-                                   )
-                                 }
+                                 {ledgerMap.get(voucher.partyLedger) || voucher.partyLedger}
                                </TableCell>
                               <TableCell className="text-right">
                                 {formatCurrency(voucher.totalAmount)}
