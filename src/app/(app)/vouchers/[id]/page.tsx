@@ -3,7 +3,15 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Edit, Printer } from 'lucide-react';
+import {
+  ArrowLeft,
+  Edit,
+  Printer,
+  Download,
+  FileText,
+  FileSpreadsheet,
+  Loader2,
+} from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -20,9 +28,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { useToast } from '@/hooks/use-toast';
 
 import { mockVouchers, mockLedgers } from '@/lib/data';
 import type { Voucher } from '@/lib/types';
@@ -51,6 +69,8 @@ export default function VoucherViewPage() {
   const params = useParams();
   const router = useRouter();
   const voucherId = params.id as string;
+  const { toast } = useToast();
+  const [isExporting, setIsExporting] = React.useState(false);
 
   const voucher: Voucher | undefined = React.useMemo(() => {
     return mockVouchers.find(v => v.id === voucherId);
@@ -58,6 +78,119 @@ export default function VoucherViewPage() {
 
   const ledgerMap = React.useMemo(() => new Map(mockLedgers.map(l => [l.id, l])), []);
   
+  const handleExport = (formatType: 'pdf' | 'xlsx') => {
+    if (!voucher) return;
+    setIsExporting(true);
+    toast({ title: 'Exporting...', description: `Your voucher is being exported as a ${formatType.toUpperCase()} file.` });
+
+    setTimeout(() => {
+      try {
+        if (formatType === 'pdf') {
+          exportVoucherToPdf();
+        } else {
+          exportVoucherToXlsx();
+        }
+        toast({ title: 'Export Successful', description: 'Your file has been downloaded.' });
+      } catch (error) {
+        console.error("Export failed:", error);
+        toast({ variant: 'destructive', title: 'Export Failed', description: 'An unexpected error occurred.' });
+      } finally {
+        setIsExporting(false);
+      }
+    }, 1000);
+  };
+
+  const exportVoucherToPdf = () => {
+    if (!voucher) return;
+    const doc = new jsPDF();
+    const partyLedgerName = voucher.partyLedgerId ? ledgerMap.get(voucher.partyLedgerId)?.ledgerName : 'N/A';
+    
+    doc.setFontSize(18);
+    doc.text(`Voucher: ${voucher.voucherNumber}`, 14, 22);
+    doc.setFontSize(12);
+    doc.text(`Type: ${voucher.voucherType}`, 14, 30);
+    doc.text(`Date: ${format(new Date(voucher.date), 'dd MMM, yyyy')}`, doc.internal.pageSize.getWidth() - 14, 30, { align: 'right' });
+
+    if (voucher.partyLedgerId) {
+      doc.text(`Party: ${partyLedgerName}`, 14, 38);
+    }
+    (doc as any).autoTable({
+      startY: 45,
+      head: [['Particulars', 'Debit', 'Credit']],
+      body: voucher.entries.map(entry => [
+        ledgerMap.get(entry.ledgerId)?.ledgerName || 'Unknown Ledger',
+        entry.type === 'Dr' ? formatCurrency(entry.amount) : '',
+        entry.type === 'Cr' ? formatCurrency(entry.amount) : '',
+      ]),
+      foot: [
+        ['Total', formatCurrency(voucher.totalDebit), formatCurrency(voucher.totalCredit)]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185], halign: 'center' },
+      footStyles: { fontStyle: 'bold' },
+      columnStyles: {
+        1: { halign: 'right' },
+        2: { halign: 'right' },
+      }
+    });
+
+    let finalY = (doc as any).lastAutoTable.finalY;
+
+    if (voucher.narration) {
+      doc.setFontSize(10);
+      doc.text('Narration:', 14, finalY + 10);
+      doc.text(voucher.narration, 14, finalY + 15, { maxWidth: doc.internal.pageSize.getWidth() - 28 });
+    }
+
+    doc.save(`Voucher_${voucher.voucherNumber}.pdf`);
+  };
+
+  const exportVoucherToXlsx = () => {
+    if (!voucher) return;
+    const partyLedgerName = voucher.partyLedgerId ? ledgerMap.get(voucher.partyLedgerId)?.ledgerName : 'N/A';
+
+    const header = [
+      ['Voucher No.', voucher.voucherNumber],
+      ['Voucher Type', voucher.voucherType],
+      ['Date', format(new Date(voucher.date), 'dd-MM-yyyy')],
+    ];
+    if(voucher.partyLedgerId) header.push(['Party', partyLedgerName]);
+    
+    const ws_data = [
+      ...header,
+      [],
+      ['Particulars', 'Debit', 'Credit'],
+      ...voucher.entries.map(entry => [
+        ledgerMap.get(entry.ledgerId)?.ledgerName || 'Unknown Ledger',
+        entry.type === 'Dr' ? entry.amount : null,
+        entry.type === 'Cr' ? entry.amount : null,
+      ]),
+      ['Total', voucher.totalDebit, voucher.totalCredit],
+      [],
+      ['Narration', voucher.narration || '']
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    
+    // Formatting
+    ws['!cols'] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }];
+    const totalRowIndex = header.length + 2 + voucher.entries.length + 1;
+    
+    const numberFormat = '#,##0.00';
+    voucher.entries.forEach((_, index) => {
+        const rowIndex = header.length + 2 + index + 1;
+        if (ws[`B${rowIndex}`]) ws[`B${rowIndex}`].s = { numFmt: numberFormat };
+        if (ws[`C${rowIndex}`]) ws[`C${rowIndex}`].s = { numFmt: numberFormat };
+    });
+    
+    if (ws[`B${totalRowIndex}`]) ws[`B${totalRowIndex}`].s = { font: { bold: true }, numFmt: numberFormat };
+    if (ws[`C${totalRowIndex}`]) ws[`C${totalRowIndex}`].s = { font: { bold: true }, numFmt: numberFormat };
+    
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Voucher');
+    XLSX.writeFile(wb, `Voucher_${voucher.voucherNumber}.xlsx`);
+  };
+
   if (!voucher) {
     return (
       <Card>
@@ -86,6 +219,24 @@ export default function VoucherViewPage() {
             <Button variant="outline">
                 <Printer className="mr-2 h-4 w-4" /> Print
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={isExporting}>
+                    {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                    Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                  <DropdownMenuItem onSelect={() => handleExport('pdf')}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Export as PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => handleExport('xlsx')}>
+                      <FileSpreadsheet className="mr-2 h-4 w-4" />
+                      Export as Excel
+                  </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Link href={`/vouchers/${voucher.id}/edit`}>
                 <Button>
                     <Edit className="mr-2 h-4 w-4" /> Edit Voucher
