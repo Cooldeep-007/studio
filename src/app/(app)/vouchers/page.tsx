@@ -61,7 +61,7 @@ const badgeColors: Record<string, string> = {
   'Proforma Invoice': 'bg-cyan-100 text-cyan-800 hover:bg-cyan-100/80',
 };
 
-const voucherTypesForFilter: string[] = ['All', 'Sales', 'Purchase', 'Journal', 'Debit Note', 'Credit Note', 'Adhoc Invoice', 'Proforma Invoice'];
+const voucherTypesForFilter: string[] = ['All', 'Sales', 'Purchase', 'Debit Note', 'Credit Note', 'Journal', 'Adhoc Invoice', 'Proforma Invoice'];
 
 export default function VouchersPage() {
   const [voucherTypeFilter, setVoucherTypeFilter] = React.useState<string>('All');
@@ -152,7 +152,7 @@ export default function VouchersPage() {
               {sortedGroupKeys.map((key) => {
                 const vouchers = groupedVouchers[key];
                 const totalAmount = vouchers.reduce(
-                  (sum, v) => sum + v.totalAmount,
+                  (sum, v) => sum + v.totalDebit,
                   0
                 );
                 const sortedVouchers = [...vouchers].sort(
@@ -185,10 +185,10 @@ export default function VouchersPage() {
                               <TableCell>{format(new Date(voucher.date), 'dd/MM/yyyy')}</TableCell>
                               <TableCell className="font-medium">{voucher.voucherNumber}</TableCell>
                                <TableCell>
-                                 {ledgerMap.get(voucher.partyLedger) || voucher.partyLedger}
+                                 {ledgerMap.get(voucher.partyLedgerId || '') || voucher.narration}
                                </TableCell>
                               <TableCell className="text-right">
-                                {formatCurrency(voucher.totalAmount)}
+                                {formatCurrency(voucher.totalDebit)}
                               </TableCell>
                             </TableRow>
                           ))}

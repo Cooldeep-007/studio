@@ -144,14 +144,14 @@ export type VoucherType =
   | 'Journal'
   | 'Contra'
   | 'Debit Note'
-  | 'Credit Note';
+  | 'Credit Note'
+  | 'Adhoc Invoice'
+  | 'Proforma Invoice';
 
-export type VoucherLineItem = {
+export type VoucherEntry = {
   ledgerId: string;
+  type: 'Dr' | 'Cr';
   amount: number;
-  taxRate?: number;
-  taxAmount?: number;
-  type?: 'Dr' | 'Cr';
 };
 
 export type Voucher = {
@@ -160,12 +160,21 @@ export type Voucher = {
   voucherType: VoucherType;
   date: Date;
   createdAt: Date;
-  partyLedger: string;
-  lineItems: VoucherLineItem[];
-  totalAmount: number;
+  narration: string;
+  entries: VoucherEntry[];
+  totalDebit: number;
+  totalCredit: number;
+  isReconciled: boolean;
+  reconciliationDate?: Date;
+  isCancelled: boolean;
+  chequeNumber?: string;
+  chequeDate?: Date;
+  instrumentNumber?: string;
+  bankReference?: string;
   firmId: string;
   companyId: string;
-  createdBy: string; // userId
+  createdByUserId: string;
+  partyLedgerId?: string; // Denormalized for quick reference in lists
 };
 
 export type Note = {
@@ -198,5 +207,3 @@ export type ComplianceDueDate = {
   dueDate: Date;
   category: 'GST' | 'TDS/TCS' | 'Income Tax';
 };
-  
-

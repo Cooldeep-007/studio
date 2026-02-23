@@ -229,7 +229,7 @@ export const mockLedgers: Ledger[] = [
   },
   {
     id: 'group-duties-taxes',
-    ledgerName: 'Duties &amp; Taxes',
+    ledgerName: 'Duties & Taxes',
     parentLedgerId: 'group-current-liabilities',
     group: 'Liabilities',
     isGroup: true,
@@ -599,7 +599,7 @@ export const mockLedgers: Ledger[] = [
   },
   {
     id: 'led-salaries',
-    ledgerName: 'Salaries &amp; Wages',
+    ledgerName: 'Salaries & Wages',
     parentLedgerId: 'group-indirect-expenses',
     group: 'Expense',
     isGroup: false,
@@ -741,12 +741,21 @@ export const mockVouchers: Voucher[] = [
     voucherType: 'Sales',
     date: new Date(MOCK_DATA_YEAR, 9, 25),
     createdAt: new Date(MOCK_DATA_YEAR, 9, 25),
-    partyLedger: 'led-04', // Client A
-    lineItems: [{ ledgerId: 'led-01', amount: 10000, taxRate: 18, taxAmount: 1800 }],
-    totalAmount: 11800,
+    narration: 'Sold goods to Client A',
+    partyLedgerId: 'led-04',
+    entries: [
+      { ledgerId: 'led-04', type: 'Dr', amount: 11800 },
+      { ledgerId: 'led-01', type: 'Cr', amount: 10000 },
+      { ledgerId: 'led-cgst', type: 'Cr', amount: 900 },
+      { ledgerId: 'led-sgst', type: 'Cr', amount: 900 },
+    ],
+    totalDebit: 11800,
+    totalCredit: 11800,
     firmId: 'firm-abc',
     companyId: 'comp-001',
-    createdBy: 'user-123',
+    createdByUserId: 'user-123',
+    isReconciled: false,
+    isCancelled: false,
   },
   {
     id: 'vch-002',
@@ -754,12 +763,19 @@ export const mockVouchers: Voucher[] = [
     voucherType: 'Payment',
     date: new Date(MOCK_DATA_YEAR, 9, 26),
     createdAt: new Date(MOCK_DATA_YEAR, 9, 26),
-    partyLedger: 'led-03', // Office Rent
-    lineItems: [{ ledgerId: 'led-hdfc', amount: 25000 }], // Paid from HDFC
-    totalAmount: 25000,
+    narration: 'Paid office rent for October',
+    partyLedgerId: 'led-03',
+    entries: [
+      { ledgerId: 'led-03', type: 'Dr', amount: 25000 },
+      { ledgerId: 'led-hdfc', type: 'Cr', amount: 25000 },
+    ],
+    totalDebit: 25000,
+    totalCredit: 25000,
     firmId: 'firm-abc',
     companyId: 'comp-001',
-    createdBy: 'user-123',
+    createdByUserId: 'user-123',
+    isReconciled: false,
+    isCancelled: false,
   },
   {
     id: 'vch-003',
@@ -767,12 +783,19 @@ export const mockVouchers: Voucher[] = [
     voucherType: 'Receipt',
     date: new Date(MOCK_DATA_YEAR, 9, 27),
     createdAt: new Date(MOCK_DATA_YEAR, 9, 27),
-    partyLedger: 'led-04', // Client A
-    lineItems: [{ ledgerId: 'led-hdfc', amount: 5000 }], // Received in HDFC
-    totalAmount: 5000,
+    narration: 'Received payment from Client A',
+    partyLedgerId: 'led-04',
+    entries: [
+      { ledgerId: 'led-hdfc', type: 'Dr', amount: 5000 },
+      { ledgerId: 'led-04', type: 'Cr', amount: 5000 },
+    ],
+    totalDebit: 5000,
+    totalCredit: 5000,
     firmId: 'firm-abc',
     companyId: 'comp-001',
-    createdBy: 'user-123',
+    createdByUserId: 'user-123',
+    isReconciled: false,
+    isCancelled: false,
   },
   {
     id: 'vch-004',
@@ -780,32 +803,41 @@ export const mockVouchers: Voucher[] = [
     voucherType: 'Purchase',
     date: new Date(MOCK_DATA_YEAR, 10, 1),
     createdAt: new Date(MOCK_DATA_YEAR, 10, 1),
-    partyLedger: 'led-05', // Supplier B
-    lineItems: [
-      {
-        ledgerId: 'led-purchase-account',
-        amount: 20000,
-        taxRate: 12,
-        taxAmount: 2400,
-      },
+    narration: 'Purchased goods from Supplier B',
+    partyLedgerId: 'led-05',
+    entries: [
+      { ledgerId: 'led-purchase-account', type: 'Dr', amount: 20000 },
+      { ledgerId: 'led-cgst', type: 'Dr', amount: 1200 },
+      { ledgerId: 'led-sgst', type: 'Dr', amount: 1200 },
+      { ledgerId: 'led-05', type: 'Cr', amount: 22400 },
     ],
-    totalAmount: 22400,
+    totalDebit: 22400,
+    totalCredit: 22400,
     firmId: 'firm-abc',
     companyId: 'comp-001',
-    createdBy: 'user-123',
+    createdByUserId: 'user-123',
+    isReconciled: false,
+    isCancelled: false,
   },
-  {
+   {
     id: 'vch-005',
     voucherNumber: 'PAY-002',
     voucherType: 'Payment',
     date: new Date(MOCK_DATA_YEAR, 10, 10),
     createdAt: new Date(MOCK_DATA_YEAR, 10, 10),
-    partyLedger: 'led-marketing',
-    lineItems: [{ ledgerId: 'led-hdfc', amount: 12000 }],
-    totalAmount: 12000,
+    narration: 'Paid for marketing services',
+    partyLedgerId: 'led-marketing',
+    entries: [
+      { ledgerId: 'led-marketing', type: 'Dr', amount: 12000 },
+      { ledgerId: 'led-hdfc', type: 'Cr', amount: 12000 },
+    ],
+    totalDebit: 12000,
+    totalCredit: 12000,
     firmId: 'firm-abc',
     companyId: 'comp-001',
-    createdBy: 'user-123',
+    createdByUserId: 'user-123',
+    isReconciled: false,
+    isCancelled: false,
   },
   {
     id: 'vch-006',
@@ -813,14 +845,21 @@ export const mockVouchers: Voucher[] = [
     voucherType: 'Credit Note',
     date: new Date(MOCK_DATA_YEAR, 10, 15),
     createdAt: new Date(MOCK_DATA_YEAR, 10, 15),
-    partyLedger: 'led-04', // Client A
-    lineItems: [
-      { ledgerId: 'led-sales-return', amount: 2000, taxRate: 18, taxAmount: 360 },
+    narration: 'Goods returned by Client A',
+    partyLedgerId: 'led-04',
+    entries: [
+      { ledgerId: 'led-sales-return', type: 'Dr', amount: 2000 },
+      { ledgerId: 'led-cgst', type: 'Dr', amount: 180 },
+      { ledgerId: 'led-sgst', type: 'Dr', amount: 180 },
+      { ledgerId: 'led-04', type: 'Cr', amount: 2360 },
     ],
-    totalAmount: 2360,
+    totalDebit: 2360,
+    totalCredit: 2360,
     firmId: 'firm-abc',
     companyId: 'comp-001',
-    createdBy: 'user-123',
+    createdByUserId: 'user-123',
+    isReconciled: false,
+    isCancelled: false,
   },
   {
     id: 'vch-007',
@@ -828,19 +867,21 @@ export const mockVouchers: Voucher[] = [
     voucherType: 'Debit Note',
     date: new Date(MOCK_DATA_YEAR, 10, 18),
     createdAt: new Date(MOCK_DATA_YEAR, 10, 18),
-    partyLedger: 'led-05', // Supplier B
-    lineItems: [
-      {
-        ledgerId: 'led-purchase-return',
-        amount: 5000,
-        taxRate: 12,
-        taxAmount: 600,
-      },
+    narration: 'Goods returned to Supplier B',
+    partyLedgerId: 'led-05',
+    entries: [
+      { ledgerId: 'led-05', type: 'Dr', amount: 5600 },
+      { ledgerId: 'led-purchase-return', type: 'Cr', amount: 5000 },
+      { ledgerId: 'led-cgst', type: 'Cr', amount: 300 },
+      { ledgerId: 'led-sgst', type: 'Cr', amount: 300 },
     ],
-    totalAmount: 5600,
+    totalDebit: 5600,
+    totalCredit: 5600,
     firmId: 'firm-abc',
     companyId: 'comp-001',
-    createdBy: 'user-123',
+    createdByUserId: 'user-123',
+    isReconciled: false,
+    isCancelled: false,
   },
   {
     id: 'vch-008',
@@ -848,15 +889,19 @@ export const mockVouchers: Voucher[] = [
     voucherType: 'Journal',
     date: new Date(MOCK_DATA_YEAR, 10, 30),
     createdAt: new Date(MOCK_DATA_YEAR, 10, 30),
-    partyLedger: 'led-depreciation', // Dummy party for journal
-    lineItems: [
+    narration: 'Depreciation for the month',
+    partyLedgerId: 'led-depreciation', // Dummy party for journal
+    entries: [
       { ledgerId: 'led-depreciation', type: 'Dr', amount: 5000 },
       { ledgerId: 'led-machinery', type: 'Cr', amount: 5000 },
     ],
-    totalAmount: 5000,
+    totalDebit: 5000,
+    totalCredit: 5000,
     firmId: 'firm-abc',
     companyId: 'comp-001',
-    createdBy: 'user-123',
+    createdByUserId: 'user-123',
+    isReconciled: false,
+    isCancelled: false,
   },
   {
     id: 'vch-009-backdated',
@@ -864,12 +909,19 @@ export const mockVouchers: Voucher[] = [
     voucherType: 'Payment',
     date: new Date(MOCK_DATA_YEAR, 8, 15), // Backdated to September
     createdAt: new Date(MOCK_DATA_YEAR, 10, 1), // Created in November
-    partyLedger: 'led-utilities',
-    lineItems: [{ ledgerId: 'led-cash', amount: 8000 }],
-    totalAmount: 8000,
+    narration: 'Paid for utilities in cash',
+    partyLedgerId: 'led-utilities',
+    entries: [
+      { ledgerId: 'led-utilities', type: 'Dr', amount: 8000 },
+      { ledgerId: 'led-cash', type: 'Cr', amount: 8000 },
+    ],
+    totalDebit: 8000,
+    totalCredit: 8000,
     firmId: 'firm-abc',
     companyId: 'comp-001',
-    createdBy: 'user-123',
+    createdByUserId: 'user-123',
+    isReconciled: false,
+    isCancelled: false,
   },
   {
     id: 'vch-010-prev-fy',
@@ -877,12 +929,20 @@ export const mockVouchers: Voucher[] = [
     voucherType: 'Sales',
     date: new Date(MOCK_DATA_YEAR - 1, 11, 10), // March 10, 2023 (Previous FY)
     createdAt: new Date(MOCK_DATA_YEAR - 1, 11, 10),
-    partyLedger: 'led-04',
-    lineItems: [{ ledgerId: 'led-01', amount: 150000, taxRate: 18, taxAmount: 27000 }],
-    totalAmount: 177000,
+    narration: 'Sales in previous financial year',
+    partyLedgerId: 'led-04',
+    entries: [
+      { ledgerId: 'led-04', type: 'Dr', amount: 177000 },
+      { ledgerId: 'led-01', type: 'Cr', amount: 150000 },
+      { ledgerId: 'led-igst', type: 'Cr', amount: 27000 }, // Assuming inter-state
+    ],
+    totalDebit: 177000,
+    totalCredit: 177000,
     firmId: 'firm-abc',
     companyId: 'comp-001',
-    createdBy: 'user-123',
+    createdByUserId: 'user-123',
+    isReconciled: false,
+    isCancelled: false,
   },
   {
     id: 'vch-011-prev-fy-exp',
@@ -890,14 +950,20 @@ export const mockVouchers: Voucher[] = [
     voucherType: 'Purchase',
     date: new Date(MOCK_DATA_YEAR - 1, 10, 20), // Feb 20, 2023 (Previous FY)
     createdAt: new Date(MOCK_DATA_YEAR - 1, 10, 20),
-    partyLedger: 'led-05',
-    lineItems: [
-      { ledgerId: 'led-purchase-account', amount: 90000, taxRate: 12, taxAmount: 10800 },
+    narration: 'Purchases in previous financial year',
+    partyLedgerId: 'led-05',
+    entries: [
+      { ledgerId: 'led-purchase-account', type: 'Dr', amount: 90000 },
+      { ledgerId: 'led-igst', type: 'Dr', amount: 10800 },
+      { ledgerId: 'led-05', type: 'Cr', amount: 100800 }, // Assuming inter-state
     ],
-    totalAmount: 100800,
+    totalDebit: 100800,
+    totalCredit: 100800,
     firmId: 'firm-abc',
     companyId: 'comp-001',
-    createdBy: 'user-123',
+    createdByUserId: 'user-123',
+    isReconciled: false,
+    isCancelled: false,
   },
 ];
 
