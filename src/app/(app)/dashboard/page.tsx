@@ -103,14 +103,45 @@ const getGrowth = (current: number, previous: number) => {
 };
 
 // --- Data Calculation Logic ---
+const calculateMonthlyBreakdown = (vouchers: Voucher[], ledgers: Ledger[]) => {
+  const monthlyData: Record<string, { revenue: number, expenses: number, profit: number }> = {};
+  const salesLedgers = new Set(ledgers.filter(l => l.group === 'Income' && !l.isGroup).map(l => l.id));
+  const expenseLedgers = new Set(ledgers.filter(l => l.group === 'Expense' && !l.isGroup).map(l => l.id));
+
+  vouchers.forEach(v => {
+    const month = format(new Date(v.date), 'MMM yy');
+    if (!monthlyData[month]) {
+      monthlyData[month] = { revenue: 0, expenses: 0, profit: 0 };
+    }
+    
+    v.entries.forEach(entry => {
+        if (entry.type === 'Cr' && salesLedgers.has(entry.ledgerId)) {
+            monthlyData[month].revenue += entry.amount;
+        }
+        if (entry.type === 'Dr' && expenseLedgers.has(entry.ledgerId)) {
+            monthlyData[month].expenses += entry.amount;
+        }
+    });
+  });
+
+  Object.keys(monthlyData).forEach(month => {
+    monthlyData[month].profit = monthlyData[month].revenue - monthlyData[month].expenses;
+  });
+  
+  return Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })).sort((a,b) => new Date(`01 ${a.name}`).getTime() - new Date(`01 ${b.name}`).getTime());
+}
+
+
 const processFinancials = (vouchers: Voucher[], ledgers: Ledger[], startDate: Date, endDate: Date) => {
     const periodVouchers = vouchers.filter(v => {
         const d = new Date(v.date);
         return d >= startDate && d <= endDate;
     });
 
+    const salesLedgers = new Set(ledgers.filter(l => l.group === 'Income' && !l.isGroup).map(l => l.id));
     const directExpenseLedgers = new Set(ledgers.filter(l => l.parentLedgerId === 'group-purchase-accounts' || l.id === 'led-purchase-account').map(l => l.id));
     const indirectExpenseLedgers = new Set(ledgers.filter(l => l.parentLedgerId === 'group-indirect-expenses').map(l => l.id));
+    const gstLedgers = new Set(ledgers.filter(l => l.parentLedgerId === 'group-duties-taxes' && l.ledgerName.toUpperCase().includes('GST')).map(l => l.id));
     
     let totalRevenue = 0;
     let totalDirectExpenses = 0;
@@ -119,24 +150,34 @@ const processFinancials = (vouchers: Voucher[], ledgers: Ledger[], startDate: Da
     let totalInputGst = 0;
 
     periodVouchers.forEach(v => {
-        if (v.voucherType === 'Sales') {
-            totalRevenue += v.totalAmount - (v.lineItems[0].taxAmount || 0);
-            totalOutputGst += v.lineItems[0].taxAmount || 0;
-        }
-        if (v.voucherType === 'Purchase') {
-            totalDirectExpenses += v.totalAmount - (v.lineItems[0].taxAmount || 0);
-            totalInputGst += v.lineItems[0].taxAmount || 0;
-        }
-        if (v.voucherType === 'Payment' || v.voucherType === 'Journal') {
-            v.lineItems.forEach(li => {
-                if (indirectExpenseLedgers.has(li.ledgerId)) {
-                    const ledger = ledgers.find(l => l.id === li.ledgerId);
-                    if (ledger) {
-                        indirectExpensesBreakdown[ledger.ledgerName] = (indirectExpensesBreakdown[ledger.ledgerName] || 0) + li.amount;
-                    }
+        v.entries.forEach(entry => {
+            // Revenue
+            if (entry.type === 'Cr' && salesLedgers.has(entry.ledgerId)) {
+                totalRevenue += entry.amount;
+            }
+
+            // Direct Expenses
+            if (entry.type === 'Dr' && directExpenseLedgers.has(entry.ledgerId)) {
+                totalDirectExpenses += entry.amount;
+            }
+
+            // Indirect Expenses
+            if (entry.type === 'Dr' && indirectExpenseLedgers.has(entry.ledgerId)) {
+                const ledger = ledgers.find(l => l.id === entry.ledgerId);
+                if (ledger) {
+                    indirectExpensesBreakdown[ledger.ledgerName] = (indirectExpensesBreakdown[ledger.ledgerName] || 0) + entry.amount;
                 }
-            });
-        }
+            }
+
+            // GST
+            if (gstLedgers.has(entry.ledgerId)) {
+                if (entry.type === 'Cr') { // GST on Sales (output)
+                    totalOutputGst += entry.amount;
+                } else if (entry.type === 'Dr') { // GST on Purchase (input)
+                    totalInputGst += entry.amount;
+                }
+            }
+        });
     });
 
     const totalIndirectExpenses = Object.values(indirectExpensesBreakdown).reduce((sum, amount) => sum + amount, 0);
@@ -155,39 +196,6 @@ const processFinancials = (vouchers: Voucher[], ledgers: Ledger[], startDate: Da
         monthlyData: calculateMonthlyBreakdown(periodVouchers, ledgers),
     };
 };
-
-const calculateMonthlyBreakdown = (vouchers: Voucher[], ledgers: Ledger[]) => {
-  const monthlyData: Record<string, { revenue: number, expenses: number, profit: number }> = {};
-
-  vouchers.forEach(v => {
-    const month = format(new Date(v.date), 'MMM yy');
-    if (!monthlyData[month]) {
-      monthlyData[month] = { revenue: 0, expenses: 0, profit: 0 };
-    }
-    if (v.voucherType === 'Sales') {
-      monthlyData[month].revenue += v.totalAmount - (v.lineItems[0].taxAmount || 0);
-    } else if (v.voucherType === 'Purchase' || v.voucherType === 'Payment' || v.voucherType === 'Journal') {
-        const indirectExpenseLedgers = new Set(ledgers.filter(l => l.parentLedgerId === 'group-indirect-expenses').map(l => l.id));
-        const directExpenseLedgers = new Set(ledgers.filter(l => l.parentLedgerId === 'group-purchase-accounts' || l.id === 'led-purchase-account').map(l => l.id));
-
-        v.lineItems.forEach(li => {
-            if (directExpenseLedgers.has(li.ledgerId) || indirectExpenseLedgers.has(li.ledgerId)) {
-                monthlyData[month].expenses += li.amount;
-            }
-        });
-        if (v.voucherType === 'Purchase') { // Add non-tax amount for purchases
-             monthlyData[month].expenses += v.totalAmount - (v.lineItems[0]?.taxAmount || 0)
-        }
-    }
-  });
-
-  Object.keys(monthlyData).forEach(month => {
-    monthlyData[month].profit = monthlyData[month].revenue - monthlyData[month].expenses;
-  });
-  
-  return Object.entries(monthlyData).map(([name, values]) => ({ name, ...values })).sort((a,b) => new Date(`01 ${a.name}`).getTime() - new Date(`01 ${b.name}`).getTime());
-}
-
 
 export default function DashboardPage() {
   const { profile } = useUser();
