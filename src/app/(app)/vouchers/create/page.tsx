@@ -54,7 +54,7 @@ export default function CreateVoucherPage() {
   const context = searchParams.get('context');
   const [voucherType, setVoucherType] = React.useState<string>('');
 
-  const voucherTypes = context === 'bank' ? bankVoucherTypes : allVoucherTypes;
+  const voucherTypes = context === 'bank' || context === 'cash' ? bankVoucherTypes : allVoucherTypes;
 
   const renderVoucherForm = () => {
     switch (voucherType) {

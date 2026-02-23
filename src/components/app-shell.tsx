@@ -62,8 +62,7 @@ const menuItems = [
   { href: '/companies', label: 'Companies', icon: Building, roles: ['Owner', 'Admin'] },
   { href: '/ledgers', label: 'Masters', icon: BookCopy, roles: ['Owner', 'Admin', 'Accountant'] },
   { href: '/vouchers', label: 'Vouchers', icon: Receipt, roles: ['Owner', 'Admin', 'Accountant', 'Staff'] },
-  { href: '/bank', label: 'Bank', icon: Landmark, roles: ['Owner', 'Admin', 'Accountant'] },
-  { href: '/cash', label: 'Cash', icon: Wallet, roles: ['Owner', 'Admin', 'Accountant'] },
+  { href: '/bank', label: 'Cash & Bank', icon: Landmark, roles: ['Owner', 'Admin', 'Accountant'] },
   { href: '/notepad', label: 'Notepad', icon: Notebook, roles: ['Owner', 'Admin', 'Accountant', 'Staff'] },
   { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['Owner', 'Admin', 'Accountant'] },
 ];

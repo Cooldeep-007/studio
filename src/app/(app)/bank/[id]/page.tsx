@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { mockVouchers, mockLedgers } from '@/lib/data';
 import type { DateRange } from 'react-day-picker';
-import { ArrowDown, ArrowUp, Banknote, Landmark, Scale, PlusCircle } from 'lucide-react';
+import { ArrowDown, ArrowUp, Banknote, Landmark, Scale, PlusCircle, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Voucher } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,7 @@ const formatCurrency = (amount: number) => {
 
 export default function BankStatementPage() {
   const params = useParams();
-  const bankLedgerId = params.id as string;
+  const accountLedgerId = params.id as string;
   
   const [vouchers] = React.useState<Voucher[]>(mockVouchers);
   const [date, setDate] = React.useState<DateRange | undefined>({
@@ -45,9 +45,9 @@ export default function BankStatementPage() {
     to: new Date(),
   });
 
-  const bankLedger = React.useMemo(
-    () => mockLedgers.find((l) => l.id === bankLedgerId),
-    [bankLedgerId]
+  const accountLedger = React.useMemo(
+    () => mockLedgers.find((l) => l.id === accountLedgerId),
+    [accountLedgerId]
   );
   const ledgerMap = React.useMemo(
     () => new Map(mockLedgers.map((l) => [l.id, l])),
@@ -55,7 +55,7 @@ export default function BankStatementPage() {
   );
 
   const transactions = React.useMemo(() => {
-    if (!bankLedger) return [];
+    if (!accountLedger) return [];
 
     const relevantVouchers = vouchers
       .filter((v) => {
@@ -63,15 +63,15 @@ export default function BankStatementPage() {
         return (
           (!date?.from || voucherDate >= date.from) &&
           (!date?.to || voucherDate <= date.to) &&
-          v.entries.some((li) => li.ledgerId === bankLedger.id)
+          v.entries.some((li) => li.ledgerId === accountLedger.id)
         );
       })
       .map((v) => {
-        const bankEntry = v.entries.find((li) => li.ledgerId === bankLedger.id)!;
-        const otherEntry = v.entries.find((li) => li.ledgerId !== bankLedger.id);
+        const accountEntry = v.entries.find((li) => li.ledgerId === accountLedger.id)!;
+        const otherEntry = v.entries.find((li) => li.ledgerId !== accountLedger.id);
         
-        const debit = bankEntry.type === 'Dr' ? bankEntry.amount : 0;
-        const credit = bankEntry.type === 'Cr' ? bankEntry.amount : 0;
+        const debit = accountEntry.type === 'Dr' ? accountEntry.amount : 0;
+        const credit = accountEntry.type === 'Cr' ? accountEntry.amount : 0;
 
         return {
           ...v,
@@ -82,43 +82,45 @@ export default function BankStatementPage() {
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
-    let runningBalance = (bankLedger.openingBalance || 0) * (bankLedger.balanceType === 'Cr' ? -1 : 1);
+    let runningBalance = (accountLedger.openingBalance || 0) * (accountLedger.balanceType === 'Cr' ? -1 : 1);
     
     return relevantVouchers.map((tx) => {
       runningBalance += tx.debit - tx.credit;
       return { ...tx, balance: runningBalance };
     });
-  }, [bankLedger, date, ledgerMap, vouchers]);
+  }, [accountLedger, date, ledgerMap, vouchers]);
 
-  const openingBalance = bankLedger ? (bankLedger.openingBalance || 0) * (bankLedger.balanceType === 'Cr' ? -1 : 1) : 0;
+  const openingBalance = accountLedger ? (accountLedger.openingBalance || 0) * (accountLedger.balanceType === 'Cr' ? -1 : 1) : 0;
   const totalInflow = transactions.reduce((sum, tx) => sum + tx.debit, 0);
   const totalOutflow = transactions.reduce((sum, tx) => sum + tx.credit, 0);
   const closingBalance = openingBalance + totalInflow - totalOutflow;
 
-  if (!bankLedger) {
+  if (!accountLedger) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Bank Account Not Found</CardTitle>
-          <CardDescription>The requested bank account could not be found.</CardDescription>
+          <CardTitle>Account Not Found</CardTitle>
+          <CardDescription>The requested cash or bank account could not be found.</CardDescription>
         </CardHeader>
       </Card>
     );
   }
+
+  const isBank = accountLedger.group === 'Bank Accounts';
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Landmark className="h-8 w-8 text-primary" />
-            {bankLedger.ledgerName}
+            {isBank ? <Landmark className="h-8 w-8 text-primary" /> : <Wallet className="h-8 w-8 text-primary" />}
+            {accountLedger.ledgerName}
           </h1>
-          <p className="text-muted-foreground">Bank Statement</p>
+          <p className="text-muted-foreground">{isBank ? 'Bank Statement' : 'Cash Book'}</p>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-2">
             <DateRangePicker date={date} setDate={setDate} />
-             <Link href="/vouchers/create?context=bank">
+             <Link href={`/vouchers/create?context=${isBank ? 'bank' : 'cash'}`}>
                 <Button className="w-full sm:w-auto">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Add Transaction
@@ -140,7 +142,7 @@ export default function BankStatementPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Debits (In)</CardTitle>
+            <CardTitle className="text-sm font-medium">{isBank ? 'Total Debits (In)' : 'Total Cash In'}</CardTitle>
             <ArrowDown className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
@@ -150,7 +152,7 @@ export default function BankStatementPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Credits (Out)</CardTitle>
+            <CardTitle className="text-sm font-medium">{isBank ? 'Total Credits (Out)' : 'Total Cash Out'}</CardTitle>
             <ArrowUp className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
@@ -161,7 +163,7 @@ export default function BankStatementPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Closing Balance</CardTitle>
-            <Banknote className="h-4 w-4 text-muted-foreground" />
+            {isBank ? <Banknote className="h-4 w-4 text-muted-foreground" /> : <Wallet className="h-4 w-4 text-muted-foreground" />}
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(Math.abs(closingBalance))} <span className="text-sm font-medium text-muted-foreground">{closingBalance >= 0 ? 'Dr' : 'Cr'}</span></div>
@@ -174,7 +176,7 @@ export default function BankStatementPage() {
         <CardHeader>
           <CardTitle>Transactions</CardTitle>
           <CardDescription>
-            Detailed view of all bank transactions for the selected period.
+            Detailed view of all {isBank ? 'bank' : 'cash'} transactions for the selected period.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -206,7 +208,7 @@ export default function BankStatementPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={7} className="h-24 text-center">
-                    No bank transactions in this period.
+                    No {isBank ? 'bank' : 'cash'} transactions in this period.
                   </TableCell>
                 </TableRow>
               )}

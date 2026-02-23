@@ -18,7 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Landmark, PlusCircle } from 'lucide-react';
+import { Landmark, PlusCircle, Wallet } from 'lucide-react';
 import { mockLedgers, mockVouchers } from '@/lib/data';
 import type { Ledger } from '@/lib/types';
 
@@ -32,14 +32,14 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function BankPage() {
-  const bankAccounts = React.useMemo(
-    () => mockLedgers.filter((l) => l.group === 'Bank Accounts' && !l.isGroup),
+  const accounts = React.useMemo(
+    () => mockLedgers.filter((l) => (l.group === 'Bank Accounts' || l.ledgerName === 'Cash in Hand') && !l.isGroup),
     []
   );
 
-  const bankBalances = React.useMemo(() => {
+  const accountBalances = React.useMemo(() => {
     const balances = new Map<string, number>();
-    bankAccounts.forEach(acc => {
+    accounts.forEach(acc => {
         const opening = (acc.openingBalance || 0) * (acc.balanceType === 'Cr' ? -1 : 1);
         balances.set(acc.id, opening);
     });
@@ -58,43 +58,43 @@ export default function BankPage() {
         });
     });
     return balances;
-  }, [bankAccounts]);
+  }, [accounts]);
 
 
-  const totalBankBalance = React.useMemo(
-    () => Array.from(bankBalances.values()).reduce((acc, balance) => acc + balance, 0),
-    [bankBalances]
+  const totalBalance = React.useMemo(
+    () => Array.from(accountBalances.values()).reduce((acc, balance) => acc + balance, 0),
+    [accountBalances]
   );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Bank Accounts</h1>
+        <h1 className="text-2xl font-bold">Cash & Bank</h1>
         <Button disabled>
           <PlusCircle className="mr-2 h-4 w-4" />
-          Add New Bank Account
+          Add New Account
         </Button>
       </div>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="space-y-1">
-            <CardTitle>Total Bank Balance</CardTitle>
+            <CardTitle>Total Cash & Bank Balance</CardTitle>
             <CardDescription>
-              Combined balance across all your bank accounts.
+              Combined balance across all your cash and bank accounts.
             </CardDescription>
           </div>
           <div className="text-3xl font-bold tracking-tight">
-            {formatCurrency(totalBankBalance)}
+            {formatCurrency(totalBalance)}
           </div>
         </CardHeader>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Your Bank Accounts</CardTitle>
+          <CardTitle>Your Accounts</CardTitle>
           <CardDescription>
-            A list of all your linked bank accounts. Click on an account to view
+            A list of all your cash and bank accounts. Click on an account to view
             its transaction statement.
           </CardDescription>
         </CardHeader>
@@ -102,7 +102,7 @@ export default function BankPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Bank Name</TableHead>
+                <TableHead>Account Name</TableHead>
                 <TableHead>Account Number</TableHead>
                 <TableHead>Account Type</TableHead>
                 <TableHead>IFSC Code</TableHead>
@@ -110,8 +110,8 @@ export default function BankPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {bankAccounts.length > 0 ? (
-                bankAccounts.map((account) => (
+              {accounts.length > 0 ? (
+                accounts.map((account) => (
                   <TableRow
                     key={account.id}
                     className="hover:bg-muted/50 transition-colors"
@@ -121,7 +121,7 @@ export default function BankPage() {
                         href={`/bank/${account.id}`}
                         className="hover:underline text-primary flex items-center gap-2"
                       >
-                        <Landmark className="h-4 w-4 text-muted-foreground" />
+                        {account.group === 'Bank Accounts' ? <Landmark className="h-4 w-4 text-muted-foreground" /> : <Wallet className="h-4 w-4 text-muted-foreground" />}
                         {account.bankDetails?.bankName || account.ledgerName}
                       </Link>
                     </TableCell>
@@ -129,18 +129,18 @@ export default function BankPage() {
                       {account.bankDetails?.accountNumber || 'N/A'}
                     </TableCell>
                     <TableCell>
-                      {account.bankDetails?.accountType || 'N/A'}
+                      {account.bankDetails?.accountType || (account.ledgerName === 'Cash in Hand' ? 'Cash' : 'N/A')}
                     </TableCell>
                     <TableCell>{account.bankDetails?.ifscCode || 'N/A'}</TableCell>
                     <TableCell className="text-right">
-                      {formatCurrency(bankBalances.get(account.id) || 0)}
+                      {formatCurrency(accountBalances.get(account.id) || 0)}
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center">
-                    No bank accounts found.
+                    No cash or bank accounts found.
                   </TableCell>
                 </TableRow>
               )}
