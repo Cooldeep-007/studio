@@ -9,7 +9,7 @@ export const mockUser: User = {
 };
 
 // Use a fixed year for mock data to avoid hydration issues between server and client rendering
-const MOCK_DATA_YEAR = 2023;
+export const MOCK_DATA_YEAR = 2023;
 
 const financialYearStart = new Date(MOCK_DATA_YEAR, 3, 1); // April 1, 2023
 const financialYearEnd = new Date(MOCK_DATA_YEAR + 1, 2, 31); // March 31, 2024
@@ -909,7 +909,7 @@ export const mockNotes: Note[] = [
     priority: 'High',
     status: 'Pending',
     createdAt: new Date(MOCK_DATA_YEAR, 10, 20),
-    reminderDate: new Date(), // Today
+    reminderDate: new Date(MOCK_DATA_YEAR, 10, 20),
   },
   {
     id: 'note-002',
@@ -918,7 +918,7 @@ export const mockNotes: Note[] = [
     priority: 'High',
     status: 'Pending',
     createdAt: new Date(MOCK_DATA_YEAR, 11, 1),
-    reminderDate: new Date(new Date().setDate(new Date().getDate() + 5)),
+    reminderDate: new Date(MOCK_DATA_YEAR, 11, 6),
   },
   {
     id: 'note-003',

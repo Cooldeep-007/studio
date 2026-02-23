@@ -30,7 +30,7 @@ import {
   PiggyBank
 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
-import { format, subMonths, subYears, differenceInDays } from 'date-fns';
+import { format, subMonths, subYears, differenceInDays, subDays } from 'date-fns';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -77,6 +77,7 @@ import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
 import { mockVouchers, mockLedgers, mockCompanies } from '@/lib/data';
 import type { Voucher, Ledger, Company } from '@/lib/types';
+import { MOCK_DATA_YEAR } from '@/lib/data';
 
 // --- Helper Functions ---
 const formatCurrency = (amount: number, minimumFractionDigits = 2) => {
@@ -243,12 +244,6 @@ export default function DashboardPage() {
       return { currentPeriodData, prevPeriodData, growth, ratios, alerts, cashFlow };
 
   }, [date]);
-
-  const subDays = (date: Date, days: number): Date => {
-    const newDate = new Date(date);
-    newDate.setDate(newDate.getDate() - days);
-    return newDate;
-  }
 
   const handleExport = (formatType: 'pdf' | 'xlsx') => {
     // ... complete rewrite needed
