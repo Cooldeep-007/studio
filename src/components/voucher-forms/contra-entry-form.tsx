@@ -34,6 +34,15 @@ const contraEntrySchema = z.object({
 
 type FormValues = z.infer<typeof contraEntrySchema>;
 
+const defaultValues: Partial<FormValues> = {
+    date: new Date(),
+    amount: 0,
+    fromAccountId: '',
+    toAccountId: '',
+    narration: '',
+    referenceNumber: '',
+};
+
 interface ContraEntryFormProps {
     initialData?: Voucher;
 }
@@ -45,14 +54,7 @@ export function ContraEntryForm({ initialData }: ContraEntryFormProps) {
 
     const form = useForm<FormValues>({
         resolver: zodResolver(contraEntrySchema),
-        defaultValues: {
-            date: new Date(),
-            amount: 0,
-            fromAccountId: '',
-            toAccountId: '',
-            narration: '',
-            referenceNumber: '',
-        },
+        defaultValues: isEditMode ? undefined : defaultValues,
     });
     
     React.useEffect(() => {

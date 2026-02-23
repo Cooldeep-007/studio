@@ -41,6 +41,11 @@ const salesInvoiceSchema = z.object({
 
 type FormValues = z.infer<typeof salesInvoiceSchema>;
 
+const defaultValues: Partial<FormValues> = {
+    invoiceDate: new Date(),
+    items: [{ itemId: '', quantity: 1, rate: 0 }],
+};
+
 const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
 };
@@ -58,10 +63,7 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
 
     const form = useForm<FormValues>({
         resolver: zodResolver(salesInvoiceSchema),
-        defaultValues: {
-            invoiceDate: new Date(),
-            items: [{ itemId: '', quantity: 1, rate: 0 }],
-        },
+        defaultValues: isEditMode ? undefined : defaultValues,
     });
 
     React.useEffect(() => {

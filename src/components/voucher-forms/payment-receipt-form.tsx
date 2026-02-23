@@ -41,6 +41,16 @@ const paymentReceiptSchema = z.object({
 
 type FormValues = z.infer<typeof paymentReceiptSchema>;
 
+const defaultValues: Partial<FormValues> = {
+    date: new Date(),
+    amount: 0,
+    partyLedgerId: '',
+    bankCashLedgerId: '',
+    narration: '',
+    referenceNumber: '',
+    billAllocations: [],
+};
+
 interface PaymentReceiptFormProps {
     type: 'Payment' | 'Receipt';
     initialData?: Voucher;
@@ -55,15 +65,7 @@ export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProp
 
     const form = useForm<FormValues>({
         resolver: zodResolver(paymentReceiptSchema),
-        defaultValues: {
-            date: new Date(),
-            amount: 0,
-            partyLedgerId: '',
-            bankCashLedgerId: '',
-            narration: '',
-            referenceNumber: '',
-            billAllocations: [],
-        },
+        defaultValues: isEditMode ? undefined : defaultValues,
     });
 
     React.useEffect(() => {
