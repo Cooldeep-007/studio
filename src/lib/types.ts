@@ -167,10 +167,10 @@ export type Voucher = {
   isReconciled: boolean;
   reconciliationDate?: Date;
   isCancelled: boolean;
+  paymentMode?: 'Card' | 'Cheque' | 'NEFT/RTGS' | 'UPI' | 'Cash';
+  referenceNumber?: string;
   chequeNumber?: string;
   chequeDate?: Date;
-  instrumentNumber?: string;
-  bankReference?: string;
   firmId: string;
   companyId: string;
   createdByUserId: string;

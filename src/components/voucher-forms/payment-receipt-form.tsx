@@ -6,7 +6,6 @@ import * as z from 'zod';
 import { CalendarIcon, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mockLedgers } from '@/lib/data';
-import type { Ledger } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -18,6 +17,8 @@ import { Textarea } from '../ui/textarea';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { Combobox } from '../ui/combobox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 const paymentReceiptSchema = z.object({
   date: z.date(),
@@ -25,7 +26,10 @@ const paymentReceiptSchema = z.object({
   partyLedgerId: z.string().min(1, "Please select a party ledger."),
   bankCashLedgerId: z.string().min(1, "Please select a bank or cash account."),
   narration: z.string().optional(),
-  reference: z.string().optional(),
+  referenceNumber: z.string().optional(),
+  paymentMode: z.string().optional(),
+  chequeNumber: z.string().optional(),
+  chequeDate: z.date().optional(),
 });
 
 type FormValues = z.infer<typeof paymentReceiptSchema>;
@@ -46,9 +50,11 @@ export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
             partyLedgerId: '',
             bankCashLedgerId: '',
             narration: '',
-            reference: '',
+            referenceNumber: '',
         },
     });
+
+    const paymentMode = form.watch('paymentMode');
 
     const partyLedgerOptions = React.useMemo(() => 
         ledgers
@@ -76,7 +82,7 @@ export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
     }
 
     const partyLabel = type === 'Payment' ? 'Paid To' : 'Received From';
-    const accountLabel = type === 'Payment' ? 'From Account' : 'To Account';
+    const accountLabel = type === 'Payment' ? 'Paid From' : 'Received In';
 
     const { partyLedgerId, bankCashLedgerId, amount } = form.watch();
     const partyLedger = ledgers.find(l => l.id === partyLedgerId);
@@ -101,7 +107,6 @@ export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
                                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent>
                                    </Popover><FormMessage /></FormItem>
                            )} />
-                           <FormField control={form.control} name="reference" render={({ field }) => (<FormItem><FormLabel>Reference</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <FormField control={form.control} name="partyLedgerId" render={({ field }) => (
@@ -128,6 +133,39 @@ export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
                                 <FormMessage />
                             </FormItem>
                         )} />
+                        
+                        <Accordion type="single" collapsible>
+                            <AccordionItem value="more-details">
+                                <AccordionTrigger>More Details</AccordionTrigger>
+                                <AccordionContent className="pt-4 space-y-4">
+                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <FormField control={form.control} name="paymentMode" render={({ field }) => (
+                                            <FormItem><FormLabel>Payment Mode</FormLabel>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                    <FormControl><SelectTrigger><SelectValue placeholder="Select Mode" /></SelectTrigger></FormControl>
+                                                    <SelectContent>
+                                                        {['Card', 'Cheque', 'NEFT/RTGS', 'UPI', 'Cash'].map(mode => <SelectItem key={mode} value={mode}>{mode}</SelectItem>)}
+                                                    </SelectContent>
+                                                </Select>
+                                            <FormMessage /></FormItem>
+                                        )} />
+                                        <FormField control={form.control} name="referenceNumber" render={({ field }) => (<FormItem><FormLabel>Reference Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                     </div>
+                                     {paymentMode === 'Cheque' && (
+                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-md">
+                                             <FormField control={form.control} name="chequeNumber" render={({ field }) => (<FormItem><FormLabel>Cheque Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                             <FormField control={form.control} name="chequeDate" render={({ field }) => (
+                                               <FormItem className="flex flex-col pt-2"><FormLabel className='mb-2'>Cheque Date</FormLabel>
+                                                   <Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                                                       <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent>
+                                                   </Popover><FormMessage /></FormItem>
+                                           )} />
+                                         </div>
+                                     )}
+                                </AccordionContent>
+                            </AccordionItem>
+                        </Accordion>
+
                         <FormField control={form.control} name="narration" render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Narration</FormLabel>
@@ -135,6 +173,7 @@ export function PaymentReceiptForm({ type }: PaymentReceiptFormProps) {
                                 <FormMessage />
                             </FormItem>
                         )} />
+
                         {debitLedger && creditLedger && amount > 0 && (
                             <Alert>
                                 <AlertCircle className="h-4 w-4" />

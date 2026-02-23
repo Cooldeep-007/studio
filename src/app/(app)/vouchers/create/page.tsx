@@ -19,6 +19,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { JournalEntryForm } from '@/components/voucher-forms/journal-entry-form';
 import { PaymentReceiptForm } from '@/components/voucher-forms/payment-receipt-form';
+import { ContraEntryForm } from '@/components/voucher-forms/contra-entry-form';
 import { FileWarning } from 'lucide-react';
 
 
@@ -66,7 +67,7 @@ export default function CreateVoucherPage() {
       case 'Receipt':
         return <PaymentReceiptForm type="Receipt" />;
       case 'Contra':
-        return <JournalEntryForm />;
+        return <ContraEntryForm />;
       case 'Journal Entry':
         return <JournalEntryForm />;
       case 'Debit Note':
