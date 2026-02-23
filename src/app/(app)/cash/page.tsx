@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { mockVouchers, mockLedgers } from '@/lib/data';
 import type { DateRange } from 'react-day-picker';
-import { ArrowDown, ArrowUp, Banknote, Wallet, Scale } from 'lucide-react';
+import { ArrowDown, ArrowUp, Wallet, Scale } from 'lucide-react';
 import { format } from 'date-fns';
 
 const formatCurrency = (amount: number) => {
@@ -55,29 +55,30 @@ export default function CashBookPage() {
         return (
           (!date?.from || voucherDate >= date.from) &&
           (!date?.to || voucherDate <= date.to) &&
-          v.lineItems.some((li) => li.ledgerId === cashLedger.id)
+          v.entries.some((li) => li.ledgerId === cashLedger.id)
         );
       })
       .map((v) => {
-        const cashEntry = v.lineItems.find((li) => li.ledgerId === cashLedger.id)!;
-        const otherEntry = v.lineItems.find((li) => li.ledgerId !== cashLedger.id);
-        let particularsLedgerId = v.partyLedger; // Default for Payment/Receipt
-
-        // For Contra, the particular is the other ledger (the bank)
-        if (v.voucherType === 'Contra' && otherEntry) {
-          particularsLedgerId = otherEntry.ledgerId;
+        const cashEntry = v.entries.find((li) => li.ledgerId === cashLedger.id)!;
+        const otherEntry = v.entries.find((li) => li.ledgerId !== cashLedger.id);
+        
+        let particulars = v.narration || 'Journal Adjustment';
+        if (otherEntry) {
+            particulars = ledgerMap.get(otherEntry.ledgerId)?.ledgerName || particulars;
+        } else if (v.partyLedgerId) {
+            particulars = ledgerMap.get(v.partyLedgerId)?.ledgerName || particulars;
         }
 
         return {
           ...v,
           debit: cashEntry.type === 'Dr' ? cashEntry.amount : 0,
           credit: cashEntry.type === 'Cr' ? cashEntry.amount : 0,
-          particulars: ledgerMap.get(particularsLedgerId)?.ledgerName || v.narration || 'Journal Adjustment',
+          particulars,
         };
       })
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    let runningBalance = cashLedger.openingBalance * (cashLedger.balanceType === 'Cr' ? -1 : 1);
+    let runningBalance = (cashLedger.openingBalance || 0) * (cashLedger.balanceType === 'Cr' ? -1 : 1);
     return cashTransactions.map((tx) => {
       runningBalance += tx.debit - tx.credit;
       return { ...tx, balance: runningBalance };

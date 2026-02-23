@@ -61,7 +61,7 @@ const badgeColors: Record<string, string> = {
   'Proforma Invoice': 'bg-cyan-100 text-cyan-800 hover:bg-cyan-100/80',
 };
 
-const voucherTypesForFilter: string[] = ['All', 'Sales', 'Purchase', 'Debit Note', 'Credit Note', 'Journal', 'Adhoc Invoice', 'Proforma Invoice'];
+const voucherTypesForFilter: string[] = ['All', 'Sales', 'Purchase', 'Payment', 'Receipt', 'Debit Note', 'Credit Note', 'Journal', 'Adhoc Invoice', 'Proforma Invoice'];
 
 export default function VouchersPage() {
   const [voucherTypeFilter, setVoucherTypeFilter] = React.useState<string>('All');

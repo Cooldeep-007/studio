@@ -119,8 +119,8 @@ export default function ReportsPage() {
         let reportRows: VoucherRegisterRow[] = [];
 
         for (const voucher of filteredVouchers) {
-            const partyLedger = ledgerMap.get(voucher.partyLedger);
-            if (!partyLedger) continue;
+            const partyLedger = voucher.partyLedgerId ? ledgerMap.get(voucher.partyLedgerId) : undefined;
+            if (!partyLedger && voucher.voucherType !== 'Journal') continue;
 
             const baseEntry = {
                 date: new Date(voucher.date),
@@ -128,111 +128,102 @@ export default function ReportsPage() {
                 vchNo: voucher.voucherNumber,
             };
 
+            const salesLedger = ledgerMap.get('led-01'); // Domestic Sales
+            const purchaseLedger = ledgerMap.get('led-purchase-account');
+            const salesReturnLedger = ledgerMap.get('led-sales-return');
+            const purchaseReturnLedger = ledgerMap.get('led-purchase-return');
+
+            const findEntry = (type: 'Dr' | 'Cr', excludedLedgers: string[]) => voucher.entries.find(e => e.type === type && !excludedLedgers.includes(e.ledgerId));
+
             switch(voucher.voucherType) {
                 case 'Sales': {
-                    const lineItem = voucher.lineItems[0];
-                    const salesLedger = ledgerMap.get(lineItem.ledgerId);
-                    reportRows.push({ ...baseEntry, particulars: partyLedger.ledgerName, debit: voucher.totalAmount, credit: 0 });
-                    if (salesLedger) {
-                        reportRows.push({ ...baseEntry, particulars: `To ${salesLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: lineItem.amount });
-                    }
-                    if (lineItem.taxAmount && lineItem.taxAmount > 0) {
-                        const partyState = partyLedger.contactDetails?.state || companyState;
-                        if (partyState === companyState) {
-                            reportRows.push({ ...baseEntry, particulars: 'To Output CGST', isSubEntry: true, debit: 0, credit: lineItem.taxAmount / 2 });
-                            reportRows.push({ ...baseEntry, particulars: 'To Output SGST', isSubEntry: true, debit: 0, credit: lineItem.taxAmount / 2 });
-                        } else {
-                            reportRows.push({ ...baseEntry, particulars: 'To Output IGST', isSubEntry: true, debit: 0, credit: lineItem.taxAmount });
-                        }
-                    }
+                    reportRows.push({ ...baseEntry, particulars: partyLedger!.ledgerName, debit: voucher.totalDebit, credit: 0 });
+                    
+                    const salesEntry = voucher.entries.find(e => e.type === 'Cr' && e.ledgerId === salesLedger?.id);
+                    if(salesEntry && salesLedger) reportRows.push({ ...baseEntry, particulars: `To ${salesLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: salesEntry.amount });
+
+                    const taxEntries = voucher.entries.filter(e => e.type === 'Cr' && e.ledgerId !== salesLedger?.id);
+                    taxEntries.forEach(tax => {
+                        const taxLedger = ledgerMap.get(tax.ledgerId);
+                        if(taxLedger) reportRows.push({ ...baseEntry, particulars: `To ${taxLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: tax.amount });
+                    });
                     break;
                 }
                 case 'Purchase': {
-                    const lineItem = voucher.lineItems[0];
-                    const purchaseLedger = ledgerMap.get('led-purchase-account');
-                    if (purchaseLedger) {
-                         reportRows.push({ ...baseEntry, particulars: purchaseLedger.ledgerName, debit: lineItem.amount, credit: 0 });
-                    }
-                    if (lineItem.taxAmount && lineItem.taxAmount > 0) {
-                        const partyState = partyLedger.contactDetails?.state || companyState;
-                        if (partyState === companyState) {
-                             reportRows.push({ ...baseEntry, particulars: 'By Input CGST', debit: lineItem.taxAmount/2, credit: 0 });
-                             reportRows.push({ ...baseEntry, particulars: 'By Input SGST', debit: lineItem.taxAmount/2, credit: 0 });
-                        } else {
-                             reportRows.push({ ...baseEntry, particulars: 'By Input IGST', debit: lineItem.taxAmount, credit: 0 });
-                        }
-                    }
-                     reportRows.push({ ...baseEntry, particulars: `To ${partyLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: voucher.totalAmount });
+                    const purchaseEntry = voucher.entries.find(e => e.type === 'Dr' && e.ledgerId === purchaseLedger?.id);
+                    if (purchaseEntry && purchaseLedger) reportRows.push({ ...baseEntry, particulars: purchaseLedger.ledgerName, debit: purchaseEntry.amount, credit: 0 });
+
+                    const taxEntries = voucher.entries.filter(e => e.type === 'Dr' && e.ledgerId !== purchaseLedger?.id);
+                    taxEntries.forEach(tax => {
+                        const taxLedger = ledgerMap.get(tax.ledgerId);
+                        if (taxLedger) reportRows.push({ ...baseEntry, particulars: `By ${taxLedger.ledgerName}`, debit: tax.amount, credit: 0 });
+                    });
+                    
+                    if (partyLedger) reportRows.push({ ...baseEntry, particulars: `To ${partyLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: voucher.totalCredit });
                     break;
                 }
                 case 'Payment': {
-                    const bankCashLedger = ledgerMap.get(voucher.lineItems[0].ledgerId);
-                    reportRows.push({ ...baseEntry, particulars: partyLedger.ledgerName, debit: voucher.totalAmount, credit: 0 });
+                    const creditEntry = findEntry('Cr', []);
+                    const bankCashLedger = creditEntry ? ledgerMap.get(creditEntry.ledgerId) : undefined;
+                    reportRows.push({ ...baseEntry, particulars: partyLedger!.ledgerName, debit: voucher.totalDebit, credit: 0 });
                     if(bankCashLedger) {
-                        reportRows.push({ ...baseEntry, particulars: `To ${bankCashLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: voucher.totalAmount });
+                        reportRows.push({ ...baseEntry, particulars: `To ${bankCashLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: voucher.totalCredit });
                     }
                     break;
                 }
                 case 'Receipt': {
-                    const bankCashLedger = ledgerMap.get(voucher.lineItems[0].ledgerId);
+                    const debitEntry = findEntry('Dr', []);
+                    const bankCashLedger = debitEntry ? ledgerMap.get(debitEntry.ledgerId) : undefined;
                      if(bankCashLedger) {
-                        reportRows.push({ ...baseEntry, particulars: bankCashLedger.ledgerName, debit: voucher.totalAmount, credit: 0 });
+                        reportRows.push({ ...baseEntry, particulars: bankCashLedger.ledgerName, debit: voucher.totalDebit, credit: 0 });
                      }
-                     reportRows.push({ ...baseEntry, particulars: `To ${partyLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: voucher.totalAmount });
+                     if (partyLedger) reportRows.push({ ...baseEntry, particulars: `To ${partyLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: voucher.totalCredit });
                      break;
                 }
-                case 'Journal': {
-                    let firstDrDone = false;
-                    voucher.lineItems.forEach(item => {
+                case 'Journal':
+                case 'Contra': {
+                    voucher.entries.forEach((item, index) => {
                        const itemLedger = ledgerMap.get(item.ledgerId);
                        if (itemLedger) {
-                            if (item.type === 'Dr' && !firstDrDone) {
-                                reportRows.push({ ...baseEntry, particulars: itemLedger.ledgerName, debit: item.amount, credit: 0 });
-                                firstDrDone = true;
-                            } else if (item.type === 'Dr') {
-                                reportRows.push({ ...baseEntry, particulars: `By ${itemLedger.ledgerName}`, debit: item.amount, credit: 0 });
-                            } else {
-                                reportRows.push({ ...baseEntry, particulars: `To ${itemLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: item.amount });
-                            }
+                            const isFirstDr = item.type === 'Dr' && !voucher.entries.slice(0, index).some(e => e.type === 'Dr');
+                            const prefix = item.type === 'Dr' ? (isFirstDr ? '' : 'By ') : 'To ';
+                            reportRows.push({ 
+                                ...baseEntry, 
+                                particulars: `${prefix}${itemLedger.ledgerName}`,
+                                debit: item.type === 'Dr' ? item.amount : 0, 
+                                credit: item.type === 'Cr' ? item.amount : 0,
+                                isSubEntry: !isFirstDr
+                            });
                        }
                     });
                     break;
                 }
                 case 'Credit Note': {
-                    const lineItem = voucher.lineItems[0];
-                    const salesReturnLedger = ledgerMap.get('led-sales-return');
-                     if(salesReturnLedger) {
-                        reportRows.push({ ...baseEntry, particulars: salesReturnLedger.ledgerName, debit: lineItem.amount, credit: 0 });
+                    const salesReturnEntry = voucher.entries.find(e => e.type === 'Dr' && e.ledgerId === salesReturnLedger?.id);
+                    if(salesReturnEntry && salesReturnLedger) {
+                        reportRows.push({ ...baseEntry, particulars: salesReturnLedger.ledgerName, debit: salesReturnEntry.amount, credit: 0 });
                     }
-                     if (lineItem.taxAmount && lineItem.taxAmount > 0) {
-                        const partyState = partyLedger.contactDetails?.state || companyState;
-                        if (partyState === companyState) {
-                            reportRows.push({ ...baseEntry, particulars: 'By Output CGST', debit: lineItem.taxAmount/2, credit: 0 });
-                            reportRows.push({ ...baseEntry, particulars: 'By Output SGST', debit: lineItem.taxAmount/2, credit: 0 });
-                        } else {
-                            reportRows.push({ ...baseEntry, particulars: 'By Output IGST', debit: lineItem.taxAmount, credit: 0 });
-                        }
-                    }
-                    reportRows.push({ ...baseEntry, particulars: `To ${partyLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: voucher.totalAmount });
+                    const taxEntries = voucher.entries.filter(e => e.type === 'Dr' && e.ledgerId !== salesReturnLedger?.id);
+                    taxEntries.forEach(tax => {
+                        const taxLedger = ledgerMap.get(tax.ledgerId);
+                        if (taxLedger) reportRows.push({ ...baseEntry, particulars: `By ${taxLedger.ledgerName}`, debit: tax.amount, credit: 0 });
+                    });
+                    
+                    if (partyLedger) reportRows.push({ ...baseEntry, particulars: `To ${partyLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: voucher.totalCredit });
                     break;
                 }
                  case 'Debit Note': {
-                    const lineItem = voucher.lineItems[0];
-                    const purchaseReturnLedger = ledgerMap.get('led-purchase-return');
-                    reportRows.push({ ...baseEntry, particulars: partyLedger.ledgerName, debit: voucher.totalAmount, credit: 0 });
+                    reportRows.push({ ...baseEntry, particulars: partyLedger!.ledgerName, debit: voucher.totalDebit, credit: 0 });
 
-                    if (purchaseReturnLedger) {
-                        reportRows.push({ ...baseEntry, particulars: `To ${purchaseReturnLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: lineItem.amount });
+                    const purchaseReturnEntry = voucher.entries.find(e => e.type === 'Cr' && e.ledgerId === purchaseReturnLedger?.id);
+                    if (purchaseReturnEntry && purchaseReturnLedger) {
+                        reportRows.push({ ...baseEntry, particulars: `To ${purchaseReturnLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: purchaseReturnEntry.amount });
                     }
-                    if (lineItem.taxAmount && lineItem.taxAmount > 0) {
-                        const partyState = partyLedger.contactDetails?.state || companyState;
-                        if (partyState === companyState) {
-                            reportRows.push({ ...baseEntry, particulars: 'To Input CGST Reversal', isSubEntry: true, debit: 0, credit: lineItem.taxAmount / 2 });
-                            reportRows.push({ ...baseEntry, particulars: 'To Input SGST Reversal', isSubEntry: true, debit: 0, credit: lineItem.taxAmount / 2 });
-                        } else {
-                            reportRows.push({ ...baseEntry, particulars: 'To Input IGST Reversal', isSubEntry: true, debit: 0, credit: lineItem.taxAmount });
-                        }
-                    }
+                    const taxEntries = voucher.entries.filter(e => e.type === 'Cr' && e.ledgerId !== purchaseReturnLedger?.id);
+                    taxEntries.forEach(tax => {
+                        const taxLedger = ledgerMap.get(tax.ledgerId);
+                        if(taxLedger) reportRows.push({ ...baseEntry, particulars: `To ${taxLedger.ledgerName}`, isSubEntry: true, debit: 0, credit: tax.amount });
+                    });
                     break;
                 }
             }
@@ -307,10 +298,10 @@ export default function ReportsPage() {
                 <TableBody>
                 {voucherRegisterData.rows.map((row, index) => (
                     <TableRow key={index}>
-                        <TableCell>{format(row.date, 'dd-MMM-yyyy')}</TableCell>
+                        <TableCell>{row.isSubEntry ? '' : format(row.date, 'dd-MMM-yyyy')}</TableCell>
                         <TableCell className={cn(row.isSubEntry && "pl-8 text-muted-foreground")}>{row.particulars}</TableCell>
-                        <TableCell>{row.vchType}</TableCell>
-                        <TableCell>{row.vchNo}</TableCell>
+                        <TableCell>{row.isSubEntry ? '' : row.vchType}</TableCell>
+                        <TableCell>{row.isSubEntry ? '' : row.vchNo}</TableCell>
                         <TableCell className="text-right font-mono">{row.debit > 0 ? formatCurrency(row.debit) : ''}</TableCell>
                         <TableCell className="text-right font-mono">{row.credit > 0 ? formatCurrency(row.credit) : ''}</TableCell>
                     </TableRow>

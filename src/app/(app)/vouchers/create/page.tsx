@@ -17,17 +17,21 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { JournalEntryForm } from '@/components/voucher-forms/journal-entry-form';
+import { PaymentReceiptForm } from '@/components/voucher-forms/payment-receipt-form';
 import { FileWarning } from 'lucide-react';
 
 
 const voucherTypes = [
   'Sales Invoice',
   'Purchase Invoice',
+  'Payment',
+  'Receipt',
+  'Contra',
+  'Journal Entry',
   'Debit Note',
   'Credit Note',
   'Adhoc Invoice',
   'Proforma Invoice',
-  'Journal Entry',
 ];
 
 const NotImplemented = ({ type }: { type: string }) => (
@@ -50,6 +54,14 @@ export default function CreateVoucherPage() {
         return <NotImplemented type="Sales Invoice" />;
       case 'Purchase Invoice':
         return <NotImplemented type="Purchase Invoice" />;
+      case 'Payment':
+        return <PaymentReceiptForm type="Payment" />;
+      case 'Receipt':
+        return <PaymentReceiptForm type="Receipt" />;
+      case 'Contra':
+        return <JournalEntryForm />;
+      case 'Journal Entry':
+        return <JournalEntryForm />;
       case 'Debit Note':
         return <NotImplemented type="Debit Note" />;
       case 'Credit Note':
@@ -58,8 +70,6 @@ export default function CreateVoucherPage() {
         return <NotImplemented type="Adhoc Invoice" />;
       case 'Proforma Invoice':
         return <NotImplemented type="Proforma Invoice" />;
-      case 'Journal Entry':
-        return <JournalEntryForm />;
       default:
         return (
           <div className="flex items-center justify-center h-40 mt-6 text-muted-foreground">

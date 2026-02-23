@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   Card,
@@ -23,10 +24,8 @@ import { mockVouchers, mockLedgers } from '@/lib/data';
 import type { DateRange } from 'react-day-picker';
 import { ArrowDown, ArrowUp, Banknote, Landmark, Scale, PlusCircle } from 'lucide-react';
 import { format } from 'date-fns';
-import { useToast } from '@/hooks/use-toast';
-import type { Voucher, Ledger } from '@/lib/types';
+import type { Voucher } from '@/lib/types';
 import { Button } from '@/components/ui/button';
-import { BankEntrySheet } from '@/components/bank-entry-sheet';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', {
@@ -39,9 +38,8 @@ const formatCurrency = (amount: number) => {
 export default function BankStatementPage() {
   const params = useParams();
   const bankLedgerId = params.id as string;
-  const { toast } = useToast();
-
-  const [vouchers, setVouchers] = React.useState<Voucher[]>(mockVouchers);
+  
+  const [vouchers] = React.useState<Voucher[]>(mockVouchers);
   const [date, setDate] = React.useState<DateRange | undefined>({
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     to: new Date(),
@@ -55,14 +53,6 @@ export default function BankStatementPage() {
     () => new Map(mockLedgers.map((l) => [l.id, l])),
     []
   );
-
-  const handleTransactionCreated = (newVoucher: Voucher) => {
-    setVouchers(prev => [...prev, newVoucher]);
-    toast({
-        title: 'Transaction Created',
-        description: `Voucher ${newVoucher.voucherNumber} has been successfully created.`,
-    });
-  };
 
   const transactions = React.useMemo(() => {
     if (!bankLedger) return [];
@@ -128,16 +118,12 @@ export default function BankStatementPage() {
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-2">
             <DateRangePicker date={date} setDate={setDate} />
-            <BankEntrySheet
-                bankLedger={bankLedger}
-                ledgers={mockLedgers}
-                onVoucherCreated={handleTransactionCreated}
-             >
+             <Link href="/vouchers/create">
                 <Button className="w-full sm:w-auto">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Create Transaction
                 </Button>
-            </BankEntrySheet>
+            </Link>
         </div>
       </div>
 
