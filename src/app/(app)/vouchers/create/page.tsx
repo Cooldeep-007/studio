@@ -16,13 +16,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form';
-import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
-import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
-import { CreditNoteForm } from '@/components/voucher-forms/credit-note-form';
 import { JournalEntryForm } from '@/components/voucher-forms/journal-entry-form';
-import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
-import { AdhocInvoiceForm } from '@/components/voucher-forms/adhoc-invoice-form';
+import { FileWarning } from 'lucide-react';
 
 
 const voucherTypes = [
@@ -35,23 +30,34 @@ const voucherTypes = [
   'Journal Entry',
 ];
 
+const NotImplemented = ({ type }: { type: string }) => (
+    <div className="flex items-center justify-center h-40 mt-6 text-muted-foreground border-2 border-dashed rounded-lg">
+        <div className="text-center">
+            <FileWarning className="mx-auto h-8 w-8" />
+            <p className="mt-2 font-semibold">{type} Form</p>
+            <p className="text-sm">This voucher type is not yet implemented.</p>
+        </div>
+    </div>
+);
+
+
 export default function CreateVoucherPage() {
   const [voucherType, setVoucherType] = React.useState<string>('');
 
   const renderVoucherForm = () => {
     switch (voucherType) {
       case 'Sales Invoice':
-        return <SalesInvoiceForm />;
+        return <NotImplemented type="Sales Invoice" />;
       case 'Purchase Invoice':
-        return <PurchaseInvoiceForm />;
+        return <NotImplemented type="Purchase Invoice" />;
       case 'Debit Note':
-        return <DebitNoteForm />;
+        return <NotImplemented type="Debit Note" />;
       case 'Credit Note':
-        return <CreditNoteForm />;
+        return <NotImplemented type="Credit Note" />;
       case 'Adhoc Invoice':
-        return <AdhocInvoiceForm />;
+        return <NotImplemented type="Adhoc Invoice" />;
       case 'Proforma Invoice':
-        return <ProformaInvoiceForm />;
+        return <NotImplemented type="Proforma Invoice" />;
       case 'Journal Entry':
         return <JournalEntryForm />;
       default:
