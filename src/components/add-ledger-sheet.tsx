@@ -60,7 +60,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
-import { Combobox } from "./ui/combobox";
 
 
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
@@ -610,14 +609,20 @@ export function AddLedgerSheet({
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Parent Group <span className="text-destructive">*</span></FormLabel>
-                                <Combobox
-                                    options={parentLedgerOptions}
-                                    value={field.value}
-                                    onChange={field.onChange}
-                                    placeholder="Select a group"
-                                    searchPlaceholder="Search group..."
-                                    emptyText="No groups found."
-                                />
+                                 <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a group" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {parentLedgerOptions.map(option => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                                 <FormMessage />
                             </FormItem>
                         )}
