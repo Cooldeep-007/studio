@@ -50,11 +50,15 @@ export type Ledger = {
   ledgerName: string;
   parentLedgerId?: string;
   group: LedgerGroup;
+  nature: 'Asset' | 'Liability' | 'Income' | 'Expense';
   openingBalance: number;
   currentBalance: number;
   balanceType: BalanceType;
   isGroup: boolean;
   gstApplicable: boolean;
+  isBankAccount?: boolean;
+  isCashAccount?: boolean;
+  isSystem?: boolean;
   gstDetails?: {
     gstType?: 'Regular' | 'Composition' | 'Unregistered' | 'Consumer' | 'SEZ' | 'Export';
     gstin?: string;
