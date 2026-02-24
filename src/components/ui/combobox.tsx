@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -52,16 +51,23 @@ export function Combobox({
   const [searchValue, setSearchValue] = React.useState('');
 
   const handleSelect = (currentValue: string) => {
-    onChange(currentValue === value ? "" : currentValue);
+    onChange(currentValue);
     setOpen(false);
   };
 
   const handleCreate = () => {
     if (onCreate) {
         onCreate(searchValue);
+        setSearchValue('');
         setOpen(false);
     }
   };
+
+  React.useEffect(() => {
+    if (!open) {
+      setSearchValue("");
+    }
+  }, [open]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -103,10 +109,8 @@ export function Combobox({
                 {options.map((option) => (
                   <CommandItem
                     key={option.value}
-                    value={option.label}
-                    onSelect={() => {
-                        handleSelect(option.value);
-                    }}
+                    value={option.value}
+                    onSelect={handleSelect}
                   >
                     <Check
                       className={cn(
