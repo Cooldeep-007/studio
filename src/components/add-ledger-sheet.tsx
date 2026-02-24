@@ -1,8 +1,7 @@
-
 "use client";
 
 import * as React from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "@/hooks/use-toast";
@@ -20,15 +19,6 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
 import {
   Accordion,
   AccordionContent,
@@ -198,10 +188,9 @@ const tdsConfigData = {
 
 const ledgerFormSchema = z.object({
     ledgerName: z.string().min(2, "Ledger name must be at least 2 characters."),
-    parentLedgerId: z.string().min(1, "Parent ledger is required."),
-    isGroup: z.boolean().default(false),
-    ledgerCode: z.string().optional(),
+    parentLedgerId: z.string().min(1, "Please select a valid parent group."),
     group: z.string().optional(),
+    ledgerCode: z.string().optional(),
     openingBalance: z.coerce.number().default(0),
     balanceType: z.enum(['Dr', 'Cr']).default('Dr'),
     
@@ -330,9 +319,8 @@ type LedgerFormValues = z.infer<typeof ledgerFormSchema>;
 const defaultValues: Partial<LedgerFormValues> = {
     ledgerName: "",
     parentLedgerId: "",
-    isGroup: false,
-    ledgerCode: "",
     group: "",
+    ledgerCode: "",
     openingBalance: 0,
     balanceType: 'Dr',
     gstApplicable: false,
@@ -394,93 +382,6 @@ const defaultValues: Partial<LedgerFormValues> = {
     },
 };
 
-const quickGroupSchema = z.object({
-    parentLedgerId: z.string().min(1, "Parent group is required."),
-});
-type QuickGroupFormValues = z.infer<typeof quickGroupSchema>;
-
-function QuickGroupDialog({
-    open,
-    onOpenChange,
-    groupName,
-    parentGroups,
-    onSave,
-}: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    groupName: string;
-    parentGroups: { value: string; label: string }[];
-    onSave: (newGroup: Ledger) => void;
-}) {
-    const form = useForm<QuickGroupFormValues>({
-        resolver: zodResolver(quickGroupSchema),
-        defaultValues: { parentLedgerId: '' },
-    });
-
-    const parentLedgerId = form.watch('parentLedgerId');
-    const selectedParent = parentGroups.find(p => p.value === parentLedgerId);
-
-    const handleSubmit = (data: QuickGroupFormValues) => {
-        const parentLedger = parentGroups.find(p => p.value === data.parentLedgerId);
-        if (!parentLedger) return;
-
-        const newGroup: Ledger = {
-            id: `led-group-${new Date().getTime()}`,
-            ledgerName: groupName,
-            parentLedgerId: data.parentLedgerId,
-            group: 'Assets', // This will be updated by the parent form's logic, but needs a default
-            isGroup: true,
-            openingBalance: 0,
-            currentBalance: 0,
-            balanceType: 'Dr', // Default, can be changed
-            gstApplicable: false,
-            status: 'Active',
-            createdAt: new Date(),
-            lastUpdatedAt: new Date(),
-            firmId: 'firm-abc',
-            companyId: 'comp-001',
-        };
-        onSave(newGroup);
-    };
-
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Create New Group: {groupName}</DialogTitle>
-                    <DialogDescription>
-                        Select a parent group for this new category.
-                    </DialogDescription>
-                </DialogHeader>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                        <FormField
-                            control={form.control}
-                            name="parentLedgerId"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Under (Parent Group)</FormLabel>
-                                    <Combobox
-                                        options={parentGroups}
-                                        value={field.value}
-                                        onChange={field.onChange}
-                                        placeholder="Select a parent..."
-                                    />
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <DialogFooter>
-                            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                            <Button type="submit">Create Group</Button>
-                        </DialogFooter>
-                    </form>
-                </Form>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
 export function AddLedgerSheet({
   open,
   onOpenChange,
@@ -495,11 +396,11 @@ export function AddLedgerSheet({
   initialValues?: Partial<LedgerFormValues>;
 }) {
     const [isSubmitting, setIsSubmitting] = React.useState(false);
-    const [isQuickGroupDialogOpen, setIsQuickGroupDialogOpen] = React.useState(false);
-    const [quickGroupName, setQuickGroupName] = React.useState("");
 
-    const parentLedgers = ledgers.filter(l => l.isGroup);
-    const parentLedgerOptions = parentLedgers.map(p => ({ value: p.id, label: p.ledgerName }));
+    // Groups are simply ledgers with isGroup: true
+    const parentLedgerOptions = ledgers
+        .filter(l => l.isGroup)
+        .map(p => ({ value: p.id, label: p.ledgerName }));
 
     const form = useForm<LedgerFormValues>({
         resolver: zodResolver(ledgerFormSchema),
@@ -576,7 +477,6 @@ export function AddLedgerSheet({
         if (config) {
             form.setValue('tdsTcsConfig.tdsSection', config.section, { shouldValidate: true });
             
-            // Reset deductee type if the new nature of payment doesn't require it
             if (!config.deducteeTypeRequired) {
                 form.setValue('tdsTcsConfig.tdsDeducteeType', undefined);
             }
@@ -600,16 +500,9 @@ export function AddLedgerSheet({
 
     }, [tdsEnabled, isPanMissing, natureOfPayment, deducteeType, form]);
 
-    const handleQuickGroupSave = (newGroup: Ledger) => {
-        onLedgerCreated(newGroup);
-        form.setValue('parentLedgerId', newGroup.id, { shouldValidate: true });
-        setIsQuickGroupDialogOpen(false);
-    };
-
     async function onSubmit(data: LedgerFormValues) {
         setIsSubmitting(true);
         try {
-            // Simulate duplicate check
             const isDuplicate = ledgers.some(
                 (l) => l.ledgerName.toLowerCase().trim() === data.ledgerName.toLowerCase().trim()
             );
@@ -623,7 +516,6 @@ export function AddLedgerSheet({
                 return;
             }
 
-            // Simulate API call
             await new Promise((resolve) => setTimeout(resolve, 1000));
             
             const newLedger: Ledger = {
@@ -631,7 +523,7 @@ export function AddLedgerSheet({
                 ledgerName: data.ledgerName,
                 parentLedgerId: data.parentLedgerId,
                 group: (derivedGroup || 'Assets') as LedgerGroup,
-                isGroup: data.isGroup,
+                isGroup: false, // This form only creates ledgers
                 openingBalance: data.openingBalance,
                 currentBalance: data.openingBalance,
                 balanceType: data.balanceType,
@@ -676,7 +568,6 @@ export function AddLedgerSheet({
     }
     
   return (
-    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-2xl w-full">
         <Form {...form}>
@@ -684,7 +575,7 @@ export function AddLedgerSheet({
             <SheetHeader>
               <SheetTitle>Create New Ledger</SheetTitle>
               <SheetDescription>
-                Fill in the details to create a new ledger in your Chart of Accounts.
+                Add a new account to your Chart of Accounts.
               </SheetDescription>
             </SheetHeader>
             <Separator className="my-4" />
@@ -698,7 +589,6 @@ export function AddLedgerSheet({
                 <TabsTrigger value="advanced">Advanced</TabsTrigger>
               </TabsList>
               
-              {/* GENERAL TAB */}
               <TabsContent value="general" className="space-y-6 pt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
@@ -708,7 +598,7 @@ export function AddLedgerSheet({
                             <FormItem className="md:col-span-2">
                                 <FormLabel>Ledger Name <span className="text-destructive">*</span></FormLabel>
                                 <FormControl>
-                                    <Input placeholder="e.g., Sales Account" {...field} autoFocus/>
+                                    <Input placeholder="e.g., HDFC Bank" {...field} autoFocus/>
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -719,49 +609,23 @@ export function AddLedgerSheet({
                         name="parentLedgerId"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Under (Parent Ledger) <span className="text-destructive">*</span></FormLabel>
+                                <FormLabel>Parent Group <span className="text-destructive">*</span></FormLabel>
                                 <Combobox
                                     options={parentLedgerOptions}
                                     value={field.value}
                                     onChange={field.onChange}
-                                    placeholder="Select a parent group"
-                                    searchPlaceholder="Search or create group..."
-                                    emptyText="No group found."
-                                    onCreate={(value) => {
-                                        setQuickGroupName(value);
-                                        setIsQuickGroupDialogOpen(true);
-                                    }}
+                                    placeholder="Select a group"
+                                    searchPlaceholder="Search group..."
+                                    emptyText="No groups found."
                                 />
                                 <FormMessage />
                             </FormItem>
                         )}
                     />
                     <FormItem>
-                        <FormLabel>Group</FormLabel>
+                        <FormLabel>Primary Nature</FormLabel>
                         <Input disabled value={derivedGroup || 'Select a parent first'} />
                     </FormItem>
-                </div>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="isGroup"
-                        render={({ field }) => (
-                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm col-span-2">
-                                <div className="space-y-0.5">
-                                    <FormLabel>Is a Group?</FormLabel>
-                                    <FormDescription>
-                                        Group ledgers are for classification and cannot have transactions.
-                                    </FormDescription>
-                                </div>
-                                <FormControl>
-                                    <Switch
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                    />
-                                </FormControl>
-                            </FormItem>
-                        )}
-                        />
                 </div>
                 <Separator />
                 <h3 className="text-lg font-medium">Opening Balance</h3>
@@ -803,9 +667,8 @@ export function AddLedgerSheet({
                 </div>
               </TabsContent>
 
-              {/* STATUTORY TAB */}
               <TabsContent value="statutory" className="space-y-6 pt-4">
-                <FormField
+                 <FormField
                     control={form.control}
                     name="gstApplicable"
                     render={({ field }) => (
@@ -954,9 +817,8 @@ export function AddLedgerSheet({
                 </div>
               </TabsContent>
               
-              {/* CONTACT TAB */}
               <TabsContent value="contact" className="space-y-4 pt-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField control={form.control} name="contactDetails.contactPerson" render={({ field }) => (<FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="contactDetails.mobileNumber" render={({ field }) => (<FormItem><FormLabel>Mobile Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                     <FormField control={form.control} name="contactDetails.email" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)} />
@@ -985,7 +847,6 @@ export function AddLedgerSheet({
                 </div>
               </TabsContent>
               
-              {/* ADVANCED TAB */}
               <TabsContent value="advanced" className="space-y-1">
                  <Accordion type="multiple" className="w-full">
                     <AccordionItem value="tds-tcs">
@@ -1089,8 +950,8 @@ export function AddLedgerSheet({
                                       <Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select nature..." /></SelectTrigger></FormControl>
                                           <SelectContent>
                                                <SelectItem value="scrap">Sale of Scrap</SelectItem>
-                                               <SelectItem value="vehicle">Sale of Motor Vehicle (&gt; 10L)</SelectItem>
-                                               <SelectItem value="goods">Sale of Goods (&gt; 50L)</SelectItem>
+                                               <SelectItem value="vehicle">Sale of Motor Vehicle (> 10L)</SelectItem>
+                                               <SelectItem value="goods">Sale of Goods (> 50L)</SelectItem>
                                           </SelectContent>
                                       </Select>
                                       <FormMessage />
@@ -1194,13 +1055,5 @@ export function AddLedgerSheet({
         </Form>
       </SheetContent>
     </Sheet>
-    <QuickGroupDialog
-        open={isQuickGroupDialogOpen}
-        onOpenChange={setIsQuickGroupDialogOpen}
-        groupName={quickGroupName}
-        parentGroups={parentLedgerOptions}
-        onSave={handleQuickGroupSave}
-    />
-    </>
   );
 }

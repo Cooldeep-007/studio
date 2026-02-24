@@ -1,8 +1,8 @@
-
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
+import { Check, ChevronsUpDown } from "lucide-react"
+
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,7 +18,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { ScrollArea } from "./scroll-area"
 
 export interface ComboboxOption {
     value: string;
@@ -33,7 +32,6 @@ interface ComboboxProps {
     searchPlaceholder?: string;
     emptyText?: string;
     className?: string;
-    onCreate?: (value: string) => void;
 }
 
 export function Combobox({
@@ -44,30 +42,10 @@ export function Combobox({
     searchPlaceholder = "Search...",
     emptyText = "No option found.",
     className,
-    onCreate,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
-  const [inputValue, setInputValue] = React.useState("")
 
-  const selectedOption = options.find((option) => option.value === value);
-
-  const handleSelect = (currentValue: string) => {
-    onChange(currentValue === value ? "" : currentValue);
-    setOpen(false);
-  };
-  
-  const handleCreate = () => {
-    if (onCreate) {
-      onCreate(inputValue);
-      setOpen(false);
-    }
-  }
-
-  const filteredOptions = options.filter(option => 
-    option.label.toLowerCase().includes(inputValue.toLowerCase())
-  );
-  
-  const showCreateOption = onCreate && inputValue && !filteredOptions.some(option => option.label.toLowerCase() === inputValue.toLowerCase());
+  const selectedOption = options.find((option) => option.value === value)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -84,43 +62,32 @@ export function Combobox({
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
-          <CommandInput
-            placeholder={searchPlaceholder}
-            onValueChange={setInputValue}
-          />
+          <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
-            <ScrollArea className="max-h-72">
-              <CommandEmpty>
-                {showCreateOption ? (
-                  <CommandItem
-                    onSelect={handleCreate}
-                    className="cursor-pointer"
-                  >
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create "{inputValue}"
-                  </CommandItem>
-                ) : (
-                  <div className="py-6 text-center text-sm">{emptyText}</div>
-                )}
-              </CommandEmpty>
-              <CommandGroup>
-                {filteredOptions.map((option) => (
-                  <CommandItem
-                    key={option.value}
-                    value={option.label}
-                    onSelect={() => handleSelect(option.value)}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        value === option.value ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    {option.label}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </ScrollArea>
+            <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.label}
+                  onSelect={(currentLabel) => {
+                    const selected = options.find(o => o.label.toLowerCase() === currentLabel.toLowerCase());
+                    if (selected) {
+                        onChange(selected.value === value ? "" : selected.value)
+                    }
+                    setOpen(false)
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === option.value ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  {option.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
           </CommandList>
         </Command>
       </PopoverContent>
