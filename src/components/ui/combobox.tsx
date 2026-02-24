@@ -48,7 +48,7 @@ export function Combobox({
     onCreate,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
-  const [search, setSearch] = React.useState(""); // State to hold search query
+  const [search, setSearch] = React.useState("");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -68,22 +68,17 @@ export function Combobox({
         </FormControl>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-        {/* Pass onValueChange to Command to update our search state */}
-        <Command onValueChange={setSearch} filter={(value, search) => {
-            const option = options.find(o => o.value === value);
-            // The default filter in cmdk uses the `value` prop. We want to filter by the label.
-            if (option?.label.toLowerCase().includes(search.toLowerCase())) return 1;
-            return 0;
-        }}>
+        <Command>
           <CommandInput
             placeholder={searchPlaceholder}
+            onValueChange={setSearch}
           />
           <CommandList>
             <ScrollArea className="h-72">
               <CommandEmpty>
                 {onCreate && search ? (
                     <CommandItem
-                        value={search} // Use search as value for creation
+                        value={search}
                         onSelect={() => {
                             onCreate(search);
                             setOpen(false);
