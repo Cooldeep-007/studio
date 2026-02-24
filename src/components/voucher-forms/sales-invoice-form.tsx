@@ -145,8 +145,13 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
 
     const itemOptions = items.map(i => ({ value: i.id, label: i.name }));
     
-    const handleLedgerCreate = (searchValue: string, group: LedgerGroup = 'Sundry Debtor') => {
-        setAddLedgerInitialValues({ ledgerName: searchValue, group });
+    const handleLedgerCreate = (searchValue: string) => {
+        const sundryDebtorsGroup = ledgers.find(l => l.ledgerName === 'Sundry Debtors' && l.isGroup);
+        setAddLedgerInitialValues({
+            ledgerName: searchValue,
+            parentLedgerId: sundryDebtorsGroup?.id,
+            group: 'Sundry Debtor',
+        });
         setIsAddLedgerSheetOpen(true);
     };
 
@@ -268,7 +273,7 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
                                         {...field} 
                                         placeholder="Select customer..."
                                         searchPlaceholder="Search or create customer..."
-                                        onCreate={(value) => handleLedgerCreate(value, 'Sundry Debtor')}
+                                        onCreate={handleLedgerCreate}
                                     />
                                     <FormMessage /></FormItem>
                                 )} />

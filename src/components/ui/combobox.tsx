@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, PlusCircle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -28,6 +28,7 @@ interface ComboboxProps {
     options: ComboboxOption[];
     value?: string;
     onChange: (value: string) => void;
+    onCreate?: (searchValue: string) => void;
     placeholder?: string;
     searchPlaceholder?: string;
     emptyText?: string;
@@ -38,17 +39,36 @@ export function Combobox({
     options,
     value,
     onChange,
+    onCreate,
     placeholder = "Select an option",
     searchPlaceholder = "Search...",
     emptyText = "No option found.",
     className,
 }: ComboboxProps) {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
 
-  const selectedOption = options.find((option) => option.value === value)
+  const selectedOption = options.find((option) => option.value === value);
+
+  const handleSelect = (selectedValue: string) => {
+    onChange(selectedValue === value ? "" : selectedValue);
+    setOpen(false);
+  }
+
+  const handleCreate = () => {
+    if (onCreate) {
+      onCreate(searchQuery);
+      setOpen(false);
+    }
+  }
+  
+  const showCreateOption = onCreate && searchQuery && !options.some(opt => opt.label.toLowerCase() === searchQuery.toLowerCase());
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (!isOpen) setSearchQuery("");
+    }}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -61,22 +81,22 @@ export function Combobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+        <Command shouldFilter={false}>
+          <CommandInput 
+            placeholder={searchPlaceholder} 
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+          />
           <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
+            {(options.filter(opt => opt.label.toLowerCase().includes(searchQuery.toLowerCase()))).length === 0 && !showCreateOption && <CommandEmpty>{emptyText}</CommandEmpty>}
             <CommandGroup>
-              {options.map((option) => (
+              {options
+                .filter(opt => opt.label.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((option) => (
                 <CommandItem
                   key={option.value}
                   value={option.label}
-                  onSelect={(currentLabel) => {
-                    const selected = options.find(o => o.label.toLowerCase() === currentLabel.toLowerCase());
-                    if (selected) {
-                        onChange(selected.value === value ? "" : selected.value)
-                    }
-                    setOpen(false)
-                  }}
+                  onSelect={() => handleSelect(option.value)}
                 >
                   <Check
                     className={cn(
@@ -88,6 +108,15 @@ export function Combobox({
                 </CommandItem>
               ))}
             </CommandGroup>
+            {showCreateOption && (
+              <CommandItem
+                onSelect={handleCreate}
+                className="text-primary cursor-pointer"
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create "{searchQuery}"
+              </CommandItem>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

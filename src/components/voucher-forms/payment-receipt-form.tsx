@@ -21,6 +21,7 @@ import { Combobox } from '../ui/combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { BillAllocationDialog } from '../bill-allocation-dialog';
+import { AddLedgerSheet } from '../add-ledger-sheet';
 
 const paymentReceiptSchema = z.object({
   date: z.date(),
@@ -58,10 +59,13 @@ interface PaymentReceiptFormProps {
 
 export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProps) {
     const { toast } = useToast();
-    const [ledgers] = React.useState(() => mockLedgers.filter(l => !l.isGroup));
+    const [ledgers, setLedgers] = React.useState(() => mockLedgers);
     const [outstandingVouchers, setOutstandingVouchers] = React.useState<Voucher[]>([]);
     const [isAllocationDialogOpen, setIsAllocationDialogOpen] = React.useState(false);
     const isEditMode = !!initialData;
+    const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
+    const [addLedgerInitialValues, setAddLedgerInitialValues] = React.useState<Partial<Ledger> | undefined>();
+    const [activeField, setActiveField] = React.useState<'party' | 'bank' | null>(null);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(paymentReceiptSchema),
@@ -131,6 +135,37 @@ export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProp
         [ledgers]
     );
 
+    const handleCreateLedger = (fieldName: 'party' | 'bank', searchValue: string) => {
+        setActiveField(fieldName);
+        let initialGroup, parentId;
+
+        if (fieldName === 'party') {
+            initialGroup = type === 'Payment' ? 'Sundry Creditor' : 'Sundry Debtor';
+            parentId = ledgers.find(l => l.ledgerName === (type === 'Payment' ? 'Sundry Creditors' : 'Sundry Debtors') && l.isGroup)?.id;
+        } else { // bank
+            initialGroup = 'Bank Accounts';
+            parentId = ledgers.find(l => l.ledgerName === 'Bank Accounts' && l.isGroup)?.id;
+        }
+        
+        setAddLedgerInitialValues({
+            ledgerName: searchValue,
+            parentLedgerId: parentId,
+            group: initialGroup,
+        });
+        setIsAddLedgerSheetOpen(true);
+    };
+
+    const handleLedgerCreated = (newLedger: Ledger) => {
+        setLedgers(prev => [...prev, newLedger]);
+        if (activeField === 'party') {
+            form.setValue('partyLedgerId', newLedger.id, { shouldValidate: true });
+        } else if (activeField === 'bank') {
+            form.setValue('bankCashLedgerId', newLedger.id, { shouldValidate: true });
+        }
+        setActiveField(null);
+    };
+
+
     function onSubmit(data: FormValues) {
         toast({
             title: `${type} Voucher ${isEditMode ? 'Updated' : 'Created'}`,
@@ -180,14 +215,26 @@ export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProp
                                  <FormField control={form.control} name="partyLedgerId" render={({ field }) => (
                                     <FormItem className="flex flex-col">
                                         <FormLabel>{partyLabel} <span className="text-destructive">*</span></FormLabel>
-                                        <Combobox options={partyLedgerOptions} value={field.value} onChange={field.onChange} placeholder={`Select ${partyLabel}...`} />
+                                        <Combobox 
+                                            options={partyLedgerOptions} 
+                                            value={field.value} 
+                                            onChange={field.onChange} 
+                                            placeholder={`Select ${partyLabel}...`}
+                                            onCreate={(value) => handleCreateLedger('party', value)}
+                                        />
                                         <FormMessage />
                                     </FormItem>
                                 )} />
                                  <FormField control={form.control} name="bankCashLedgerId" render={({ field }) => (
                                     <FormItem className="flex flex-col">
                                         <FormLabel>{accountLabel} <span className="text-destructive">*</span></FormLabel>
-                                        <Combobox options={bankCashLedgerOptions} value={field.value} onChange={field.onChange} placeholder="Select Bank/Cash..." />
+                                        <Combobox 
+                                            options={bankCashLedgerOptions} 
+                                            value={field.value} 
+                                            onChange={field.onChange} 
+                                            placeholder="Select Bank/Cash..."
+                                            onCreate={(value) => handleCreateLedger('bank', value)}
+                                        />
                                         <FormMessage />
                                     </FormItem>
                                 )} />
@@ -288,6 +335,13 @@ export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProp
                 paymentAmount={amount}
                 outstandingVouchers={outstandingVouchers}
                 onSave={handleSaveAllocations}
+            />
+            <AddLedgerSheet
+                open={isAddLedgerSheetOpen}
+                onOpenChange={setIsAddLedgerSheetOpen}
+                initialValues={addLedgerInitialValues}
+                ledgers={ledgers}
+                onLedgerCreated={handleLedgerCreated}
             />
         </>
     );

@@ -6,7 +6,7 @@ import * as z from 'zod';
 import { CalendarIcon, AlertCircle, ArrowRightLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mockLedgers } from '@/lib/data';
-import type { Voucher } from '@/lib/types';
+import type { Voucher, Ledger } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import { Textarea } from '../ui/textarea';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { Combobox } from '../ui/combobox';
+import { AddLedgerSheet } from '../add-ledger-sheet';
 
 const contraEntrySchema = z.object({
   date: z.date(),
@@ -49,8 +50,11 @@ interface ContraEntryFormProps {
 
 export function ContraEntryForm({ initialData }: ContraEntryFormProps) {
     const { toast } = useToast();
-    const [ledgers] = React.useState(() => mockLedgers.filter(l => !l.isGroup));
+    const [ledgers, setLedgers] = React.useState(() => mockLedgers);
     const isEditMode = !!initialData;
+    const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
+    const [addLedgerInitialValues, setAddLedgerInitialValues] = React.useState<Partial<Ledger> | undefined>();
+    const [activeField, setActiveField] = React.useState<'from' | 'to' | null>(null);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(contraEntrySchema),
@@ -77,6 +81,28 @@ export function ContraEntryForm({ initialData }: ContraEntryFormProps) {
         [ledgers]
     );
 
+    const handleCreateLedger = (fieldName: 'from' | 'to', searchValue: string) => {
+        setActiveField(fieldName);
+        const bankGroup = ledgers.find(l => l.ledgerName === 'Bank Accounts' && l.isGroup);
+        setAddLedgerInitialValues({
+            ledgerName: searchValue,
+            parentLedgerId: bankGroup?.id,
+            group: 'Bank Accounts',
+        });
+        setIsAddLedgerSheetOpen(true);
+    };
+
+    const handleLedgerCreated = (newLedger: Ledger) => {
+        setLedgers(prev => [...prev, newLedger]);
+        if (activeField === 'from') {
+            form.setValue('fromAccountId', newLedger.id, { shouldValidate: true });
+        } else if (activeField === 'to') {
+            form.setValue('toAccountId', newLedger.id, { shouldValidate: true });
+        }
+        setActiveField(null);
+    };
+
+
     function onSubmit(data: FormValues) {
         toast({
             title: `Contra Voucher ${isEditMode ? 'Updated' : 'Created'}`,
@@ -93,6 +119,7 @@ export function ContraEntryForm({ initialData }: ContraEntryFormProps) {
     const toAccount = ledgers.find(l => l.id === toAccountId);
 
     return (
+        <>
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 mt-6">
                 <Card>
@@ -114,7 +141,13 @@ export function ContraEntryForm({ initialData }: ContraEntryFormProps) {
                             <FormField control={form.control} name="fromAccountId" render={({ field }) => (
                                 <FormItem className="flex flex-col">
                                     <FormLabel>From Account <span className="text-destructive">*</span></FormLabel>
-                                    <Combobox options={bankCashLedgerOptions} value={field.value} onChange={field.onChange} placeholder="Select Source Account..." />
+                                    <Combobox 
+                                        options={bankCashLedgerOptions} 
+                                        value={field.value} 
+                                        onChange={field.onChange} 
+                                        placeholder="Select Source Account..."
+                                        onCreate={(value) => handleCreateLedger('from', value)}
+                                    />
                                     <FormMessage />
                                 </FormItem>
                             )} />
@@ -122,7 +155,13 @@ export function ContraEntryForm({ initialData }: ContraEntryFormProps) {
                             <FormField control={form.control} name="toAccountId" render={({ field }) => (
                                 <FormItem className="flex flex-col">
                                     <FormLabel>To Account <span className="text-destructive">*</span></FormLabel>
-                                    <Combobox options={bankCashLedgerOptions} value={field.value} onChange={field.onChange} placeholder="Select Destination Account..." />
+                                    <Combobox 
+                                        options={bankCashLedgerOptions} 
+                                        value={field.value} 
+                                        onChange={field.onChange} 
+                                        placeholder="Select Destination Account..."
+                                        onCreate={(value) => handleCreateLedger('to', value)}
+                                    />
                                     <FormMessage />
                                 </FormItem>
                             )} />
@@ -158,5 +197,13 @@ export function ContraEntryForm({ initialData }: ContraEntryFormProps) {
                 </Card>
             </form>
         </Form>
+         <AddLedgerSheet
+            open={isAddLedgerSheetOpen}
+            onOpenChange={setIsAddLedgerSheetOpen}
+            initialValues={addLedgerInitialValues}
+            ledgers={ledgers}
+            onLedgerCreated={handleLedgerCreated}
+        />
+        </>
     );
 }
