@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -69,11 +70,17 @@ const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
 };
 
-export function AdhocVoucherForm() {
+interface AdhocVoucherFormProps {
+    initialData?: Voucher;
+}
+
+
+export function AdhocVoucherForm({ initialData }: AdhocVoucherFormProps) {
     const { toast } = useToast();
     const [ledgers, setLedgers] = React.useState<Ledger[]>(() => mockLedgers);
     const [items, setItems] = React.useState<Item[]>(() => mockItems);
     const [company] = React.useState<Company | undefined>(() => mockCompanies.find(c => c.id === 'comp-001'));
+    const isEditMode = !!initialData;
     
     const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
     const [addLedgerInitialValues, setAddLedgerInitialValues] = React.useState<Partial<Ledger> | undefined>();
@@ -83,9 +90,44 @@ export function AdhocVoucherForm() {
 
     const form = useForm<FormValues>({
         resolver: zodResolver(adhocVoucherSchema),
-        defaultValues,
+        defaultValues: isEditMode ? undefined : defaultValues,
     });
     
+    React.useEffect(() => {
+        if (isEditMode && initialData?.invoiceDetails) { // check for invoiceDetails to be safe
+            form.reset({
+                voucherType: initialData.voucherType as 'Adhoc Sale' | 'Adhoc Purchase',
+                voucherDate: new Date(initialData.date),
+                partyLedgerId: initialData.partyLedgerId,
+                referenceNo: initialData.referenceNumber,
+                placeOfSupply: initialData.invoiceDetails.placeOfSupply,
+                remarks: initialData.narration,
+                isGstApplicable: true, 
+                isReverseCharge: initialData.invoiceDetails.isReverseCharge,
+                tdsApplicable: initialData.invoiceDetails.tdsAmount ? initialData.invoiceDetails.tdsAmount > 0 : false,
+                tcsApplicable: initialData.invoiceDetails.tcsAmount ? initialData.invoiceDetails.tcsAmount > 0 : false,
+                items: initialData.invoiceDetails.items.map(item => ({
+                    itemId: item.itemId,
+                    description: item.description,
+                    quantity: item.quantity,
+                    rate: item.rate,
+                    discount: item.discount,
+                })),
+            });
+        } else if (isEditMode && initialData) {
+             form.reset({
+                voucherType: initialData.voucherType as 'Adhoc Sale' | 'Adhoc Purchase',
+                voucherDate: new Date(initialData.date),
+                partyLedgerId: initialData.partyLedgerId,
+                referenceNo: initialData.referenceNumber,
+                remarks: initialData.narration,
+                // Items might not be available in a structured way for non-invoice vouchers
+                // This will at least populate the header fields
+                items: [{ itemId: '', quantity: 1, rate: 0, discount: 0 }],
+            });
+        }
+    }, [initialData, isEditMode, form]);
+
     const watchedForm = useWatch({ control: form.control });
     const { voucherType, partyLedgerId } = watchedForm;
 
@@ -224,10 +266,12 @@ export function AdhocVoucherForm() {
     function onSubmit(data: FormValues) {
         console.log({ ...data, calculations });
         toast({
-            title: `${data.voucherType} Created`,
+            title: `${data.voucherType} ${isEditMode ? 'Updated' : 'Created'}`,
             description: 'The voucher has been successfully saved.',
         });
-        form.reset(defaultValues);
+        if (!isEditMode) {
+            form.reset(defaultValues);
+        }
     }
 
     return (
@@ -236,8 +280,8 @@ export function AdhocVoucherForm() {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 mt-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>New Adhoc Voucher</CardTitle>
-                            <CardDescription>Voucher No: <span className="font-mono text-primary">FY24-AUTO-ADHOC</span></CardDescription>
+                            <CardTitle>{isEditMode ? 'Edit Adhoc Voucher' : 'New Adhoc Voucher'}</CardTitle>
+                            <CardDescription>Voucher No: <span className="font-mono text-primary">{isEditMode && initialData ? initialData.voucherNumber : 'FY24-AUTO-ADHOC'}</span></CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <FormField control={form.control} name="voucherType" render={({ field }) => (
@@ -315,7 +359,7 @@ export function AdhocVoucherForm() {
                                 </div>
                             </div>
                         </CardContent>
-                        <CardFooter><Button type="submit" disabled={form.formState.isSubmitting}>Create Adhoc Voucher</Button></CardFooter>
+                        <CardFooter><Button type="submit" disabled={form.formState.isSubmitting}>{isEditMode ? 'Update' : 'Create'} Adhoc Voucher</Button></CardFooter>
                     </Card>
                 </form>
             </Form>

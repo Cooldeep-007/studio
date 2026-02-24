@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -24,7 +23,7 @@ import { PaymentReceiptForm } from '@/components/voucher-forms/payment-receipt-f
 import { ContraEntryForm } from '@/components/voucher-forms/contra-entry-form';
 import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form';
 import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
-import { AdhocVoucherForm } from '@/components/voucher-forms/adhoc-voucher-form';
+import { AdhocVoucherForm } from '@/components/voucher-forms/adhoc-invoice-form';
 import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
 import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
 import { CreditNoteForm } from '@/components/voucher-forms/credit-note-form';

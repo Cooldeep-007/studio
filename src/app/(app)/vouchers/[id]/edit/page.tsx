@@ -16,7 +16,7 @@ import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form'
 import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
 import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
 import { CreditNoteForm } from '@/components/voucher-forms/credit-note-form';
-import { AdhocVoucherForm } from '@/components/voucher-forms/adhoc-voucher-form';
+import { AdhocVoucherForm } from '@/components/voucher-forms/adhoc-invoice-form';
 import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
 import { mockVouchers } from '@/lib/data';
 import type { Voucher } from '@/lib/types';
