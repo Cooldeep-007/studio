@@ -42,7 +42,9 @@ export type LedgerGroup =
   | 'Expense'
   | 'Sundry Debtor'
   | 'Sundry Creditor'
-  | 'Bank Accounts';
+  | 'Bank Accounts'
+  | 'Current Assets'
+  | 'Cash-in-Hand';
 export type BalanceType = 'Dr' | 'Cr';
 
 export type Ledger = {
@@ -52,13 +54,14 @@ export type Ledger = {
   group: LedgerGroup;
   nature: 'Asset' | 'Liability' | 'Income' | 'Expense';
   openingBalance: number;
-  currentBalance: number;
+  currentBalance: number; // This will be dynamically calculated
   balanceType: BalanceType;
   isGroup: boolean;
   gstApplicable: boolean;
   isBankAccount?: boolean;
   isCashAccount?: boolean;
   isSystem?: boolean;
+  responsiblePerson?: string;
   gstDetails?: {
     gstType?: 'Regular' | 'Composition' | 'Unregistered' | 'Consumer' | 'SEZ' | 'Export';
     gstin?: string;
@@ -90,9 +93,10 @@ export type Ledger = {
     ifscCode?: string;
     bankName?: string;
     branch?: string;
-    accountType?: 'Savings' | 'Current' | 'OD';
+    accountType?: 'Savings' | 'Current' | 'OD' | 'CC';
     micrCode?: string;
     upiId?: string;
+    swiftCode?: string;
   };
   creditControl?: {
     creditLimit?: number;

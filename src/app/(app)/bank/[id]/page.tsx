@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -22,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { DateRangePicker } from '@/components/date-range-picker';
 import { mockVouchers, mockLedgers } from '@/lib/data';
 import type { DateRange } from 'react-day-picker';
-import { ArrowDown, ArrowUp, Banknote, Landmark, Scale, PlusCircle, Wallet } from 'lucide-react';
+import { ArrowDown, ArrowUp, Banknote, Landmark, Scale, PlusCircle, Wallet, FileInput, Repeat, ArrowRightLeft, HandCoins } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Voucher } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -106,7 +107,7 @@ export default function BankStatementPage() {
     );
   }
 
-  const isBank = accountLedger.group === 'Bank Accounts';
+  const isBank = accountLedger.isBankAccount;
 
   return (
     <div className="space-y-6">
@@ -128,6 +129,21 @@ export default function BankStatementPage() {
             </Link>
         </div>
       </div>
+      
+       <div className="flex justify-end gap-2">
+            {isBank ? (
+                <>
+                    <Button variant="outline" disabled><FileInput className="mr-2 h-4 w-4" /> Import Bank Statement</Button>
+                    <Button variant="outline" disabled><Repeat className="mr-2 h-4 w-4" /> Reconcile</Button>
+                </>
+            ) : (
+                 <>
+                    <Button variant="outline" disabled><ArrowRightLeft className="mr-2 h-4 w-4" /> Cash Transfer</Button>
+                    <Button variant="outline" disabled><HandCoins className="mr-2 h-4 w-4" /> Cash Replenishment</Button>
+                </>
+            )}
+        </div>
+
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
