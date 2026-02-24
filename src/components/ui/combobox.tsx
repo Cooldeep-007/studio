@@ -81,13 +81,7 @@ export function Combobox({
         </FormControl>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-        <Command
-           filter={(value, search) => {
-            const item = options.find(o => o.label === value);
-            if (item?.label.toLowerCase().includes(search.toLowerCase())) return 1
-            return 0
-          }}
-        >
+        <Command>
           <CommandInput 
             placeholder={searchPlaceholder} 
             value={searchValue}
