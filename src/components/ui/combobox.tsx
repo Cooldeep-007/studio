@@ -51,7 +51,7 @@ export function Combobox({
   const selectedOption = options.find((option) => option.value === value);
 
   const handleSelect = (selectedValue: string) => {
-    onChange(selectedValue === value ? "" : selectedValue);
+    onChange(selectedValue);
     setOpen(false);
   }
 
@@ -61,6 +61,11 @@ export function Combobox({
       setOpen(false);
     }
   }
+
+  const filteredOptions = React.useMemo(() => {
+    if (!searchQuery) return options;
+    return options.filter(opt => opt.label.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [options, searchQuery]);
   
   const showCreateOption = onCreate && searchQuery && !options.some(opt => opt.label.toLowerCase() === searchQuery.toLowerCase());
 
@@ -88,11 +93,9 @@ export function Combobox({
             onValueChange={setSearchQuery}
           />
           <CommandList>
-            {(options.filter(opt => opt.label.toLowerCase().includes(searchQuery.toLowerCase()))).length === 0 && !showCreateOption && <CommandEmpty>{emptyText}</CommandEmpty>}
+            {filteredOptions.length === 0 && !showCreateOption && <CommandEmpty>{emptyText}</CommandEmpty>}
             <CommandGroup>
-              {options
-                .filter(opt => opt.label.toLowerCase().includes(searchQuery.toLowerCase()))
-                .map((option) => (
+              {filteredOptions.map((option) => (
                 <CommandItem
                   key={option.value}
                   value={option.label}
