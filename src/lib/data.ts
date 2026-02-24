@@ -1,3 +1,4 @@
+
 import type { Company, Ledger, User, Voucher, Note, Item, ComplianceDueDate } from './types';
 
 export const mockUser: User = {
@@ -38,11 +39,11 @@ export const mockCompanies: Company[] = [
 ];
 
 export const mockItems: Item[] = [
-  { id: 'item-001', name: 'Laptop Pro 15"', type: 'Goods', hsnCode: '84713010', sacCode: undefined, unitPrice: 80000, uqc: 'NOS', gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
-  { id: 'item-002', name: 'Wireless Mouse', type: 'Goods', hsnCode: '84716060', sacCode: undefined, unitPrice: 1500, uqc: 'NOS', gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
-  { id: 'item-003', name: 'Accounting Services', type: 'Services', hsnCode: undefined, sacCode: '998222', unitPrice: 20000, uqc: undefined, gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
-  { id: 'item-004', name: 'IT Support (AMC)', type: 'Services', hsnCode: undefined, sacCode: '998314', unitPrice: 50000, uqc: undefined, gstRate: 18, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
-  { id: 'item-005', name: 'Office Chairs', type: 'Goods', hsnCode: '94013000', sacCode: undefined, unitPrice: 7500, uqc: 'NOS', gstRate: 28, salesLedgerId: 'led-01', purchaseLedgerId: 'led-purchase-account' },
+  { id: 'item-001', name: 'Laptop Pro 15"', type: 'Goods', hsnCode: '84713010', sacCode: undefined, unitPrice: 80000, uqc: 'NOS', gstRate: 18, incomeLedgerId: 'led-01', expenseLedgerId: 'led-purchase-account' },
+  { id: 'item-002', name: 'Wireless Mouse', type: 'Goods', hsnCode: '84716060', sacCode: undefined, unitPrice: 1500, uqc: 'NOS', gstRate: 18, incomeLedgerId: 'led-01', expenseLedgerId: 'led-purchase-account' },
+  { id: 'item-003', name: 'Accounting Services', type: 'Services', hsnCode: undefined, sacCode: '998222', unitPrice: 20000, uqc: undefined, gstRate: 18, incomeLedgerId: 'led-01', expenseLedgerId: 'led-marketing' },
+  { id: 'item-004', name: 'IT Support (AMC)', type: 'Services', hsnCode: undefined, sacCode: '998314', unitPrice: 50000, uqc: undefined, gstRate: 18, incomeLedgerId: 'led-01', expenseLedgerId: 'led-purchase-account' },
+  { id: 'item-005', name: 'Office Chairs', type: 'Goods', hsnCode: '94013000', sacCode: undefined, unitPrice: 7500, uqc: 'NOS', gstRate: 28, incomeLedgerId: 'led-01', expenseLedgerId: 'led-purchase-account' },
 ];
 
 export const mockLedgers: Ledger[] = [
@@ -65,6 +66,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Asset',
   },
   {
     id: 'group-liabilities',
@@ -80,6 +82,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Liability',
   },
   {
     id: 'group-income',
@@ -95,6 +98,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Income',
   },
   {
     id: 'group-expense',
@@ -110,6 +114,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Expense',
   },
 
   // Sub-Groups under Assets
@@ -128,6 +133,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Asset',
   },
   {
     id: 'group-current-assets',
@@ -144,6 +150,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Asset',
   },
   {
     id: 'group-bank-accounts',
@@ -160,6 +167,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Asset',
   },
   {
     id: 'group-sundry-debtors',
@@ -176,6 +184,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Asset',
   },
 
   // Sub-Groups under Liabilities
@@ -194,6 +203,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Liability',
   },
   {
     id: 'group-current-liabilities',
@@ -210,6 +220,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Liability',
   },
   {
     id: 'group-sundry-creditors',
@@ -226,6 +237,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Liability',
   },
   {
     id: 'group-duties-taxes',
@@ -242,6 +254,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Liability',
   },
   {
     id: 'group-tds-payable',
@@ -258,6 +271,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Liability',
   },
 
   // Sub-Groups under Income
@@ -276,6 +290,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Income',
   },
   {
     id: 'group-indirect-income',
@@ -292,6 +307,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Income',
   },
 
   // Sub-Groups under Expense
@@ -310,6 +326,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Expense',
   },
   {
     id: 'group-indirect-expenses',
@@ -326,6 +343,7 @@ export const mockLedgers: Ledger[] = [
     lastUpdatedAt: new Date(MOCK_DATA_YEAR, 3, 1),
     firmId: 'firm-abc',
     companyId: 'comp-001',
+    nature: 'Expense',
   },
 
   // =================================================================
@@ -336,6 +354,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Purchase Account',
     parentLedgerId: 'group-purchase-accounts',
     group: 'Expense',
+    nature: 'Expense',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 20000,
@@ -352,6 +371,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Machinery',
     parentLedgerId: 'group-fixed-assets',
     group: 'Assets',
+    nature: 'Asset',
     isGroup: false,
     openingBalance: 500000,
     currentBalance: 495000,
@@ -368,6 +388,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Depreciation',
     parentLedgerId: 'group-indirect-expenses',
     group: 'Expense',
+    nature: 'Expense',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 5000,
@@ -384,6 +405,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Purchase Return',
     parentLedgerId: 'group-purchase-accounts',
     group: 'Expense', // It's a contra-expense, so it lives here but will have a Cr balance.
+    nature: 'Expense',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 5000,
@@ -400,6 +422,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Sales Return',
     parentLedgerId: 'group-sales-accounts',
     group: 'Income', // It's a contra-income, so it lives here but will have a Dr balance.
+    nature: 'Income',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 2000,
@@ -416,6 +439,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Cash in Hand',
     parentLedgerId: 'group-current-assets',
     group: 'Assets',
+    nature: 'Asset',
     isGroup: false,
     openingBalance: 50000,
     currentBalance: 50000,
@@ -432,6 +456,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'HDFC Bank',
     parentLedgerId: 'group-bank-accounts',
     group: 'Bank Accounts',
+    nature: 'Asset',
     isGroup: false,
     openingBalance: 500000,
     currentBalance: 480000, // 500k - 25k payment + 5k receipt
@@ -456,6 +481,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'ICICI Bank',
     parentLedgerId: 'group-bank-accounts',
     group: 'Bank Accounts',
+    nature: 'Asset',
     isGroup: false,
     openingBalance: 250000,
     currentBalance: 250000,
@@ -480,6 +506,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Client A',
     parentLedgerId: 'group-sundry-debtors',
     group: 'Sundry Debtor',
+    nature: 'Asset',
     isGroup: false,
     openingBalance: 15000,
     currentBalance: 21800, // 15k + 11.8k sale - 5k receipt
@@ -518,6 +545,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Supplier B',
     parentLedgerId: 'group-sundry-creditors',
     group: 'Sundry Creditor',
+    nature: 'Liability',
     isGroup: false,
     openingBalance: 25000,
     currentBalance: 47400, // 25k + 22.4k purchase
@@ -544,6 +572,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Share Capital',
     parentLedgerId: 'group-capital-account',
     group: 'Liabilities',
+    nature: 'Liability',
     isGroup: false,
     openingBalance: 1000000,
     currentBalance: 1000000,
@@ -560,6 +589,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Domestic Sales',
     parentLedgerId: 'group-sales-accounts',
     group: 'Income',
+    nature: 'Income',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 10000,
@@ -580,6 +610,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Office Rent',
     parentLedgerId: 'group-indirect-expenses',
     group: 'Expense',
+    nature: 'Expense',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 25000,
@@ -602,6 +633,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Salaries & Wages',
     parentLedgerId: 'group-indirect-expenses',
     group: 'Expense',
+    nature: 'Expense',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 75000,
@@ -618,6 +650,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Marketing Expenses',
     parentLedgerId: 'group-indirect-expenses',
     group: 'Expense',
+    nature: 'Expense',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 12000,
@@ -641,6 +674,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'Utilities',
     parentLedgerId: 'group-indirect-expenses',
     group: 'Expense',
+    nature: 'Expense',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 8000,
@@ -657,6 +691,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'CGST',
     parentLedgerId: 'group-duties-taxes',
     group: 'Liabilities',
+    nature: 'Liability',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 0,
@@ -673,6 +708,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'SGST',
     parentLedgerId: 'group-duties-taxes',
     group: 'Liabilities',
+    nature: 'Liability',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 0,
@@ -689,6 +725,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'IGST',
     parentLedgerId: 'group-duties-taxes',
     group: 'Liabilities',
+    nature: 'Liability',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 0,
@@ -705,6 +742,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'TDS on Rent (194I)',
     parentLedgerId: 'group-tds-payable',
     group: 'Liabilities',
+    nature: 'Liability',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 2500,
@@ -721,6 +759,7 @@ export const mockLedgers: Ledger[] = [
     ledgerName: 'TDS on Prof. Fees (194J)',
     parentLedgerId: 'group-tds-payable',
     group: 'Liabilities',
+    nature: 'Liability',
     isGroup: false,
     openingBalance: 0,
     currentBalance: 1200,
@@ -751,7 +790,8 @@ export const mockVouchers: Voucher[] = [
     ],
     totalDebit: 11800,
     totalCredit: 11800,
-    outstandingAmount: 11800,
+    outstandingAmount: 6800,
+    status: 'Partial',
     firmId: 'firm-abc',
     companyId: 'comp-001',
     createdByUserId: 'user-123',
@@ -777,6 +817,7 @@ export const mockVouchers: Voucher[] = [
     createdByUserId: 'user-123',
     isReconciled: false,
     isCancelled: false,
+    status: 'Paid',
   },
   {
     id: 'vch-003',
@@ -797,6 +838,7 @@ export const mockVouchers: Voucher[] = [
     createdByUserId: 'user-123',
     isReconciled: false,
     isCancelled: false,
+    status: 'Paid',
   },
   {
     id: 'vch-004',
@@ -815,6 +857,7 @@ export const mockVouchers: Voucher[] = [
     totalDebit: 22400,
     totalCredit: 22400,
     outstandingAmount: 22400,
+    status: 'Unpaid',
     firmId: 'firm-abc',
     companyId: 'comp-001',
     createdByUserId: 'user-123',
@@ -840,6 +883,7 @@ export const mockVouchers: Voucher[] = [
     createdByUserId: 'user-123',
     isReconciled: false,
     isCancelled: false,
+    status: 'Paid',
   },
   {
     id: 'vch-006',
@@ -862,6 +906,7 @@ export const mockVouchers: Voucher[] = [
     createdByUserId: 'user-123',
     isReconciled: false,
     isCancelled: false,
+    status: 'Paid',
   },
   {
     id: 'vch-007',
@@ -884,6 +929,7 @@ export const mockVouchers: Voucher[] = [
     createdByUserId: 'user-123',
     isReconciled: false,
     isCancelled: false,
+    status: 'Paid',
   },
   {
     id: 'vch-008',
@@ -904,6 +950,7 @@ export const mockVouchers: Voucher[] = [
     createdByUserId: 'user-123',
     isReconciled: false,
     isCancelled: false,
+    status: 'Paid',
   },
   {
     id: 'vch-009-backdated',
@@ -924,6 +971,7 @@ export const mockVouchers: Voucher[] = [
     createdByUserId: 'user-123',
     isReconciled: false,
     isCancelled: false,
+    status: 'Paid',
   },
   {
     id: 'vch-010-prev-fy',
@@ -941,6 +989,7 @@ export const mockVouchers: Voucher[] = [
     totalDebit: 177000,
     totalCredit: 177000,
     outstandingAmount: 177000,
+    status: 'Unpaid',
     firmId: 'firm-abc',
     companyId: 'comp-001',
     createdByUserId: 'user-123',
@@ -963,6 +1012,7 @@ export const mockVouchers: Voucher[] = [
     totalDebit: 100800,
     totalCredit: 100800,
     outstandingAmount: 100800,
+    status: 'Unpaid',
     firmId: 'firm-abc',
     companyId: 'comp-001',
     createdByUserId: 'user-123',

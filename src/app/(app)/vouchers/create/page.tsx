@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -23,7 +24,7 @@ import { PaymentReceiptForm } from '@/components/voucher-forms/payment-receipt-f
 import { ContraEntryForm } from '@/components/voucher-forms/contra-entry-form';
 import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form';
 import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
-import { AdhocInvoiceForm } from '@/components/voucher-forms/adhoc-invoice-form';
+import { AdhocVoucherForm } from '@/components/voucher-forms/adhoc-voucher-form';
 import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
 import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
 import { CreditNoteForm } from '@/components/voucher-forms/credit-note-form';
@@ -32,13 +33,13 @@ import { Button } from '@/components/ui/button';
 
 
 const allVoucherTypes = [
+  { value: 'Adhoc Voucher', label: 'Adhoc Sale / Purchase' },
   { value: 'Proforma Invoice', label: 'Proforma Invoice (Non-Accounting)' },
   { value: 'Sales', label: 'Sales Invoice' },
   { value: 'Purchase', label: 'Purchase Invoice' },
   { value: 'Payment', label: 'Payment' },
   { value: 'Receipt', label: 'Receipt' },
   { value: 'Contra', label: 'Contra' },
-  { value: 'Adhoc Invoice', label: 'Adhoc Invoice' },
   { value: 'Debit Note', label: 'Debit Note (Purchase Return)' },
   { value: 'Credit Note', label: 'Credit Note (Sales Return)' },
   { value: 'Journal', label: 'Journal (Double Entry)' },
@@ -60,7 +61,7 @@ const NotImplemented = ({ type }: { type: string }) => (
 export default function CreateVoucherPage() {
   const searchParams = useSearchParams();
   const context = searchParams.get('context');
-  const [voucherType, setVoucherType] = React.useState<string>('');
+  const [voucherType, setVoucherType] = React.useState<string>(searchParams.get('type') || '');
 
   const voucherTypes = context === 'bank' || context === 'cash' 
     ? allVoucherTypes.filter(vt => bankVoucherTypes.includes(vt.value)) 
@@ -80,8 +81,8 @@ export default function CreateVoucherPage() {
         return <ContraEntryForm />;
       case 'Journal':
         return <JournalEntryForm />;
-      case 'Adhoc Invoice':
-        return <AdhocInvoiceForm />;
+      case 'Adhoc Voucher':
+        return <AdhocVoucherForm />;
       case 'Proforma Invoice':
         return <ProformaInvoiceForm />;
       case 'Debit Note':

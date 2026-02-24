@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -15,7 +16,7 @@ import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form'
 import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
 import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
 import { CreditNoteForm } from '@/components/voucher-forms/credit-note-form';
-import { AdhocInvoiceForm } from '@/components/voucher-forms/adhoc-invoice-form';
+import { AdhocVoucherForm } from '@/components/voucher-forms/adhoc-voucher-form';
 import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
 import { mockVouchers } from '@/lib/data';
 import type { Voucher } from '@/lib/types';
@@ -89,8 +90,9 @@ export default function EditVoucherPage() {
         return <DebitNoteForm />;
       case 'Credit Note':
         return <CreditNoteForm />;
-      case 'Adhoc Invoice':
-        return <AdhocInvoiceForm />;
+      case 'Adhoc Sale':
+      case 'Adhoc Purchase':
+        return <AdhocVoucherForm initialData={voucher} />;
       case 'Proforma Invoice':
         return <ProformaInvoiceForm />;
       default:

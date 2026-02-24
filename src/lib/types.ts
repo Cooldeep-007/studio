@@ -149,7 +149,8 @@ export type VoucherType =
   | 'Debit Note'
   | 'Credit Note'
   | 'Proforma Invoice'
-  | 'Adhoc Invoice';
+  | 'Adhoc Sale'
+  | 'Adhoc Purchase';
 
 export type VoucherEntry = {
   ledgerId: string;
@@ -178,6 +179,8 @@ export type BillAllocation = {
   voucherNumber: string;
   amount: number;
 };
+
+export type VoucherStatus = 'Paid' | 'Partial' | 'Unpaid' | 'Cancelled';
 
 export type Voucher = {
   id: string;
@@ -217,6 +220,7 @@ export type Voucher = {
     eWayBillNo?: string;
   };
   outstandingAmount?: number;
+  status?: VoucherStatus;
   // Fields for Payment/Receipt Vouchers
   billAllocations?: BillAllocation[];
 };
@@ -241,8 +245,9 @@ export type Item = {
   unitPrice: number;
   uqc?: string;
   gstRate: number;
-  salesLedgerId: string;
-  purchaseLedgerId: string;
+  incomeLedgerId: string;
+  expenseLedgerId: string;
+  isActive?: boolean;
 };
 
 export type ComplianceDueDate = {

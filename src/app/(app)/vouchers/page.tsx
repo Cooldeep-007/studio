@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -38,9 +39,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-
+import { cn } from '@/lib/utils';
 import { mockVouchers, mockLedgers } from '@/lib/data';
-import type { Voucher, VoucherType } from '@/lib/types';
+import type { Voucher, VoucherType, VoucherStatus } from '@/lib/types';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', {
@@ -52,18 +53,27 @@ const formatCurrency = (amount: number) => {
 
 const badgeColors: Record<string, string> = {
   Sales: 'bg-green-100 text-green-800 hover:bg-green-100/80',
+  'Adhoc Sale': 'bg-green-100 text-green-800 hover:bg-green-100/80',
   Purchase: 'bg-blue-100 text-blue-800 hover:bg-blue-100/80',
+  'Adhoc Purchase': 'bg-blue-100 text-blue-800 hover:bg-blue-100/80',
   Payment: 'bg-red-100 text-red-800 hover:bg-red-100/80',
   Receipt: 'bg-purple-100 text-purple-800 hover:bg-purple-100/80',
   Journal: 'bg-gray-100 text-gray-800 hover:bg-gray-100/80',
   Contra: 'bg-orange-100 text-orange-800 hover:bg-orange-100/80',
   'Debit Note': 'bg-pink-100 text-pink-800 hover:bg-pink-100/80',
   'Credit Note': 'bg-indigo-100 text-indigo-800 hover:bg-indigo-100/80',
-  'Adhoc Invoice': 'bg-teal-100 text-teal-800 hover:bg-teal-100/80',
   'Proforma Invoice': 'bg-cyan-100 text-cyan-800 hover:bg-cyan-100/80',
 };
 
-const voucherTypesForFilter: string[] = ['All', 'Sales', 'Purchase', 'Payment', 'Receipt', 'Debit Note', 'Credit Note', 'Journal', 'Contra'];
+const statusBadgeColors: Record<VoucherStatus, string> = {
+  Paid: 'bg-green-100 text-green-800',
+  Partial: 'bg-yellow-100 text-yellow-800',
+  Unpaid: 'bg-red-100 text-red-800',
+  Cancelled: 'bg-gray-100 text-gray-800',
+};
+
+
+const voucherTypesForFilter: string[] = ['All', 'Sales', 'Purchase', 'Payment', 'Receipt', 'Debit Note', 'Credit Note', 'Journal', 'Contra', 'Adhoc Sale', 'Adhoc Purchase'];
 
 export default function VouchersPage() {
   const router = useRouter();
@@ -163,6 +173,7 @@ export default function VouchersPage() {
                 <TableHead>Voucher No.</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Party</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -175,6 +186,9 @@ export default function VouchersPage() {
                             <TableCell className="font-medium">{voucher.voucherNumber}</TableCell>
                             <TableCell><Badge className={badgeColors[voucher.voucherType] || 'bg-secondary text-secondary-foreground'}>{voucher.voucherType}</Badge></TableCell>
                             <TableCell>{ledgerMap.get(voucher.partyLedgerId || '') || '-'}</TableCell>
+                            <TableCell>
+                              {voucher.status && <Badge className={cn(statusBadgeColors[voucher.status])}>{voucher.status}</Badge>}
+                            </TableCell>
                             <TableCell className="text-right font-mono">{formatCurrency(voucher.totalDebit)}</TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>
@@ -198,7 +212,7 @@ export default function VouchersPage() {
                     ))
                 ) : (
                      <TableRow>
-                        <TableCell colSpan={6} className="h-24 text-center">
+                        <TableCell colSpan={7} className="h-24 text-center">
                             No vouchers found for the selected criteria.
                         </TableCell>
                     </TableRow>

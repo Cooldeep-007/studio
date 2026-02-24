@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { CalendarIcon, PlusCircle, Trash2, X, Sparkles, Building, Hash, Percent, FileText, Phone, Mail, AlertTriangle } from 'lucide-react';
+import { CalendarIcon, PlusCircle, Trash2, Sparkles, Building, Hash, FileText, Phone, Mail } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { mockLedgers, mockItems, mockCompanies } from '@/lib/data';
-import type { Ledger, Item, InvoiceItem, Company, Voucher, LedgerGroup } from '@/lib/types';
+import type { Ledger, Item, InvoiceItem, Company, Voucher } from '@/lib/types';
 import { Combobox } from '@/components/ui/combobox';
 import { AddItemSheet } from '@/components/add-item-sheet';
 import { indianStates, gstStateCodes } from '@/lib/constants';
@@ -27,7 +27,6 @@ import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AddLedgerSheet } from '../add-ledger-sheet';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const lineItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required.'),
@@ -294,7 +293,7 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
                                         <p className="mt-2 flex items-center gap-2"><FileText className="h-4 w-4" />GSTIN: <span className="font-mono">{selectedCustomer.gstDetails?.gstin || 'N/A'}</span></p>
                                         <p className="flex items-center gap-2"><Hash className="h-4 w-4" />PAN: <span className="font-mono">{selectedCustomer.contactDetails?.pan || 'N/A'}</span></p>
                                     </Card>
-                                    <Card className="p-4">
+                                     <Card className="p-4">
                                         <h4 className="font-semibold mb-2 text-foreground">Contact Details</h4>
                                         <p className="flex items-center gap-2"><Building className="h-4 w-4" />{selectedCustomer.ledgerName}</p>
                                         {selectedCustomer.contactDetails?.contactPerson && <p>{selectedCustomer.contactDetails.contactPerson}</p>}
@@ -373,17 +372,13 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
 
                             {/* FOOTER */}
                             <div className="flex justify-between items-start gap-6">
-                                <div className="w-1/2">
+                               <div className="w-1/2">
                                     {calculations.tcsAmount > 0 && (
-                                        <Alert variant="default" className="bg-amber-50 border-amber-200">
-                                            <Sparkles className="h-4 w-4 text-amber-600" />
-                                            <AlertTitle className="text-amber-700">TCS Applicable</AlertTitle>
-                                            <AlertDescription>
+                                        <div className="text-sm text-amber-600 p-3 bg-amber-50 border border-amber-200 rounded-md">
                                             TCS @ {watchedForm.tcsRate?.toFixed(2)}% of {formatCurrency(calculations.taxableValueForTcs)} will be collected, adding {formatCurrency(calculations.tcsAmount)} to the total.
-                                            </AlertDescription>
-                                        </Alert>
+                                        </div>
                                     )}
-                                </div>
+                               </div>
                                 <div className="w-full max-w-sm space-y-2 text-sm">
                                     <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(calculations.subtotal + calculations.totalDiscount)}</span></div>
                                     <div className="flex justify-between"><span>Discount</span><span className="text-red-600">-{formatCurrency(calculations.totalDiscount)}</span></div>
@@ -391,11 +386,11 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
                                     <div className="flex justify-between font-medium"><span>Taxable Value</span><span>{formatCurrency(calculations.subtotal)}</span></div>
                                     {calculations.isIntraState ? (
                                         <>
-                                            <div className="flex justify-between text-muted-foreground"><span>CGST</span><span>{formatCurrency(calculations.totalCgst)}</span></div>
-                                            <div className="flex justify-between text-muted-foreground"><span>SGST</span><span>{formatCurrency(calculations.totalSgst)}</span></div>
+                                            <div className="flex justify-between text-muted-foreground"><span>Output CGST</span><span>{formatCurrency(calculations.totalCgst)}</span></div>
+                                            <div className="flex justify-between text-muted-foreground"><span>Output SGST</span><span>{formatCurrency(calculations.totalSgst)}</span></div>
                                         </>
                                     ) : (
-                                        <div className="flex justify-between text-muted-foreground"><span>IGST</span><span>{formatCurrency(calculations.totalIgst)}</span></div>
+                                        <div className="flex justify-between text-muted-foreground"><span>Output IGST</span><span>{formatCurrency(calculations.totalIgst)}</span></div>
                                     )}
                                     {watchedForm.isTcsApplicable && (
                                         <div className="flex justify-between text-muted-foreground"><span>TCS ({watchedForm.tcsRate || 0}%)</span><span>{formatCurrency(calculations.tcsAmount)}</span></div>
@@ -411,7 +406,7 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
                             {/* REMARKS */}
                             <Accordion type="single" collapsible defaultValue="remarks">
                                 <AccordionItem value="remarks">
-                                    <AccordionTrigger>Remarks</AccordionTrigger>
+                                    <AccordionTrigger>Remarks / Terms &amp; Conditions</AccordionTrigger>
                                     <AccordionContent>
                                         <FormField control={form.control} name="remarks" render={({ field }) => (
                                             <Textarea placeholder="Add any notes for the customer..." {...field} />
