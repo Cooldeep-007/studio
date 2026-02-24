@@ -13,6 +13,8 @@ import { PaymentReceiptForm } from '@/components/voucher-forms/payment-receipt-f
 import { ContraEntryForm } from '@/components/voucher-forms/contra-entry-form';
 import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form';
 import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
+import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
+import { CreditNoteForm } from '@/components/voucher-forms/credit-note-form';
 import { AdhocInvoiceForm } from '@/components/voucher-forms/adhoc-invoice-form';
 import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
 import { mockVouchers } from '@/lib/data';
@@ -74,7 +76,7 @@ export default function EditVoucherPage() {
       case 'Sales':
         return <SalesInvoiceForm initialData={voucher} />;
       case 'Purchase':
-        return <PurchaseInvoiceForm />;
+        return <PurchaseInvoiceForm initialData={voucher} />;
       case 'Payment':
         return <PaymentReceiptForm type="Payment" initialData={voucher} />;
       case 'Receipt':
@@ -84,9 +86,9 @@ export default function EditVoucherPage() {
       case 'Journal':
         return <JournalEntryForm initialData={voucher} />;
       case 'Debit Note':
-        return <NotImplemented type="Debit Note" />;
+        return <DebitNoteForm />;
       case 'Credit Note':
-        return <NotImplemented type="Credit Note" />;
+        return <CreditNoteForm />;
       case 'Adhoc Invoice':
         return <AdhocInvoiceForm />;
       case 'Proforma Invoice':

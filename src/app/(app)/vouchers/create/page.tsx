@@ -24,6 +24,8 @@ import { SalesInvoiceForm } from '@/components/voucher-forms/sales-invoice-form'
 import { PurchaseInvoiceForm } from '@/components/voucher-forms/purchase-invoice-form';
 import { AdhocInvoiceForm } from '@/components/voucher-forms/adhoc-invoice-form';
 import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
+import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
+import { CreditNoteForm } from '@/components/voucher-forms/credit-note-form';
 import { FileWarning } from 'lucide-react';
 
 
@@ -35,8 +37,8 @@ const allVoucherTypes = [
   { value: 'Receipt', label: 'Receipt' },
   { value: 'Contra', label: 'Contra' },
   { value: 'Adhoc Invoice', label: 'Adhoc Invoice' },
-  { value: 'Debit Note', label: 'Debit Note' },
-  { value: 'Credit Note', label: 'Credit Note' },
+  { value: 'Debit Note', label: 'Debit Note (Purchase Return)' },
+  { value: 'Credit Note', label: 'Credit Note (Sales Return)' },
   { value: 'Journal', label: 'Journal (Double Entry)' },
 ];
 
@@ -81,9 +83,9 @@ export default function CreateVoucherPage() {
       case 'Proforma Invoice':
         return <ProformaInvoiceForm />;
       case 'Debit Note':
-        return <NotImplemented type="Debit Note" />;
+        return <DebitNoteForm />;
       case 'Credit Note':
-        return <NotImplemented type="Credit Note" />;
+        return <CreditNoteForm />;
       default:
         return (
           <div className="flex items-center justify-center h-40 mt-6 text-muted-foreground">
