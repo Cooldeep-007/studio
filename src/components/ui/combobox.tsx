@@ -48,26 +48,7 @@ export function Combobox({
     onCreate,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
-  const [searchValue, setSearchValue] = React.useState('');
-
-  const handleSelect = (currentValue: string) => {
-    onChange(currentValue);
-    setOpen(false);
-  };
-
-  const handleCreate = () => {
-    if (onCreate) {
-        onCreate(searchValue);
-        setSearchValue('');
-        setOpen(false);
-    }
-  };
-
-  React.useEffect(() => {
-    if (!open) {
-      setSearchValue("");
-    }
-  }, [open]);
+  const [search, setSearch] = React.useState(""); // State to hold search query
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -87,20 +68,30 @@ export function Combobox({
         </FormControl>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-        <Command>
-          <CommandInput 
-            placeholder={searchPlaceholder} 
-            value={searchValue}
-            onValueChange={setSearchValue}
+        {/* Pass onValueChange to Command to update our search state */}
+        <Command onValueChange={setSearch} filter={(value, search) => {
+            const option = options.find(o => o.value === value);
+            // The default filter in cmdk uses the `value` prop. We want to filter by the label.
+            if (option?.label.toLowerCase().includes(search.toLowerCase())) return 1;
+            return 0;
+        }}>
+          <CommandInput
+            placeholder={searchPlaceholder}
           />
           <CommandList>
             <ScrollArea className="h-72">
               <CommandEmpty>
-                {onCreate && searchValue ? (
-                    <Button variant="ghost" className="w-full justify-start" onMouseDown={handleCreate}>
+                {onCreate && search ? (
+                    <CommandItem
+                        value={search} // Use search as value for creation
+                        onSelect={() => {
+                            onCreate(search);
+                            setOpen(false);
+                        }}
+                    >
                         <PlusCircle className="mr-2 h-4 w-4" />
-                        Create "{searchValue}"
-                    </Button>
+                        Create "{search}"
+                    </CommandItem>
                 ) : (
                     <div className="py-6 text-center text-sm">{emptyText}</div>
                 )}
@@ -110,7 +101,10 @@ export function Combobox({
                   <CommandItem
                     key={option.value}
                     value={option.value}
-                    onSelect={handleSelect}
+                    onSelect={(currentValue) => {
+                      onChange(currentValue === value ? "" : currentValue)
+                      setOpen(false)
+                    }}
                   >
                     <Check
                       className={cn(
