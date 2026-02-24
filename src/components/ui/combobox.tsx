@@ -48,14 +48,9 @@ export function Combobox({
     onCreate,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
-  const [search, setSearch] = React.useState("")
+  const [search, setSearch] = React.useState('')
 
-  const filteredOptions = React.useMemo(() => {
-    if (!search) return options;
-    return options.filter(option =>
-      option.label.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [options, search]);
+  const showCreateOption = onCreate && search && !options.some(option => option.label.toLowerCase() === search.toLowerCase());
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -78,40 +73,36 @@ export function Combobox({
         <Command>
           <CommandInput
             placeholder={searchPlaceholder}
-            value={search}
             onValueChange={setSearch}
           />
           <CommandList>
             <ScrollArea className="h-72">
-              {filteredOptions.length === 0 && (
-                <CommandEmpty>
-                  {onCreate && search ? (
-                      <CommandItem
-                        value={search}
+              <CommandEmpty>
+                 {!showCreateOption && <div className="py-6 text-center text-sm">{emptyText}</div>}
+              </CommandEmpty>
+              
+              {showCreateOption && (
+                <CommandGroup>
+                    <CommandItem
                         onSelect={() => {
-                          if (onCreate) {
-                            onCreate(search);
-                          }
+                          onCreate(search);
                           setOpen(false);
-                          setSearch("");
                         }}
-                      >
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Create "{search}"
-                      </CommandItem>
-                    ) : (
-                      <div className="py-6 text-center text-sm">{emptyText}</div>
-                    )}
-                </CommandEmpty>
+                    >
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                      Create "{search}"
+                    </CommandItem>
+                </CommandGroup>
               )}
+
               <CommandGroup>
-                {filteredOptions.map((option) => (
+                {options.map((option) => (
                   <CommandItem
                     key={option.value}
-                    value={option.value}
-                    onSelect={(currentValue) => {
-                      onChange(currentValue);
-                      setOpen(false);
+                    value={option.label}
+                    onSelect={() => {
+                      onChange(option.value)
+                      setOpen(false)
                     }}
                   >
                     <Check
