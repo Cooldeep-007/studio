@@ -50,15 +50,6 @@ export function Combobox({
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
-  const filteredOptions = React.useMemo(() => {
-    if (search === "") {
-      return options;
-    }
-    return options.filter((option) =>
-      option.label.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [options, search]);
-
   const handleSelect = (selectedValue: string) => {
     onChange(selectedValue);
     setOpen(false);
@@ -75,14 +66,15 @@ export function Combobox({
 
   const selectedLabel = options.find((option) => option.value === value)?.label;
 
-  // When the popover is closed, if the search input doesn't match the selected label,
-  // reset the search input. This prevents a mismatched state.
-  React.useEffect(() => {
-    if (!open) {
-      setSearch("");
-    }
-  }, [open]);
-
+  const filteredOptions = React.useMemo(() =>
+    search === ""
+      ? options
+      : options.filter((option) =>
+          option.label.toLowerCase().includes(search.toLowerCase())
+        ),
+    [options, search]
+  );
+  
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -107,21 +99,19 @@ export function Combobox({
           />
           <CommandList>
             <ScrollArea className="max-h-72">
-              {filteredOptions.length === 0 && (
-                <CommandEmpty>
+              <CommandEmpty>
                   {onCreate && search ? (
-                    <CommandItem
-                      onSelect={handleCreate}
-                      className="cursor-pointer"
-                    >
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      Create "{search}"
-                    </CommandItem>
+                      <CommandItem
+                          onSelect={handleCreate}
+                          className="cursor-pointer"
+                          >
+                          <PlusCircle className="mr-2 h-4 w-4" />
+                          Create "{search}"
+                      </CommandItem>
                   ) : (
-                    <div className="py-6 text-center text-sm">{emptyText}</div>
+                      <div className="py-6 text-center text-sm">{emptyText}</div>
                   )}
-                </CommandEmpty>
-              )}
+              </CommandEmpty>
               <CommandGroup>
                 {filteredOptions.map((option) => (
                   <CommandItem
