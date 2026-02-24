@@ -234,77 +234,155 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Ledger",
       "type": "object",
-      "description": "Represents an individual account in the chart of accounts for a company.",
+      "description": "Represents an individual account (Ledger) or a classification category (Group) in the chart of accounts for a company. Groups are used to create a hierarchy.",
       "properties": {
         "id": {
           "type": "string",
-          "description": "Unique identifier for the Ledger entity."
+          "description": "Unique identifier for the Ledger or Group entity."
         },
         "ledgerName": {
           "type": "string",
-          "description": "The name of the ledger account (e.g., 'Cash', 'Sales', 'Rent Expense')."
+          "description": "The name of the ledger or group (e.g., 'Cash', 'Sales', 'HDFC Bank')."
         },
-        "group": {
+        "parentLedgerId": {
           "type": "string",
-          "description": "The primary group this ledger belongs to (e.g., Assets, Liabilities, Income, Expense)."
+          "description": "Reference to the parent Group this entity belongs to, forming the hierarchy. Null for primary groups."
+        },
+        "isGroup": {
+          "type": "boolean",
+          "description": "If true, this entity is a Group used for classification and cannot have transactions. If false, it is a Ledger."
+        },
+        "nature": {
+          "type": "string",
+          "description": "The fundamental accounting nature of the ledger/group, inherited from its top-level parent.",
+          "enum": [
+            "Asset",
+            "Liability",
+            "Income",
+            "Expense"
+          ]
         },
         "openingBalance": {
           "type": "number",
-          "description": "The initial balance of the ledger account at the start of a financial period."
+          "description": "The initial balance of the ledger at the start of a financial period. Should be 0 for groups.",
+          "default": 0
         },
         "balanceType": {
           "type": "string",
-          "description": "Indicates whether the ledger's natural balance is Debit (Dr) or Credit (Cr)."
+          "description": "Indicates whether the opening balance is a Debit (Dr) or Credit (Cr).",
+          "enum": [
+            "Dr",
+            "Cr"
+          ]
         },
         "gstApplicable": {
           "type": "boolean",
-          "description": "Indicates if GST (Goods and Services Tax) is applicable to transactions posted to this ledger."
+          "description": "Indicates if GST is applicable to transactions posted to this ledger.",
+          "default": false
         },
-        "gstRate": {
-          "type": "number",
-          "description": "The default GST rate applicable to this ledger, if any."
+        "gstDetails": {
+          "type": "object",
+          "description": "Contains all GST-related information for the ledger.",
+          "properties": {
+            "gstin": {
+              "type": "string",
+              "description": "The GST Identification Number for this party, if applicable."
+            },
+            "gstRate": {
+              "type": "number",
+              "description": "The default GST rate applicable."
+            }
+          }
+        },
+        "isBankAccount": {
+          "type": "boolean",
+          "description": "Flag to indicate if this ledger represents a bank account.",
+          "default": false
+        },
+        "bankDetails": {
+          "type": "object",
+          "description": "Bank account details, applicable if isBankAccount is true.",
+          "properties": {
+            "accountNumber": {
+              "type": "string"
+            },
+            "ifscCode": {
+              "type": "string"
+            },
+            "bankName": {
+              "type": "string"
+            },
+            "branch": {
+              "type": "string"
+            }
+          }
+        },
+        "isCashAccount": {
+          "type": "boolean",
+          "description": "Flag to indicate if this ledger represents the physical cash account.",
+          "default": false
+        },
+        "contactDetails": {
+          "type": "object",
+          "description": "Contact and address information, typically for parties like Sundry Debtors and Creditors.",
+          "properties": {
+            "address": {
+              "type": "string"
+            },
+            "phone": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string",
+              "format": "email"
+            },
+            "panNumber": {
+              "type": "string"
+            }
+          }
+        },
+        "isSystem": {
+          "type": "boolean",
+          "description": "If true, this is a system-generated ledger that cannot be deleted by the user.",
+          "default": false
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the ledger.",
+          "enum": [
+            "Active",
+            "Inactive"
+          ]
         },
         "firmId": {
           "type": "string",
-          "description": "Reference to the Firm this ledger belongs to. (Relationship: Firm 1:N Ledger)"
+          "description": "Reference to the Firm this ledger belongs to."
         },
         "companyId": {
           "type": "string",
-          "description": "Reference to the Company this ledger belongs to. (Relationship: Company 1:N Ledger)"
-        },
-        "customFieldsData": {
-          "type": "string",
-          "description": "JSON string containing dynamically added custom field data for this ledger, validated against a schema."
+          "description": "Reference to the Company this ledger belongs to."
         },
         "isDeleted": {
           "type": "boolean",
-          "description": "Flag to indicate if the record is soft-deleted. True for soft-deleted, false otherwise.",
-          "format": "boolean"
+          "description": "Flag for soft-deletion.",
+          "default": false
         },
         "createdAt": {
           "type": "string",
-          "description": "Timestamp when the ledger record was created.",
           "format": "date-time"
         },
         "updatedAt": {
           "type": "string",
-          "description": "Timestamp when the ledger record was last updated.",
           "format": "date-time"
         }
       },
       "required": [
         "id",
         "ledgerName",
-        "group",
-        "openingBalance",
-        "balanceType",
-        "gstApplicable",
-        "gstRate",
+        "isGroup",
+        "nature",
         "firmId",
-        "companyId",
-        "isDeleted",
-        "createdAt",
-        "updatedAt"
+        "companyId"
       ]
     },
     "Voucher": {
@@ -1090,7 +1168,7 @@
           "schema": {
             "$ref": "#/backend/entities/Ledger"
           },
-          "description": "Subcollection for ledger accounts specific to a company. Each document includes denormalized 'firmId' and 'companyId' for authorization independence.",
+          "description": "Subcollection for the Chart of Accounts, containing both Groups and Ledgers for a specific company. Each document includes denormalized 'firmId' and 'companyId' for authorization independence.",
           "params": [
             {
               "name": "firmId",
@@ -1102,7 +1180,7 @@
             },
             {
               "name": "ledgerId",
-              "description": "Unique identifier for the ledger account."
+              "description": "Unique identifier for the ledger account or group."
             }
           ]
         }
@@ -1327,3 +1405,5 @@
     "reasoning": "The recommended Firestore structure is designed to strictly adhere to the core principles of Authorization Independence, Structural Segregation, and Access Modeling, ensuring a secure, scalable, and debuggable multi-tenant SaaS accounting application.\n\n**Authorization Independence (via Denormalization):**\nEach document that represents data within a specific `Firm` or `Company` context explicitly includes the `firmId` and, where applicable, the `companyId` as direct fields. This denormalization is crucial for `Authorization Independence`. For example, a `Ledger` document stored at `/firms/{firmId}/companies/{companyId}/ledgers/{ledgerId}` will contain `ledger.firmId` and `ledger.companyId`. This eliminates the need for security rules to perform expensive and non-atomic `get()` operations on parent documents (e.g., to retrieve `companyId` from a `Company` document before authorizing access to a `Ledger`). Instead, rules can directly compare the `firmId` and `companyId` extracted from the `request.auth.uid`'s `UserProfile` (which stores the user's `firmId` and `companyId``) with the `firmId` and `companyId` present in the document itself. This design allows for atomic writes and reads and greatly simplifies rule logic, making it robust against race conditions and easier to debug.\n\n**Support for QAPs (Queries as Authorization Policies):**\n1.  **Path-Based Ownership:** The `/users/{userId}` path for `UserProfile` documents inherently supports QAPs by enforcing that `request.auth.uid` must match `{userId}`. This makes `list` operations on user profiles trivially secure, as a user can only query their own profile.\n2.  **Denormalized `firmId` and `companyId`:** For all firm- and company-scoped data, the explicit inclusion of `firmId` and `companyId` in every document enables QAPs at a broader scale. Security rules will mandate that any `list` query must include `where('firmId', '==', request.auth.firmId)` and/or `where('companyId', '==', request.auth.companyId)`. The rules then merely *validate* that the query's filters match the authenticated user's access scope (derived from their `UserProfile`), rather than attempting to filter results themselves. This ensures that clients can only ever request data they are authorized to see, making `list` operations efficient and secure.\n3.  **Structural Segregation:** Data is hierarchically organized (`/firms/{firmId}/companies/{companyId}/...`). This ensures that all documents within a given collection (e.g., `/firms/{firmId}/companies/{companyId}/ledgers`) share a homogeneous security posture. Rules can be written concisely for each collection, relying on the `firmId` and `companyId` within the document and path to grant access based on the user's role, thus facilitating strong QAPs.\n\n**Access Modeling:**\n*   **Private User Data:** `UserProfile` data is stored under `/users/{userId}`, directly tied to the Firebase `auth.uid`.\n*   **Hierarchical Multi-Tenant Data:** All firm-specific data (e.g., `Firm` details, `Company` details, `Ledgers`, `Vouchers`, etc.) is structured under `/firms/{firmId}` and further under `/firms/{firmId}/companies/{companyId}`. This clear hierarchy provides natural scoping for multi-tenancy.\n*   **DBAC (Database Access Control):** User roles (`SuperAdmin`, `FirmAdmin`, `Staff`, `ClientUser`) and their primary `firmId` and `companyId` are stored directly within their `UserProfile` document. Security rules will `get()` the user's *own* `UserProfile` (`/users/$(request.auth.uid)`) to ascertain their role and scope for authorizing access to other data within the system. This avoids custom claims and keeps role management within Firestore. SuperAdmins will have a `role` field allowing broad access, while other roles will be restricted by their associated `firmId` and `companyId` fields.\n\nThis design establishes a robust foundation for implementing fine-grained security rules, supporting efficient data retrieval, and simplifying debugging in a multi-tenant environment."
   }
 }
+
+    
