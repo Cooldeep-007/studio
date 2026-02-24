@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   Card,
@@ -26,7 +27,8 @@ import { AdhocInvoiceForm } from '@/components/voucher-forms/adhoc-invoice-form'
 import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
 import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
 import { CreditNoteForm } from '@/components/voucher-forms/credit-note-form';
-import { FileWarning } from 'lucide-react';
+import { FileWarning, ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 
 const allVoucherTypes = [
@@ -99,6 +101,12 @@ export default function CreateVoucherPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Add Transaction</h1>
+        <Link href="/vouchers">
+            <Button variant="outline">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Vouchers
+            </Button>
+        </Link>
       </div>
 
       <Card>
