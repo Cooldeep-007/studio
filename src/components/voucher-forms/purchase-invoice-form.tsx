@@ -350,20 +350,6 @@ export function PurchaseInvoiceForm({ initialData }: PurchaseInvoiceFormProps) {
                                             <Textarea placeholder="Any notes related to the purchase..." {...field} />
                                         </FormItem>
                                      )} />
-                                     {calculations.isTdsApplicable && calculations.tdsAmount > 0 && (
-                                        <Alert variant="default" className="bg-blue-50 border-blue-200">
-                                            <Percent className="h-4 w-4 text-blue-500" />
-                                            <AlertTitle className="text-blue-700">TDS Applicable</AlertTitle>
-                                            <AlertDescription>
-                                                TDS on {calculations.tdsNatureOfPayment} @ {calculations.tdsRate?.toFixed(2)}% (Sec {calculations.tdsSection}) will be deducted at the time of payment.
-                                                <Separator className="my-2" />
-                                                <div className="flex justify-between items-center mt-2 font-semibold">
-                                                    <span>Net Amount Payable:</span>
-                                                    <span>{formatCurrency(calculations.netPayable)}</span>
-                                                </div>
-                                            </AlertDescription>
-                                        </Alert>
-                                    )}
                                </div>
                                 <div className="w-full max-w-sm space-y-2 text-sm">
                                     <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(calculations.subtotal + calculations.totalDiscount)}</span></div>
@@ -383,6 +369,21 @@ export function PurchaseInvoiceForm({ initialData }: PurchaseInvoiceFormProps) {
                                     )}
                                     <Separator />
                                     <div className="flex justify-between text-lg font-bold"><span>Grand Total</span><span>{formatCurrency(calculations.grandTotal)}</span></div>
+                                    
+                                    {/* TDS DETAILS (INFORMATIONAL) */}
+                                    {calculations.isTdsApplicable && calculations.tdsAmount > 0 && (
+                                        <div className="mt-2 pt-2 border-t border-dashed">
+                                            <div className="flex justify-between text-blue-600">
+                                                <span className="font-medium">TDS ({calculations.tdsRate}%)</span>
+                                                <span>-{formatCurrency(calculations.tdsAmount)}</span>
+                                            </div>
+                                            <div className="flex justify-between font-semibold text-blue-700">
+                                                <span>Net Payable</span>
+                                                <span>{formatCurrency(calculations.netPayable)}</span>
+                                            </div>
+                                            <p className="text-xs text-right text-blue-500">(at time of payment)</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </CardContent>
