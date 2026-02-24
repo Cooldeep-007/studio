@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "@/hooks/use-toast";
@@ -417,6 +417,14 @@ export function AddLedgerSheet({
         }
     }, [open, initialValues, form]);
 
+    const onValidationFailure = (errors: FieldErrors<LedgerFormValues>) => {
+      toast({
+        variant: "destructive",
+        title: "Incomplete Ledger Details",
+        description: "Please fill in all required fields. The first invalid field has been focused for you.",
+      });
+      // react-hook-form automatically focuses the first field with an error.
+    };
 
     const parentLedgerId = form.watch("parentLedgerId");
     const gstin = form.watch("gstDetails.gstin");
@@ -577,7 +585,7 @@ export function AddLedgerSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-2xl w-full">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
+          <form onSubmit={form.handleSubmit(onSubmit, onValidationFailure)} className="flex flex-col h-full">
             <SheetHeader>
               <SheetTitle>Create New Ledger</SheetTitle>
               <SheetDescription>
@@ -1069,6 +1077,5 @@ export function AddLedgerSheet({
     </Sheet>
   );
 }
-
 
     
