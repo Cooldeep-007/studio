@@ -60,7 +60,7 @@ interface JournalEntryFormProps {
 
 export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
     const { toast } = useToast();
-    const [ledgers, setLedgers] = React.useState(() => mockLedgers.filter(l => !l.isGroup));
+    const [ledgers, setLedgers] = React.useState(() => mockLedgers);
     const isEditMode = !!initialData;
     const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
     const [addLedgerInitialValues, setAddLedgerInitialValues] = React.useState<Partial<Ledger> | undefined>();
@@ -87,6 +87,8 @@ export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
         control: form.control,
         name: 'lineItems',
     });
+
+    const ledgerOptions = React.useMemo(() => ledgers.filter(l => !l.isGroup).map(l => ({ value: l.id, label: l.ledgerName })), [ledgers]);
     
     const handleAddLedgerClick = (index: number, searchValue?: string) => {
         setActiveLedgerIndex(index);
@@ -96,7 +98,9 @@ export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
 
     const handleLedgerCreated = (newLedger: Ledger) => {
         setLedgers(prev => [...prev, newLedger]);
-        form.setValue(`lineItems.${activeLedgerIndex}.ledgerId`, newLedger.id, { shouldValidate: true });
+        if (!newLedger.isGroup) {
+            form.setValue(`lineItems.${activeLedgerIndex}.ledgerId`, newLedger.id, { shouldValidate: true });
+        }
     };
 
     const watchedLineItems = form.watch('lineItems');
@@ -163,7 +167,7 @@ export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
                                                 render={({ field: ledgerField }) => (
                                                     <FormItem className='w-full'>
                                                     <Combobox
-                                                        options={ledgers.map(l => ({ value: l.id, label: l.ledgerName }))}
+                                                        options={ledgerOptions}
                                                         value={ledgerField.value}
                                                         onChange={ledgerField.onChange}
                                                         onCreate={(searchValue) => handleAddLedgerClick(index, searchValue)}
@@ -235,7 +239,7 @@ export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
             open={isAddLedgerSheetOpen}
             onOpenChange={setIsAddLedgerSheetOpen}
             initialValues={addLedgerInitialValues}
-            ledgers={mockLedgers}
+            ledgers={ledgers}
             onLedgerCreated={handleLedgerCreated}
         />
         </>

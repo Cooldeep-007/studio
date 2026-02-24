@@ -75,7 +75,7 @@ interface SalesInvoiceFormProps {
 
 export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
     const { toast } = useToast();
-    const [ledgers, setLedgers] = React.useState<Ledger[]>(() => mockLedgers.filter(l => !l.isGroup));
+    const [ledgers, setLedgers] = React.useState<Ledger[]>(() => mockLedgers);
     const [items, setItems] = React.useState<Item[]>(() => mockItems);
     const [company] = React.useState<Company | undefined>(() => mockCompanies.find(c => c.id === 'comp-001'));
     const isEditMode = !!initialData;
@@ -140,19 +140,21 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
     const watchedForm = useWatch({ control: form.control });
 
     const customerOptions = ledgers
-        .filter(l => l.group === 'Sundry Debtor')
+        .filter(l => l.group === 'Sundry Debtor' && !l.isGroup)
         .map(l => ({ value: l.id, label: l.ledgerName }));
 
     const itemOptions = items.map(i => ({ value: i.id, label: i.name }));
     
-    const handleLedgerCreate = (searchValue: string, group: LedgerGroup) => {
+    const handleLedgerCreate = (searchValue: string, group: LedgerGroup = 'Sundry Debtor') => {
         setAddLedgerInitialValues({ ledgerName: searchValue, group });
         setIsAddLedgerSheetOpen(true);
     };
 
     const handleLedgerCreated = (newLedger: Ledger) => {
         setLedgers(prev => [...prev, newLedger]);
-        form.setValue('customerLedgerId', newLedger.id, { shouldValidate: true });
+        if (newLedger.group === 'Sundry Debtor') {
+            form.setValue('customerLedgerId', newLedger.id, { shouldValidate: true });
+        }
     };
 
     const handleItemCreate = (searchValue: string, index: number) => {
