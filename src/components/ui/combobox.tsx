@@ -48,20 +48,40 @@ export function Combobox({
     onCreate,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
-  const [inputValue, setInputValue] = React.useState("");
+  const [search, setSearch] = React.useState("");
 
-  const handleSelect = (currentValue: string) => {
-    onChange(currentValue === value ? "" : currentValue);
+  const filteredOptions = React.useMemo(() => {
+    if (search === "") {
+      return options;
+    }
+    return options.filter((option) =>
+      option.label.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [options, search]);
+
+  const handleSelect = (selectedValue: string) => {
+    onChange(selectedValue);
     setOpen(false);
+    setSearch("");
   };
-  
+
   const handleCreate = () => {
-      if (onCreate && inputValue) {
-          onCreate(inputValue);
-          setInputValue("");
-          setOpen(false);
-      }
-  }
+    if (onCreate && search) {
+      onCreate(search);
+      setOpen(false);
+      setSearch("");
+    }
+  };
+
+  const selectedLabel = options.find((option) => option.value === value)?.label;
+
+  // When the popover is closed, if the search input doesn't match the selected label,
+  // reset the search input. This prevents a mismatched state.
+  React.useEffect(() => {
+    if (!open) {
+      setSearch("");
+    }
+  }, [open]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -73,38 +93,40 @@ export function Combobox({
                 aria-expanded={open}
                 className={cn("w-full justify-between font-normal", !value && "text-muted-foreground", className)}
             >
-                {value ? options.find((option) => option.value === value)?.label : placeholder}
+                {selectedLabel || placeholder}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
         </FormControl>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-        <Command shouldFilter={true}>
+        <Command>
           <CommandInput
             placeholder={searchPlaceholder}
-            onValueChange={setInputValue}
+            value={search}
+            onValueChange={setSearch}
           />
           <CommandList>
             <ScrollArea className="max-h-72">
-              <CommandEmpty>
-                {onCreate && inputValue ? (
-                  <CommandItem
-                    onSelect={handleCreate}
-                    value={inputValue}
-                    className="cursor-pointer"
-                  >
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create "{inputValue}"
-                  </CommandItem>
-                ) : (
-                  <div className="py-6 text-center text-sm">{emptyText}</div>
-                )}
-              </CommandEmpty>
+              {filteredOptions.length === 0 && (
+                <CommandEmpty>
+                  {onCreate && search ? (
+                    <CommandItem
+                      onSelect={handleCreate}
+                      className="cursor-pointer"
+                    >
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                      Create "{search}"
+                    </CommandItem>
+                  ) : (
+                    <div className="py-6 text-center text-sm">{emptyText}</div>
+                  )}
+                </CommandEmpty>
+              )}
               <CommandGroup>
-                {options.map((option) => (
+                {filteredOptions.map((option) => (
                   <CommandItem
-                    value={option.label}
                     key={option.value}
+                    value={option.label}
                     onSelect={() => handleSelect(option.value)}
                   >
                     <Check
