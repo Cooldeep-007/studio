@@ -47,8 +47,15 @@ export function Combobox({
     className,
     onCreate,
 }: ComboboxProps) {
-  const [open, setOpen] = React.useState(false);
-  const [search, setSearch] = React.useState("");
+  const [open, setOpen] = React.useState(false)
+  const [inputValue, setInputValue] = React.useState("")
+
+  // When the popover opens, reset the input value
+  React.useEffect(() => {
+    if (open) {
+      setInputValue("");
+    }
+  }, [open]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -71,24 +78,27 @@ export function Combobox({
         <Command>
           <CommandInput
             placeholder={searchPlaceholder}
-            onValueChange={setSearch}
+            onValueChange={setInputValue}
           />
           <CommandList>
             <ScrollArea className="h-72">
               <CommandEmpty>
-                {onCreate && search ? (
-                    <CommandItem
-                        value={search}
-                        onSelect={() => {
-                            onCreate(search);
-                            setOpen(false);
-                        }}
-                    >
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Create "{search}"
-                    </CommandItem>
+                {onCreate && inputValue ? (
+                  <CommandItem
+                    value={inputValue}
+                    onSelect={() => {
+                      if (onCreate) {
+                        onCreate(inputValue);
+                        setOpen(false);
+                      }
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Create "{inputValue}"
+                  </CommandItem>
                 ) : (
-                    <div className="py-6 text-center text-sm">{emptyText}</div>
+                  <div className="py-6 text-center text-sm">{emptyText}</div>
                 )}
               </CommandEmpty>
               <CommandGroup>
@@ -100,6 +110,7 @@ export function Combobox({
                       onChange(option.value);
                       setOpen(false);
                     }}
+                    className="cursor-pointer"
                   >
                     <Check
                       className={cn(
