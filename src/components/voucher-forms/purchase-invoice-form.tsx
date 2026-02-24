@@ -45,8 +45,6 @@ const purchaseInvoiceSchema = z.object({
   isReverseCharge: z.boolean().default(false),
   remarks: z.string().optional(),
   items: z.array(lineItemSchema).min(1, 'At least one item is required.'),
-  isTdsApplicable: z.boolean().default(false),
-  tdsRate: z.coerce.number().optional(),
 });
 
 type FormValues = z.infer<typeof purchaseInvoiceSchema>;
@@ -59,8 +57,6 @@ const defaultValues: Partial<FormValues> = {
     isReverseCharge: false,
     remarks: "",
     items: [{ itemId: '', quantity: 1, rate: 0, discount: 0 }],
-    isTdsApplicable: false,
-    tdsRate: 0,
 };
 
 const formatCurrency = (amount: number) => {
@@ -96,17 +92,8 @@ export function PurchaseInvoiceForm({ initialData }: PurchaseInvoiceFormProps) {
         if (selectedSupplier?.contactDetails?.state) {
             form.setValue('placeOfSupply', selectedSupplier.contactDetails.state);
         }
-        if (selectedSupplier?.tdsTcsConfig?.tdsEnabled) {
-            form.setValue('isTdsApplicable', true);
-            form.setValue('tdsRate', selectedSupplier.tdsTcsConfig.tdsRate);
-        } else {
-             form.setValue('isTdsApplicable', false);
-             form.setValue('tdsRate', 0);
-        }
     }, [selectedSupplier, form]);
     
-    // Edit mode effect would go here if needed.
-
     const { fields, append, remove } = useFieldArray({
         control: form.control,
         name: 'items',
@@ -203,14 +190,33 @@ export function PurchaseInvoiceForm({ initialData }: PurchaseInvoiceFormProps) {
         const totalGst = totalCgst + totalSgst + totalIgst;
         const invoiceTotal = subtotal + totalGst;
         
-        const tdsAmount = watchedForm.isTdsApplicable ? (subtotal * (watchedForm.tdsRate || 0)) / 100 : 0;
+        const isTdsApplicable = selectedSupplier?.tdsTcsConfig?.tdsEnabled ?? false;
+        const tdsRate = selectedSupplier?.tdsTcsConfig?.tdsRate ?? 0;
+        const tdsAmount = isTdsApplicable ? (subtotal * tdsRate) / 100 : 0;
         const netPayable = invoiceTotal - tdsAmount;
         
         const roundedTotal = Math.round(invoiceTotal);
         const roundOff = roundedTotal - invoiceTotal;
 
-        return { items: processedItems, subtotal, totalDiscount, totalCgst, totalSgst, totalIgst, totalGst, grandTotal: roundedTotal, roundOff, isIntraState, tdsAmount, netPayable };
-    }, [watchedForm, items, company]);
+        return { 
+            items: processedItems, 
+            subtotal, 
+            totalDiscount, 
+            totalCgst, 
+            totalSgst, 
+            totalIgst, 
+            totalGst, 
+            grandTotal: roundedTotal, 
+            roundOff, 
+            isIntraState, 
+            tdsAmount, 
+            netPayable,
+            isTdsApplicable,
+            tdsRate,
+            tdsNatureOfPayment: selectedSupplier?.tdsTcsConfig?.tdsNatureOfPayment,
+            tdsSection: selectedSupplier?.tdsTcsConfig?.tdsSection,
+        };
+    }, [watchedForm, items, company, selectedSupplier]);
 
 
     function onSubmit(data: FormValues) {
@@ -344,14 +350,16 @@ export function PurchaseInvoiceForm({ initialData }: PurchaseInvoiceFormProps) {
                                             <Textarea placeholder="Any notes related to the purchase..." {...field} />
                                         </FormItem>
                                      )} />
-                                     {calculations.tdsAmount > 0 && (
+                                     {calculations.isTdsApplicable && calculations.tdsAmount > 0 && (
                                         <Alert variant="default" className="bg-blue-50 border-blue-200">
                                             <Percent className="h-4 w-4 text-blue-500" />
                                             <AlertTitle className="text-blue-700">TDS Applicable</AlertTitle>
                                             <AlertDescription>
-                                                TDS @ {watchedForm.tdsRate?.toFixed(2)}% of {formatCurrency(calculations.subtotal)} will be deducted.
-                                                <div className="font-semibold mt-2">
-                                                    Net Payable to Supplier: {formatCurrency(calculations.netPayable)}
+                                                TDS on {calculations.tdsNatureOfPayment} @ {calculations.tdsRate?.toFixed(2)}% (Sec {calculations.tdsSection}) will be deducted at the time of payment.
+                                                <Separator className="my-2" />
+                                                <div className="flex justify-between items-center mt-2 font-semibold">
+                                                    <span>Net Amount Payable:</span>
+                                                    <span>{formatCurrency(calculations.netPayable)}</span>
                                                 </div>
                                             </AlertDescription>
                                         </Alert>
