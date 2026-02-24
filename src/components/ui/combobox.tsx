@@ -11,6 +11,7 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandInput,
+  CommandItem,
   CommandList,
 } from "@/components/ui/command"
 import {
@@ -81,8 +82,9 @@ export function Combobox({
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command
-          filter={(value, search) => {
-            if (value.toLowerCase().includes(search.toLowerCase())) return 1
+           filter={(value, search) => {
+            const item = options.find(o => o.label === value);
+            if (item?.label.toLowerCase().includes(search.toLowerCase())) return 1
             return 0
           }}
         >
