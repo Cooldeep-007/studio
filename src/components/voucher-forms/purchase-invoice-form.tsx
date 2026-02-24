@@ -45,6 +45,8 @@ const purchaseInvoiceSchema = z.object({
   isReverseCharge: z.boolean().default(false),
   remarks: z.string().optional(),
   items: z.array(lineItemSchema).min(1, 'At least one item is required.'),
+  isTdsApplicable: z.boolean().default(false),
+  tdsRate: z.coerce.number().optional(),
 });
 
 type FormValues = z.infer<typeof purchaseInvoiceSchema>;
@@ -57,6 +59,8 @@ const defaultValues: Partial<FormValues> = {
     isReverseCharge: false,
     remarks: "",
     items: [{ itemId: '', quantity: 1, rate: 0, discount: 0 }],
+    isTdsApplicable: false,
+    tdsRate: 0,
 };
 
 const formatCurrency = (amount: number) => {
@@ -91,6 +95,13 @@ export function PurchaseInvoiceForm({ initialData }: PurchaseInvoiceFormProps) {
     React.useEffect(() => {
         if (selectedSupplier?.contactDetails?.state) {
             form.setValue('placeOfSupply', selectedSupplier.contactDetails.state);
+        }
+        if (selectedSupplier?.tdsTcsConfig?.tdsEnabled) {
+            form.setValue('isTdsApplicable', true);
+            form.setValue('tdsRate', selectedSupplier.tdsTcsConfig.tdsRate);
+        } else {
+             form.setValue('isTdsApplicable', false);
+             form.setValue('tdsRate', 0);
         }
     }, [selectedSupplier, form]);
     
@@ -190,11 +201,15 @@ export function PurchaseInvoiceForm({ initialData }: PurchaseInvoiceFormProps) {
         }).filter(Boolean) as (InvoiceItem & { itemId: string })[];
 
         const totalGst = totalCgst + totalSgst + totalIgst;
-        const grandTotal = subtotal + totalGst;
-        const roundedTotal = Math.round(grandTotal);
-        const roundOff = roundedTotal - grandTotal;
+        const invoiceTotal = subtotal + totalGst;
+        
+        const tdsAmount = watchedForm.isTdsApplicable ? (subtotal * (watchedForm.tdsRate || 0)) / 100 : 0;
+        const netPayable = invoiceTotal - tdsAmount;
+        
+        const roundedTotal = Math.round(invoiceTotal);
+        const roundOff = roundedTotal - invoiceTotal;
 
-        return { items: processedItems, subtotal, totalDiscount, totalCgst, totalSgst, totalIgst, totalGst, grandTotal: roundedTotal, roundOff, isIntraState };
+        return { items: processedItems, subtotal, totalDiscount, totalCgst, totalSgst, totalIgst, totalGst, grandTotal: roundedTotal, roundOff, isIntraState, tdsAmount, netPayable };
     }, [watchedForm, items, company]);
 
 
@@ -322,14 +337,26 @@ export function PurchaseInvoiceForm({ initialData }: PurchaseInvoiceFormProps) {
 
                             {/* FOOTER */}
                             <div className="flex justify-between items-start gap-6">
-                               <div className="w-1/2">
+                               <div className="w-1/2 space-y-4">
                                      <FormField control={form.control} name="remarks" render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Remarks</FormLabel>
                                             <Textarea placeholder="Any notes related to the purchase..." {...field} />
                                         </FormItem>
                                      )} />
-                                </div>
+                                     {calculations.tdsAmount > 0 && (
+                                        <Alert variant="default" className="bg-blue-50 border-blue-200">
+                                            <Percent className="h-4 w-4 text-blue-500" />
+                                            <AlertTitle className="text-blue-700">TDS Applicable</AlertTitle>
+                                            <AlertDescription>
+                                                TDS @ {watchedForm.tdsRate?.toFixed(2)}% of {formatCurrency(calculations.subtotal)} will be deducted.
+                                                <div className="font-semibold mt-2">
+                                                    Net Payable to Supplier: {formatCurrency(calculations.netPayable)}
+                                                </div>
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+                               </div>
                                 <div className="w-full max-w-sm space-y-2 text-sm">
                                     <div className="flex justify-between"><span>Subtotal</span><span>{formatCurrency(calculations.subtotal + calculations.totalDiscount)}</span></div>
                                     <div className="flex justify-between"><span>Discount</span><span className="text-red-600">-{formatCurrency(calculations.totalDiscount)}</span></div>
