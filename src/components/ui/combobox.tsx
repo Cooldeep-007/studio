@@ -47,63 +47,65 @@ export function Combobox({
     className,
     onCreate,
 }: ComboboxProps) {
-  const [open, setOpen] = React.useState(false)
-  const [search, setSearch] = React.useState('')
+  const [open, setOpen] = React.useState(false);
+  const [inputValue, setInputValue] = React.useState("");
 
-  const showCreateOption = onCreate && search && !options.some(option => option.label.toLowerCase() === search.toLowerCase());
+  const handleSelect = (currentValue: string) => {
+    onChange(currentValue === value ? "" : currentValue);
+    setOpen(false);
+  };
+  
+  const handleCreate = () => {
+      if (onCreate && inputValue) {
+          onCreate(inputValue);
+          setInputValue("");
+          setOpen(false);
+      }
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <FormControl>
             <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className={cn("w-full justify-between font-normal", !value && "text-muted-foreground", className)}
+                variant="outline"
+                role="combobox"
+                aria-expanded={open}
+                className={cn("w-full justify-between font-normal", !value && "text-muted-foreground", className)}
             >
-            {value
-                ? options.find((option) => option.value === value)?.label
-                : placeholder}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                {value ? options.find((option) => option.value === value)?.label : placeholder}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
         </FormControl>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-        <Command>
+        <Command shouldFilter={true}>
           <CommandInput
             placeholder={searchPlaceholder}
-            onValueChange={setSearch}
+            onValueChange={setInputValue}
           />
           <CommandList>
-            <ScrollArea className="h-72">
+            <ScrollArea className="max-h-72">
               <CommandEmpty>
-                 {!showCreateOption && <div className="py-6 text-center text-sm">{emptyText}</div>}
+                {onCreate && inputValue ? (
+                  <CommandItem
+                    onSelect={handleCreate}
+                    value={inputValue}
+                    className="cursor-pointer"
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Create "{inputValue}"
+                  </CommandItem>
+                ) : (
+                  <div className="py-6 text-center text-sm">{emptyText}</div>
+                )}
               </CommandEmpty>
-              
-              {showCreateOption && (
-                <CommandGroup>
-                    <CommandItem
-                        onSelect={() => {
-                          onCreate(search);
-                          setOpen(false);
-                        }}
-                    >
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      Create "{search}"
-                    </CommandItem>
-                </CommandGroup>
-              )}
-
               <CommandGroup>
                 {options.map((option) => (
                   <CommandItem
-                    key={option.value}
                     value={option.label}
-                    onSelect={() => {
-                      onChange(option.value)
-                      setOpen(false)
-                    }}
+                    key={option.value}
+                    onSelect={() => handleSelect(option.value)}
                   >
                     <Check
                       className={cn(
