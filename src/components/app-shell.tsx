@@ -150,7 +150,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 />
               </svg>
               <span className="text-xl font-bold font-headline group-data-[collapsible=icon]:hidden">
-                Pro Accounting
+                CORNER
               </span>
             </Link>
             <SidebarTrigger className="hidden md:flex" />

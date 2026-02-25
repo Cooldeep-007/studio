@@ -34,7 +34,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                 />
               </svg>
               <span className="text-2xl font-bold tracking-widest uppercase">
-                Accounting
+                CORNER
               </span>
         </div>
         {children}

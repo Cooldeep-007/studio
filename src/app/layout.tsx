@@ -4,8 +4,8 @@ import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
 
 export const metadata: Metadata = {
-  title: 'Pro Accounting',
-  description: 'Production-ready multi-tenant SaaS Accounting Backend',
+  title: 'CORNER - Smarter Accounting & GST Filing for Modern Businesses',
+  description: 'Manage GST, Income Tax, invoices, e-way bills, and client accounts — all in one powerful platform.',
 };
 
 export default function RootLayout({

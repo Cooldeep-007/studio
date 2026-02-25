@@ -25,11 +25,11 @@ export function WelcomeModal({ open, onOpenChange, userName }: WelcomeModalProps
                 <path d="M2 7L12 12L22 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M12 22V12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-            <DialogTitle className="text-2xl">Welcome to Pro Accounting! 🎉</DialogTitle>
+            <DialogTitle className="text-2xl">Welcome to CORNER! 🎉</DialogTitle>
         </DialogHeader>
         <div className="p-6 text-center space-y-4">
           <p className="text-base text-muted-foreground">
-            Thank you for choosing Pro Accounting, {userName || 'friend'}.
+            Thank you for choosing CORNER, {userName || 'friend'}.
             Your company workspace has been successfully created.
           </p>
           <p className="text-sm text-muted-foreground">
