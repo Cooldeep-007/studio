@@ -80,13 +80,15 @@ export default function SignupPage() {
   });
 
   React.useEffect(() => {
-    // This effect now only runs if the flow is for Google signup and we have a user object.
-    // The redirection logic is handled outside of useEffect.
+    // This effect pre-fills the form for the Google Sign-up flow.
+    // It uses setValue to avoid resetting the entire form and losing user input on re-renders.
     if (isGoogleSignupFlow && user) {
-      form.reset({
-        name: user.displayName || '',
-        email: user.email || '',
-      });
+      if (user.displayName && !form.getValues('name')) {
+        form.setValue('name', user.displayName, { shouldValidate: true });
+      }
+      if (user.email && !form.getValues('email')) {
+        form.setValue('email', user.email, { shouldValidate: true });
+      }
     }
   }, [isGoogleSignupFlow, user, form]);
   
@@ -233,7 +235,7 @@ export default function SignupPage() {
                 <FormItem>
                   <Label htmlFor="email">Email</Label>
                   <FormControl>
-                    <Input id="email" type="email" placeholder="m@example.com" {...field} />
+                    <Input id="email" type="email" placeholder="m@example.com" {...field} disabled={isGoogleSignupFlow} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
