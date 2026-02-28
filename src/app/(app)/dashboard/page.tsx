@@ -197,10 +197,7 @@ export default function DashboardPage() {
   const [isExporting, setIsExporting] = React.useState(false);
   const canExport = profile?.role === 'Owner' || profile?.role === 'Admin';
   
-  const [date, setDate] = React.useState<DateRange | undefined>({
-    from: new Date(MOCK_DATA_YEAR, 3, 1), // Current FY Start
-    to: new Date(MOCK_DATA_YEAR + 1, 2, 31), // Current FY End
-  });
+  const [date, setDate] = React.useState<DateRange | undefined>();
 
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string | undefined>();
 
@@ -210,6 +207,10 @@ export default function DashboardPage() {
   }, [firestore, profile?.firmId]);
 
   const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesQuery);
+
+  const selectedCompany = React.useMemo(() => {
+    return companies?.find(c => c.id === selectedCompanyId)
+  }, [companies, selectedCompanyId]);
 
   React.useEffect(() => {
     if (!selectedCompanyId && companies && companies.length > 0) {
@@ -221,6 +222,14 @@ export default function DashboardPage() {
       }
     }
   }, [companies, selectedCompanyId]);
+  
+  React.useEffect(() => {
+    if (selectedCompany) {
+        const fyStartDate = selectedCompany.financialYearStart instanceof Date ? selectedCompany.financialYearStart : (selectedCompany.financialYearStart as any).toDate();
+        const fyEndDate = new Date(fyStartDate.getFullYear() + 1, 2, 31);
+        setDate({ from: fyStartDate, to: fyEndDate });
+    }
+  }, [selectedCompany]);
   
   const ledgersQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.firmId || !selectedCompanyId) return null;
@@ -586,7 +595,7 @@ const exportToExcel = () => {
     }, 1500);
   }
   
-  const showLoader = isLoadingCompanies || isLoadingLedgers || isLoadingVouchers;
+  const showLoader = isLoadingCompanies || isLoadingLedgers || isLoadingVouchers || !date;
 
   if (isLoadingCompanies || !profile || !companies) {
       return (
@@ -637,7 +646,7 @@ const exportToExcel = () => {
         </div>
       </div>
       
-      <DateRangePicker date={date} setDate={setDate} />
+      <DateRangePicker date={date} setDate={setDate} company={selectedCompany} />
 
       {showLoader ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

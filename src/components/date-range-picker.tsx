@@ -2,8 +2,9 @@
 
 import * as React from "react"
 import { DateRange } from "react-day-picker"
-import { format, parse, isValid, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns"
+import { format, parse, isValid, startOfMonth, endOfMonth, subYears, subMonths } from "date-fns"
 import { AlertTriangle } from "lucide-react"
+import type { Company } from "@/lib/types"
 
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
@@ -12,12 +13,13 @@ import { Label } from "./ui/label"
 import { Alert, AlertDescription } from "./ui/alert"
 
 // --- Helper Functions ---
-const getFinancialYear = (date: Date): { start: Date; end: Date; label: string } => {
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  if (month >= 3) { // April or later
+const getFinancialYearInfo = (refDate: Date): { start: Date; end: Date; label: string } => {
+  const year = refDate.getFullYear();
+  const month = refDate.getMonth();
+  // Financial year in India starts in April (month index 3)
+  if (month >= 3) {
     return { start: new Date(year, 3, 1), end: new Date(year + 1, 2, 31), label: `FY ${year}-${(year + 1).toString().slice(-2)}` };
-  } else { // Jan, Feb, March
+  } else {
     return { start: new Date(year - 1, 3, 1), end: new Date(year, 2, 31), label: `FY ${year - 1}-${year.toString().slice(-2)}` };
   }
 };
@@ -49,9 +51,10 @@ interface ProDateRangePickerProps {
   date: DateRange | undefined;
   setDate: (date: DateRange | undefined) => void;
   className?: string;
+  company?: Company | null;
 }
 
-export function DateRangePicker({ date, setDate, className }: ProDateRangePickerProps) {
+export function DateRangePicker({ date, setDate, className, company }: ProDateRangePickerProps) {
   const [fromString, setFromString] = React.useState<string>(date?.from ? format(date.from, 'dd-MM-yyyy') : '');
   const [toString, setToString] = React.useState<string>(date?.to ? format(date.to, 'dd-MM-yyyy') : '');
   const [error, setError] = React.useState<string | null>(null);
@@ -104,12 +107,15 @@ export function DateRangePicker({ date, setDate, className }: ProDateRangePicker
         to = endOfMonth(lastMonth);
         break;
       case 'thisFy':
-        const currentFy = getFinancialYear(now);
+        const currentFyDate = company?.financialYearStart ? (company.financialYearStart instanceof Date ? company.financialYearStart : (company.financialYearStart as any).toDate()) : now;
+        const currentFy = getFinancialYearInfo(currentFyDate);
         from = currentFy.start;
         to = currentFy.end;
         break;
       case 'lastFy':
-        const lastFy = getFinancialYear(subMonths(now, 12));
+        const refDateForLastFy = company?.financialYearStart ? (company.financialYearStart instanceof Date ? company.financialYearStart : (company.financialYearStart as any).toDate()) : now;
+        const lastFyDate = subYears(refDateForLastFy, 1);
+        const lastFy = getFinancialYearInfo(lastFyDate);
         from = lastFy.start;
         to = lastFy.end;
         break;

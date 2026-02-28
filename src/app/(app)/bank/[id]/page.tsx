@@ -29,7 +29,7 @@ import { DateRangePicker } from '@/components/date-range-picker';
 import type { DateRange } from 'react-day-picker';
 import { ArrowDown, ArrowUp, Banknote, Landmark, Scale, PlusCircle, Wallet, FileInput, Repeat, ArrowRightLeft, HandCoins, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import type { Voucher, Ledger } from '@/lib/types';
+import type { Voucher, Ledger, Company } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { useFirebase, useCollection, useDoc, useMemoFirebase } from '@/firebase';
 import { useUser } from '@/firebase/auth/use-user';
@@ -58,10 +58,21 @@ export default function BankStatementPage() {
   const companyId = searchParams.get('companyId');
   const [isExporting, setIsExporting] = React.useState(false);
   
-  const [date, setDate] = React.useState<DateRange | undefined>({
-    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-    to: new Date(),
-  });
+  const [date, setDate] = React.useState<DateRange | undefined>();
+
+  const companyRef = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !companyId) return null;
+    return doc(firestore, 'firms', profile.firmId, 'companies', companyId);
+  }, [firestore, profile?.firmId, companyId]);
+  const { data: company, isLoading: isLoadingCompany } = useDoc<Company>(companyRef);
+
+  React.useEffect(() => {
+    if (company && !date) {
+        const fyStartDate = company.financialYearStart instanceof Date ? company.financialYearStart : (company.financialYearStart as any).toDate();
+        const fyEndDate = new Date(fyStartDate.getFullYear() + 1, 2, 31);
+        setDate({ from: fyStartDate, to: fyEndDate });
+    }
+  }, [company, date]);
 
   const accountLedgerRef = useMemoFirebase(() => {
       if (!firestore || !profile?.firmId || !companyId || !accountLedgerId) return null;
@@ -193,7 +204,7 @@ export default function BankStatementPage() {
     XLSX.writeFile(wb, `${accountLedger?.ledgerName}_Statement.xlsx`);
   };
 
-  if (isLoadingLedger || isLoadingVouchers || isLoadingLedgers) {
+  if (isLoadingLedger || isLoadingVouchers || isLoadingLedgers || isLoadingCompany) {
       return (
           <div className="flex h-full items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin" />
@@ -216,7 +227,7 @@ export default function BankStatementPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             {isBank ? <Landmark className="h-8 w-8 text-primary" /> : <Wallet className="h-8 w-8 text-primary" />}
@@ -225,7 +236,6 @@ export default function BankStatementPage() {
           <p className="text-muted-foreground">{isBank ? 'Bank Statement' : 'Cash Book'}</p>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-2">
-            <DateRangePicker date={date} setDate={setDate} />
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="outline" disabled={isExporting}>
@@ -247,6 +257,8 @@ export default function BankStatementPage() {
         </div>
       </div>
       
+      <DateRangePicker date={date} setDate={setDate} company={company} />
+
        <div className="flex justify-end gap-2">
             {isBank ? (
                 <>
