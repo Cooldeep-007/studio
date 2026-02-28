@@ -41,9 +41,10 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { useToast } from '@/hooks/use-toast';
-
-import { mockVouchers, mockLedgers, mockCompanies, mockItems } from '@/lib/data';
-import type { Voucher, Company } from '@/lib/types';
+import { useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { useUser } from '@/firebase/auth/use-user';
+import { doc, collection } from 'firebase/firestore';
+import type { Voucher, Company, Ledger } from '@/lib/types';
 import { format } from 'date-fns';
 
 const formatCurrency = (amount: number) => {
@@ -119,29 +120,53 @@ export default function VoucherViewPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const voucherId = params.id as string;
-  const companyId = searchParams.get('companyId');
+  const { firestore } = useFirebase();
+  const { profile } = useUser();
   const { toast } = useToast();
   const [isExporting, setIsExporting] = React.useState(false);
 
-  const voucher: Voucher | undefined = React.useMemo(() => {
-    return mockVouchers.find(v => v.id === voucherId);
-  }, [voucherId]);
+  const voucherId = params.id as string;
+  const companyId = searchParams.get('companyId');
 
-  const company: Company | undefined = React.useMemo(() => {
-    return mockCompanies.find(c => c.id === companyId);
-  }, [companyId]);
+  const voucherRef = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !companyId || !voucherId) return null;
+    return doc(firestore, 'firms', profile.firmId, 'companies', companyId, 'vouchers', voucherId);
+  }, [firestore, profile?.firmId, companyId, voucherId]);
+  const { data: voucher, isLoading: isLoadingVoucher } = useDoc<Voucher>(voucherRef);
 
-  const ledgerMap = React.useMemo(() => new Map(mockLedgers.map(l => [l.id, l])), []);
-  
+  const companyRef = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !companyId) return null;
+    return doc(firestore, 'firms', profile.firmId, 'companies', companyId);
+  }, [firestore, profile?.firmId, companyId]);
+  const { data: company, isLoading: isLoadingCompany } = useDoc<Company>(companyRef);
+
+  const ledgersRef = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !companyId) return null;
+    return collection(firestore, 'firms', profile.firmId, 'companies', companyId, 'ledgers');
+  }, [firestore, profile?.firmId, companyId]);
+  const { data: ledgers, isLoading: isLoadingLedgers } = useCollection<Ledger>(ledgersRef);
+
+  const ledgerMap = React.useMemo(() => {
+    if (!ledgers) return new Map();
+    return new Map(ledgers.map(l => [l.id, l]));
+  }, [ledgers]);
+
   const calculations = React.useMemo(() => {
     if (!voucher?.invoiceDetails) return null;
-    const { subtotal, totalGst, roundOff, grandTotal, items } = voucher.invoiceDetails;
-    const cgst = items.reduce((acc, i) => acc + i.cgst, 0);
-    const sgst = items.reduce((acc, i) => acc + i.sgst, 0);
-    const igst = items.reduce((acc, i) => acc + i.igst, 0);
-    return { subtotal, totalGst, roundOff, grandTotal, cgst, sgst, igst };
+    const { items } = voucher.invoiceDetails;
+    let subtotal = 0;
+    let totalGst = 0;
+    
+    items.forEach(item => {
+        subtotal += item.amount;
+        totalGst += item.cgst + item.sgst + item.igst;
+    });
+
+    const grandTotal = voucher.invoiceDetails.grandTotal || subtotal + totalGst + (voucher.invoiceDetails.roundOff || 0);
+
+    return { subtotal, totalGst, grandTotal };
   }, [voucher]);
+
 
   const handleExport = (formatType: 'pdf' | 'xlsx') => {
     if (!voucher || !company) {
@@ -216,8 +241,9 @@ export default function VoucherViewPage() {
     doc.setFont('helvetica', 'bold');
     doc.text(partyLedger?.ledgerName || 'N/A', margin, y);
     doc.setFont('helvetica', 'normal');
+    const voucherDate = voucher.date instanceof Date ? voucher.date : (voucher.date as any).toDate();
     doc.text('Date:', pageWidth / 2, y);
-    doc.text(format(new Date(voucher.date), 'dd MMM, yyyy'), pageWidth / 2 + 30, y);
+    doc.text(format(voucherDate, 'dd MMM, yyyy'), pageWidth / 2 + 30, y);
     y += 5;
     
     const addressLines = doc.splitTextToSize(partyAddress, 80);
@@ -279,7 +305,15 @@ export default function VoucherViewPage() {
         doc.text(narrationLines, margin, y + 15);
     }
     
-    if (isTaxInvoice && calculations) {
+    if (isTaxInvoice && voucher.invoiceDetails && calculations) {
+        const { grandTotal, subtotal, totalGst } = voucher.invoiceDetails;
+        let cgst = 0, sgst = 0, igst = 0;
+        voucher.invoiceDetails.items.forEach(i => {
+            cgst += i.cgst;
+            sgst += i.sgst;
+            igst += i.igst;
+        });
+
         const valueX = pageWidth - margin;
         let totalY = y + 10;
         doc.setFontSize(10);
@@ -292,18 +326,18 @@ export default function VoucherViewPage() {
              totalY += 7;
         }
 
-        drawTotalLine('Subtotal:', formatCurrency(calculations.subtotal));
-        if (calculations.cgst > 0) drawTotalLine('CGST:', formatCurrency(calculations.cgst));
-        if (calculations.sgst > 0) drawTotalLine('SGST:', formatCurrency(calculations.sgst));
-        if (calculations.igst > 0) drawTotalLine('IGST:', formatCurrency(calculations.igst));
-        if (calculations.roundOff) drawTotalLine('Round Off:', calculations.roundOff.toFixed(2));
+        drawTotalLine('Subtotal:', formatCurrency(subtotal));
+        if (cgst > 0) drawTotalLine('CGST:', formatCurrency(cgst));
+        if (sgst > 0) drawTotalLine('SGST:', formatCurrency(sgst));
+        if (igst > 0) drawTotalLine('IGST:', formatCurrency(igst));
+        if (voucher.invoiceDetails.roundOff) drawTotalLine('Round Off:', voucher.invoiceDetails.roundOff.toFixed(2));
         
         totalY += 1;
         doc.setDrawColor(220);
         doc.line(totalsX, totalY, pageWidth - margin, totalY);
         totalY += 1;
         
-        drawTotalLine('Grand Total:', formatCurrency(calculations.grandTotal), true);
+        drawTotalLine('Grand Total:', formatCurrency(grandTotal), true);
         y = totalY;
         
         y += 5;
@@ -311,7 +345,7 @@ export default function VoucherViewPage() {
         doc.setFont('helvetica', 'bold');
         doc.text('Amount in Words:', margin, y);
         doc.setFont('helvetica', 'normal');
-        doc.text(`(Indian Rupees ${toWords(calculations.grandTotal)})`, margin, y + 4, { maxWidth: narrationWidth });
+        doc.text(`(Indian Rupees ${toWords(grandTotal)})`, margin, y + 4, { maxWidth: narrationWidth });
     }
 
     // 7. Signature block
@@ -346,7 +380,8 @@ export default function VoucherViewPage() {
     ws_data.push([company.companyName]);
     ws_data.push([isTaxInvoice ? "Tax Invoice" : voucher.voucherType.toUpperCase()]);
     ws_data.push([]);
-    ws_data.push(['Voucher No.', voucher.voucherNumber, 'Date', format(new Date(voucher.date), 'dd-MM-yyyy')]);
+    const voucherDate = voucher.date instanceof Date ? voucher.date : (voucher.date as any).toDate();
+    ws_data.push(['Voucher No.', voucher.voucherNumber, 'Date', format(voucherDate, 'dd-MM-yyyy')]);
     ws_data.push(['Party', partyLedgerName]);
     ws_data.push([]);
 
@@ -360,12 +395,12 @@ export default function VoucherViewPage() {
             ]);
         });
         ws_data.push([]);
-        ws_data.push([null, null, null, null, null, null, null, 'Subtotal', calculations.subtotal]);
-        ws_data.push([null, null, null, null, null, null, null, 'Total GST', calculations.totalGst]);
-        if (calculations.roundOff) {
-            ws_data.push([null, null, null, null, null, null, null, 'Round Off', calculations.roundOff]);
+        ws_data.push([null, null, null, null, null, null, null, 'Subtotal', voucher.invoiceDetails.subtotal]);
+        ws_data.push([null, null, null, null, null, null, null, 'Total GST', voucher.invoiceDetails.totalGst]);
+        if (voucher.invoiceDetails.roundOff) {
+            ws_data.push([null, null, null, null, null, null, null, 'Round Off', voucher.invoiceDetails.roundOff]);
         }
-        ws_data.push([null, null, null, null, null, null, null, 'Grand Total', calculations.grandTotal]);
+        ws_data.push([null, null, null, null, null, null, null, 'Grand Total', voucher.invoiceDetails.grandTotal]);
     } else {
         ws_data.push(['Particulars', 'Debit', 'Credit']);
         voucher.entries.forEach(entry => {
@@ -392,6 +427,17 @@ export default function VoucherViewPage() {
     XLSX.utils.book_append_sheet(wb, ws, 'Voucher');
     XLSX.writeFile(wb, `Voucher_${voucher.voucherNumber}.xlsx`);
   };
+  
+  const isLoading = isLoadingVoucher || isLoadingCompany || isLoadingLedgers;
+
+  if (isLoading) {
+      return (
+          <div className="flex items-center justify-center h-96">
+              <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+      )
+  }
+
 
   if (!voucher || !company) {
     return (
@@ -409,7 +455,8 @@ export default function VoucherViewPage() {
     );
   }
 
-  const partyLedgerName = voucher.partyLedgerId ? ledgerMap.get(voucher.partyLedgerId)?.ledgerName : 'N/A';
+  const voucherDate = voucher.date instanceof Date ? voucher.date : (voucher.date as any).toDate();
+  const createdAtDate = voucher.createdAt instanceof Date ? voucher.createdAt : (voucher.createdAt as any).toDate();
 
   return (
     <div className="space-y-6">
@@ -454,7 +501,7 @@ export default function VoucherViewPage() {
                     <h2 className="text-2xl font-bold mt-2">{voucher.voucherNumber}</h2>
                 </div>
                 <div className="text-right">
-                    <p className="text-lg font-semibold">{format(new Date(voucher.date), 'dd MMM, yyyy')}</p>
+                    <p className="text-lg font-semibold">{format(voucherDate, 'dd MMM, yyyy')}</p>
                     <p className="text-sm text-muted-foreground">Voucher Date</p>
                 </div>
             </div>
@@ -504,7 +551,7 @@ export default function VoucherViewPage() {
             )}
         </CardContent>
          <CardFooter className="bg-muted/50 p-4 text-xs text-muted-foreground text-center justify-center print:hidden">
-            <p>Created on {format(new Date(voucher.createdAt), 'PPpp')}</p>
+            <p>Created on {format(createdAtDate, 'PPpp')}</p>
         </CardFooter>
       </Card>
     </div>

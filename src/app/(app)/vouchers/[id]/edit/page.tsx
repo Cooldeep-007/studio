@@ -1,8 +1,7 @@
-
 'use client';
 
 import * as React from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -18,10 +17,12 @@ import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
 import { CreditNoteForm } from '@/components/voucher-forms/credit-note-form';
 import { AdhocVoucherForm } from '@/components/voucher-forms/adhoc-invoice-form';
 import { ProformaInvoiceForm } from '@/components/voucher-forms/proforma-invoice-form';
-import { mockVouchers } from '@/lib/data';
 import type { Voucher } from '@/lib/types';
 import { FileWarning, Loader2, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { doc } from 'firebase/firestore';
+import { useFirebase, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser } from '@/firebase/auth/use-user';
 
 const NotImplemented = ({ type }: { type: string }) => (
     <div className="flex items-center justify-center h-40 mt-6 text-muted-foreground border-2 border-dashed rounded-lg">
@@ -37,19 +38,23 @@ const NotImplemented = ({ type }: { type: string }) => (
 export default function EditVoucherPage() {
   const params = useParams();
   const router = useRouter();
-  const voucherId = params.id as string;
-  const [voucher, setVoucher] = React.useState<Voucher | null | undefined>(undefined);
+  const searchParams = useSearchParams();
+  const { firestore } = useFirebase();
+  const { profile } = useUser();
 
-  React.useEffect(() => {
-    // In a real app, you would fetch this data from an API
-    // const foundVoucher = await fetchVoucherById(voucherId);
-    const foundVoucher = mockVouchers.find(v => v.id === voucherId);
-    setVoucher(foundVoucher || null);
-  }, [voucherId]);
+  const voucherId = params.id as string;
+  const companyId = searchParams.get('companyId');
+
+  const voucherRef = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !companyId || !voucherId) return null;
+    return doc(firestore, 'firms', profile.firmId, 'companies', companyId, 'vouchers', voucherId);
+  }, [firestore, profile?.firmId, companyId, voucherId]);
+
+  const { data: voucher, isLoading } = useDoc<Voucher>(voucherRef);
 
 
   const renderVoucherForm = () => {
-    if (voucher === undefined) {
+    if (isLoading) {
         return (
             <div className="flex items-center justify-center h-40 mt-6">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -57,7 +62,7 @@ export default function EditVoucherPage() {
         );
     }
     
-    if (voucher === null) {
+    if (!voucher) {
         return (
             <Card>
                 <CardHeader>
@@ -73,19 +78,25 @@ export default function EditVoucherPage() {
         );
     }
 
+    const firmId = profile?.firmId;
+
+    if (!firmId || !companyId) {
+        return <p>Firm or Company ID is missing.</p>;
+    }
+
     switch (voucher.voucherType) {
       case 'Sales':
-        return <SalesInvoiceForm initialData={voucher} />;
+        return <SalesInvoiceForm initialData={voucher} companyId={companyId} firmId={firmId} />;
       case 'Purchase':
-        return <PurchaseInvoiceForm initialData={voucher} />;
+        return <PurchaseInvoiceForm initialData={voucher} companyId={companyId} firmId={firmId} />;
       case 'Payment':
-        return <PaymentReceiptForm type="Payment" initialData={voucher} />;
+        return <PaymentReceiptForm type="Payment" initialData={voucher} companyId={companyId} firmId={firmId} />;
       case 'Receipt':
-        return <PaymentReceiptForm type="Receipt" initialData={voucher} />;
+        return <PaymentReceiptForm type="Receipt" initialData={voucher} companyId={companyId} firmId={firmId} />;
       case 'Contra':
-        return <ContraEntryForm initialData={voucher} />;
+        return <ContraEntryForm initialData={voucher} companyId={companyId} firmId={firmId} />;
       case 'Journal':
-        return <JournalEntryForm initialData={voucher} />;
+        return <JournalEntryForm initialData={voucher} companyId={companyId} firmId={firmId} />;
       case 'Debit Note':
         return <DebitNoteForm />;
       case 'Credit Note':

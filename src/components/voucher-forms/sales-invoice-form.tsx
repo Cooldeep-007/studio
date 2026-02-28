@@ -27,6 +27,8 @@ import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AddLedgerSheet } from '../add-ledger-sheet';
+import { useFirebase } from '@/firebase';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 const lineItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required.'),
@@ -70,13 +72,16 @@ const formatCurrency = (amount: number) => {
 
 interface SalesInvoiceFormProps {
     initialData?: Voucher;
+    companyId: string;
+    firmId: string;
 }
 
-export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
+export function SalesInvoiceForm({ initialData, companyId, firmId }: SalesInvoiceFormProps) {
     const { toast } = useToast();
+    const { firestore } = useFirebase();
     const [ledgers, setLedgers] = React.useState<Ledger[]>(() => mockLedgers);
     const [items, setItems] = React.useState<Item[]>(() => mockItems);
-    const [company] = React.useState<Company | undefined>(() => mockCompanies.find(c => c.id === 'comp-001'));
+    const [company] = React.useState<Company | undefined>(() => mockCompanies.find(c => c.id === companyId));
     const isEditMode = !!initialData;
 
     const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
@@ -87,7 +92,7 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
 
     const form = useForm<FormValues>({
         resolver: zodResolver(salesInvoiceSchema),
-        defaultValues: isEditMode ? undefined : defaultValues,
+        defaultValues,
     });
     
     const customerId = useWatch({ control: form.control, name: 'customerLedgerId' });
@@ -109,15 +114,15 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
     React.useEffect(() => {
         if (isEditMode && initialData?.invoiceDetails) {
             form.reset({
-                invoiceDate: new Date(initialData.date),
-                dueDate: initialData.invoiceDetails.dueDate ? new Date(initialData.invoiceDetails.dueDate) : undefined,
+                invoiceDate: initialData.date instanceof Date ? initialData.date : (initialData.date as any).toDate(),
+                dueDate: initialData.invoiceDetails.dueDate ? (initialData.invoiceDetails.dueDate instanceof Date ? initialData.invoiceDetails.dueDate : (initialData.invoiceDetails.dueDate as any).toDate()) : undefined,
                 customerLedgerId: initialData.partyLedgerId,
                 placeOfSupply: initialData.invoiceDetails.placeOfSupply,
-                remarks: initialData.invoiceDetails.remarks,
-                isGstApplicable: true, // Assuming it's always applicable for saved invoices
+                remarks: initialData.invoiceDetails.remarks || initialData.narration,
+                isGstApplicable: true,
                 isReverseCharge: initialData.invoiceDetails.isReverseCharge,
                 isTcsApplicable: !!initialData.invoiceDetails.tcsAmount && initialData.invoiceDetails.tcsAmount > 0,
-                tcsRate: initialData.invoiceDetails.tcsAmount ? (initialData.invoiceDetails.tcsAmount / initialData.invoiceDetails.subtotal) * 100 : 0,
+                tcsRate: initialData.invoiceDetails.tcsAmount && initialData.invoiceDetails.subtotal > 0 ? (initialData.invoiceDetails.tcsAmount / initialData.invoiceDetails.subtotal) * 100 : 0,
                 eInvoiceRef: initialData.invoiceDetails.eInvoiceRef,
                 eWayBillNo: initialData.invoiceDetails.eWayBillNo,
                 items: initialData.invoiceDetails.items.map(item => ({
@@ -242,14 +247,99 @@ export function SalesInvoiceForm({ initialData }: SalesInvoiceFormProps) {
     }, [watchedForm, items, company]);
 
 
-    function onSubmit(data: FormValues) {
-        console.log({ ...data, calculations });
-        toast({
-            title: `Sales Invoice ${isEditMode ? 'Updated' : 'Created'}`,
-            description: 'The sales voucher has been successfully saved.',
-        });
-        if (!isEditMode) {
-            form.reset(defaultValues);
+    async function onSubmit(data: FormValues) {
+        if (!firestore) return;
+        // TODO: Implement edit mode
+        if (isEditMode) {
+             toast({
+                title: `Sales Invoice Updated`,
+                description: "The sales voucher has been successfully updated.",
+            });
+            return;
+        }
+
+        const {
+            items: calculatedItems, 
+            grandTotal,
+            totalCgst,
+            totalSgst,
+            totalIgst,
+            subtotal,
+            tcsAmount,
+            roundOff,
+            totalDiscount
+        } = calculations;
+
+        // Find necessary ledgers
+        const customerLedger = ledgers.find(l => l.id === data.customerLedgerId);
+        const salesLedger = ledgers.find(l => l.id === 'led-01'); // Domestic Sales
+        const cgstLedger = ledgers.find(l => l.ledgerName === "CGST");
+        const sgstLedger = ledgers.find(l => l.ledgerName === "SGST");
+        const igstLedger = ledgers.find(l => l.ledgerName === "IGST");
+        
+        if (!customerLedger || !salesLedger) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Essential ledgers like Sales or Customer are missing.' });
+            return;
+        }
+
+        let entries = [
+            { ledgerId: customerLedger.id, type: 'Dr', amount: grandTotal },
+            { ledgerId: salesLedger.id, type: 'Cr', amount: subtotal },
+        ];
+
+        if (totalCgst > 0 && cgstLedger) entries.push({ ledgerId: cgstLedger.id, type: 'Cr', amount: totalCgst });
+        if (totalSgst > 0 && sgstLedger) entries.push({ ledgerId: sgstLedger.id, type: 'Cr', amount: totalSgst });
+        if (totalIgst > 0 && igstLedger) entries.push({ ledgerId: igstLedger.id, type: 'Cr', amount: totalIgst });
+        
+        const newVoucher: Omit<Voucher, 'id'> = {
+            voucherNumber: `FY24-AUTO-${Math.floor(Math.random() * 1000)}`, // Replace with real sequencing
+            voucherType: 'Sales',
+            date: data.invoiceDate,
+            createdAt: serverTimestamp(),
+            narration: data.remarks || `Sales to ${customerLedger.ledgerName}`,
+            partyLedgerId: data.customerLedgerId,
+            entries,
+            totalDebit: grandTotal,
+            totalCredit: grandTotal,
+            firmId,
+            companyId,
+            createdByUserId: 'user-123', // Replace with actual user ID from auth
+            isReconciled: false,
+            isCancelled: false,
+            invoiceDetails: {
+                items: calculatedItems,
+                subtotal,
+                totalDiscount,
+                totalGst,
+                tcsAmount,
+                roundOff,
+                grandTotal,
+                placeOfSupply: data.placeOfSupply,
+                dueDate: data.dueDate,
+                remarks: data.remarks,
+                isReverseCharge: data.isReverseCharge,
+                eInvoiceRef: data.eInvoiceRef,
+                eWayBillNo: data.eWayBillNo,
+            },
+            status: 'Unpaid',
+            outstandingAmount: grandTotal,
+        };
+
+        try {
+            const vouchersColRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'vouchers');
+            await addDoc(vouchersColRef, newVoucher);
+            toast({
+                title: `Sales Invoice Created`,
+                description: 'The sales voucher has been successfully saved.',
+            });
+            form.reset();
+        } catch (error) {
+             console.error(error);
+             toast({
+                variant: 'destructive',
+                title: `Error`,
+                description: `Failed to create sales voucher.`,
+            });
         }
     }
 

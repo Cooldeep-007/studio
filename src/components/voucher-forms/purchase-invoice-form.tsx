@@ -76,7 +76,7 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
     const { firestore } = useFirebase();
     const [ledgers, setLedgers] = React.useState<Ledger[]>(() => mockLedgers);
     const [items, setItems] = React.useState<Item[]>(() => mockItems);
-    const [company] = React.useState<Company | undefined>(() => mockCompanies.find(c => c.id === 'comp-001'));
+    const [company] = React.useState<Company | undefined>(() => mockCompanies.find(c => c.id === companyId));
     const isEditMode = !!initialData;
 
     const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
@@ -87,7 +87,7 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
 
     const form = useForm<FormValues>({
         resolver: zodResolver(purchaseInvoiceSchema),
-        defaultValues: isEditMode ? undefined : defaultValues,
+        defaultValues,
     });
     
     const supplierId = useWatch({ control: form.control, name: 'supplierLedgerId' });
@@ -99,6 +99,27 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
         }
     }, [selectedSupplier, form]);
     
+    React.useEffect(() => {
+        if (isEditMode && initialData?.invoiceDetails) {
+            form.reset({
+                invoiceDate: initialData.date instanceof Date ? initialData.date : (initialData.date as any).toDate(),
+                supplierLedgerId: initialData.partyLedgerId,
+                supplierInvoiceNo: initialData.referenceNumber,
+                placeOfSupply: initialData.invoiceDetails.placeOfSupply,
+                isGstApplicable: true,
+                isReverseCharge: initialData.invoiceDetails.isReverseCharge,
+                remarks: initialData.narration,
+                items: initialData.invoiceDetails.items.map(item => ({
+                    itemId: item.itemId,
+                    description: item.description,
+                    quantity: item.quantity,
+                    rate: item.rate,
+                    discount: item.discount,
+                })),
+            });
+        }
+    }, [initialData, form, isEditMode]);
+
     const { fields, append, remove } = useFieldArray({
         control: form.control,
         name: 'items',
@@ -241,7 +262,9 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
             totalCgst,
             totalSgst,
             totalIgst,
-            subtotal
+            subtotal,
+            totalDiscount,
+            roundOff
         } = calculations;
 
         // Find necessary ledgers
@@ -253,7 +276,7 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
 
         calculatedItems.forEach(item => {
             const fullItem = items.find(i => i.id === item.itemId);
-            if (!fullItem) return;
+            if (!fullItem?.expenseLedgerId) return;
 
             const existingEntry = purchaseLedgerEntries.find(e => e.ledgerId === fullItem.expenseLedgerId);
             if (existingEntry) {
@@ -294,10 +317,10 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
             invoiceDetails: {
                 items: calculatedItems,
                 subtotal: subtotal,
-                totalDiscount: calculations.totalDiscount,
+                totalDiscount: totalDiscount,
                 totalGst: calculations.totalGst,
-                roundOff: calculations.roundOff,
-                grandTotal: calculations.grandTotal,
+                roundOff: roundOff,
+                grandTotal: grandTotal,
                 placeOfSupply: data.placeOfSupply,
                 isReverseCharge: data.isReverseCharge,
             },
