@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   Edit,
@@ -42,8 +42,8 @@ import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { useToast } from '@/hooks/use-toast';
 
-import { mockVouchers, mockLedgers } from '@/lib/data';
-import type { Voucher } from '@/lib/types';
+import { mockVouchers, mockLedgers, mockCompanies, mockItems } from '@/lib/data';
+import type { Voucher, Company } from '@/lib/types';
 import { format } from 'date-fns';
 
 const formatCurrency = (amount: number) => {
@@ -52,6 +52,53 @@ const formatCurrency = (amount: number) => {
     currency: 'INR',
   }).format(amount);
 };
+
+const toWords = (num: number): string => {
+    if (num === 0) return 'Zero Rupees Only';
+
+    const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    
+    const inWords = (n: number): string => {
+        let str = '';
+        if (n > 99) {
+            str += a[Math.floor(n / 100)] + ' Hundred ';
+            n %= 100;
+        }
+        if (n > 19) {
+            str += b[Math.floor(n / 10)] + ' ';
+            n %= 10;
+        }
+        if (n > 0) {
+            str += a[n] + ' ';
+        }
+        return str;
+    };
+
+    let result = '';
+    const crore = Math.floor(num / 10000000);
+    num %= 10000000;
+    const lakh = Math.floor(num / 100000);
+    num %= 100000;
+    const thousand = Math.floor(num / 1000);
+    num %= 1000;
+    const hundreds = Math.floor(num);
+    const paisa = Math.round((num - hundreds) * 100);
+
+    if (crore > 0) result += inWords(crore) + 'Crore ';
+    if (lakh > 0) result += inWords(lakh) + 'Lakh ';
+    if (thousand > 0) result += inWords(thousand) + 'Thousand ';
+    if (hundreds > 0) result += inWords(hundreds);
+
+    result = result.trim();
+    if (result) result += ' Rupees';
+    if (paisa > 0) {
+        result += (result ? ' and ' : '') + inWords(paisa) + ' Paisa';
+    }
+
+    return result.trim() + ' Only';
+};
+
 
 const badgeColors: Record<string, string> = {
   Sales: 'bg-green-100 text-green-800 hover:bg-green-100/80',
@@ -71,7 +118,9 @@ const badgeColors: Record<string, string> = {
 export default function VoucherViewPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const voucherId = params.id as string;
+  const companyId = searchParams.get('companyId');
   const { toast } = useToast();
   const [isExporting, setIsExporting] = React.useState(false);
 
@@ -79,10 +128,26 @@ export default function VoucherViewPage() {
     return mockVouchers.find(v => v.id === voucherId);
   }, [voucherId]);
 
+  const company: Company | undefined = React.useMemo(() => {
+    return mockCompanies.find(c => c.id === companyId);
+  }, [companyId]);
+
   const ledgerMap = React.useMemo(() => new Map(mockLedgers.map(l => [l.id, l])), []);
   
+  const calculations = React.useMemo(() => {
+    if (!voucher?.invoiceDetails) return null;
+    const { subtotal, totalGst, roundOff, grandTotal, items } = voucher.invoiceDetails;
+    const cgst = items.reduce((acc, i) => acc + i.cgst, 0);
+    const sgst = items.reduce((acc, i) => acc + i.sgst, 0);
+    const igst = items.reduce((acc, i) => acc + i.igst, 0);
+    return { subtotal, totalGst, roundOff, grandTotal, cgst, sgst, igst };
+  }, [voucher]);
+
   const handleExport = (formatType: 'pdf' | 'xlsx') => {
-    if (!voucher) return;
+    if (!voucher || !company) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Voucher or Company data not found.' });
+        return;
+    };
     setIsExporting(true);
     toast({ title: 'Exporting...', description: `Your voucher is being exported as a ${formatType.toUpperCase()} file.` });
 
@@ -104,102 +169,236 @@ export default function VoucherViewPage() {
   };
 
   const exportVoucherToPdf = () => {
-    if (!voucher) return;
+    if (!voucher || !company) return;
+
     const doc = new jsPDF();
-    const partyLedgerName = voucher.partyLedgerId ? ledgerMap.get(voucher.partyLedgerId)?.ledgerName : 'N/A';
-    
+    const pageHeight = doc.internal.pageSize.height || doc.internal.pageSize.getHeight();
+    const pageWidth = doc.internal.pageSize.width || doc.internal.pageSize.getWidth();
+    let y = 15;
+    const margin = 14;
+
+    // 1. Company Header
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(company.companyName, margin, y);
+    y += 7;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(company.address || '', margin, y);
+    y += 5;
+    doc.text(`GSTIN: ${company.gstin || 'N/A'}`, margin, y);
+
+    // 2. Document Title
+    const isTaxInvoice = voucher.voucherType === 'Sales' && voucher.invoiceDetails;
+    const title = isTaxInvoice ? 'Tax Invoice' : voucher.voucherType.toUpperCase();
     doc.setFontSize(18);
-    doc.text(`Voucher: ${voucher.voucherNumber}`, 14, 22);
-    doc.setFontSize(12);
-    doc.text(`Type: ${voucher.voucherType}`, 14, 30);
-    doc.text(`Date: ${format(new Date(voucher.date), 'dd MMM, yyyy')}`, doc.internal.pageSize.getWidth() - 14, 30, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, pageWidth - margin, 15, { align: 'right' });
 
-    if (voucher.partyLedgerId) {
-      doc.text(`Party: ${partyLedgerName}`, 14, 38);
+    y += 10;
+    doc.setDrawColor(220); // Lighter gray
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    // 3. Voucher & Party Details
+    const partyLedger = ledgerMap.get(voucher.partyLedgerId || '');
+    const partyAddress = partyLedger?.contactDetails?.addressLine1 || '';
+    const partyGstin = partyLedger?.gstDetails?.gstin || 'N/A';
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(voucher.voucherType === 'Payment' ? 'Paid To:' : (voucher.voucherType === 'Receipt' ? 'Received From:' : 'Bill To:'), margin, y);
+    doc.text('Voucher No:', pageWidth / 2, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(voucher.voucherNumber, pageWidth / 2 + 30, y);
+    y += 5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(partyLedger?.ledgerName || 'N/A', margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Date:', pageWidth / 2, y);
+    doc.text(format(new Date(voucher.date), 'dd MMM, yyyy'), pageWidth / 2 + 30, y);
+    y += 5;
+    
+    const addressLines = doc.splitTextToSize(partyAddress, 80);
+    doc.text(addressLines, margin, y);
+    y += (addressLines.length * 4) + 1; // Add padding
+
+    doc.text(`GSTIN: ${partyGstin}`, margin, y);
+    
+    if (voucher.invoiceDetails?.placeOfSupply) {
+         y += 5;
+         doc.setFont('helvetica', 'bold');
+         doc.text('Place of Supply:', margin, y);
+         doc.setFont('helvetica', 'normal');
+         doc.text(voucher.invoiceDetails.placeOfSupply, margin + 35, y);
     }
-    (doc as any).autoTable({
-      startY: 45,
-      head: [['Particulars', 'Debit', 'Credit']],
-      body: voucher.entries.map(entry => [
-        ledgerMap.get(entry.ledgerId)?.ledgerName || 'Unknown Ledger',
-        entry.type === 'Dr' ? formatCurrency(entry.amount) : '',
-        entry.type === 'Cr' ? formatCurrency(entry.amount) : '',
-      ]),
-      foot: [
-        ['Total', formatCurrency(voucher.totalDebit), formatCurrency(voucher.totalCredit)]
-      ],
-      theme: 'grid',
-      headStyles: { fillColor: [41, 128, 185], halign: 'center' },
-      footStyles: { fontStyle: 'bold' },
-      columnStyles: {
-        1: { halign: 'right' },
-        2: { halign: 'right' },
-      }
-    });
+    y += 10;
 
-    let finalY = (doc as any).lastAutoTable.finalY;
+    // 4. Table
+    if (isTaxInvoice && voucher.invoiceDetails) {
+        (doc as any).autoTable({
+            startY: y,
+            head: [['#', 'Item Description', 'HSN/SAC', 'Qty', 'Rate', 'Amount']],
+            body: voucher.invoiceDetails.items.map((item, index) => [
+                index + 1, item.name, item.hsnCode || item.sacCode || '-', `${item.quantity} ${item.uqc}`, formatCurrency(item.rate), formatCurrency(item.amount)
+            ]),
+            theme: 'grid',
+            headStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: 'bold' },
+            columnStyles: { 0: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } }
+        });
+    } else {
+        (doc as any).autoTable({
+            startY: y,
+            head: [['Particulars', 'Debit', 'Credit']],
+            body: voucher.entries.map(entry => [
+                ledgerMap.get(entry.ledgerId)?.ledgerName || 'Unknown Ledger',
+                entry.type === 'Dr' ? formatCurrency(entry.amount) : '',
+                entry.type === 'Cr' ? formatCurrency(entry.amount) : '',
+            ]),
+            foot: [['Total', formatCurrency(voucher.totalDebit), formatCurrency(voucher.totalCredit)]],
+            theme: 'grid',
+            headStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: 'bold' },
+            footStyles: { fontStyle: 'bold' },
+            columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } }
+        });
+    }
+    
+    y = (doc as any).lastAutoTable.finalY;
+
+    // 5. Totals Section & Narration
+    const totalsX = pageWidth - margin - 80;
+    const narrationWidth = isTaxInvoice ? totalsX - margin - 10 : pageWidth - (margin * 2);
 
     if (voucher.narration) {
-      doc.setFontSize(10);
-      doc.text('Narration:', 14, finalY + 10);
-      doc.text(voucher.narration, 14, finalY + 15, { maxWidth: doc.internal.pageSize.getWidth() - 28 });
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Narration:', margin, y + 10);
+        doc.setFont('helvetica', 'normal');
+        const narrationLines = doc.splitTextToSize(voucher.narration, narrationWidth);
+        doc.text(narrationLines, margin, y + 15);
+    }
+    
+    if (isTaxInvoice && calculations) {
+        const valueX = pageWidth - margin;
+        let totalY = y + 10;
+        doc.setFontSize(10);
+        
+        const drawTotalLine = (label: string, value: string, isBold = false) => {
+             if (isBold) doc.setFont('helvetica', 'bold');
+             doc.text(label, totalsX, totalY, { align: 'left' });
+             doc.text(value, valueX, totalY, { align: 'right' });
+             if (isBold) doc.setFont('helvetica', 'normal');
+             totalY += 7;
+        }
+
+        drawTotalLine('Subtotal:', formatCurrency(calculations.subtotal));
+        if (calculations.cgst > 0) drawTotalLine('CGST:', formatCurrency(calculations.cgst));
+        if (calculations.sgst > 0) drawTotalLine('SGST:', formatCurrency(calculations.sgst));
+        if (calculations.igst > 0) drawTotalLine('IGST:', formatCurrency(calculations.igst));
+        if (calculations.roundOff) drawTotalLine('Round Off:', calculations.roundOff.toFixed(2));
+        
+        totalY += 1;
+        doc.setDrawColor(220);
+        doc.line(totalsX, totalY, pageWidth - margin, totalY);
+        totalY += 1;
+        
+        drawTotalLine('Grand Total:', formatCurrency(calculations.grandTotal), true);
+        y = totalY;
+        
+        y += 5;
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Amount in Words:', margin, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`(Indian Rupees ${toWords(calculations.grandTotal)})`, margin, y + 4, { maxWidth: narrationWidth });
+    }
+
+    // 7. Signature block
+    const signatureY = pageHeight - 30;
+    doc.setDrawColor(220);
+    doc.line(pageWidth - margin - 70, signatureY, pageWidth - margin, signatureY);
+    doc.setFontSize(10);
+    doc.text('Authorised Signatory', pageWidth - margin - 35, signatureY + 5, { align: 'center' });
+    doc.text(`For ${company.companyName}`, pageWidth - margin - 35, signatureY + 10, { align: 'center' });
+
+    // 8. Footer
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+        doc.text(`This is a computer generated document.`, margin, pageHeight - 10, { align: 'left' });
     }
 
     doc.save(`Voucher_${voucher.voucherNumber}.pdf`);
   };
 
   const exportVoucherToXlsx = () => {
-    if (!voucher) return;
+    if (!voucher || !company) return;
     const partyLedgerName = voucher.partyLedgerId ? ledgerMap.get(voucher.partyLedgerId)?.ledgerName : 'N/A';
+    const isTaxInvoice = voucher.voucherType === 'Sales' && voucher.invoiceDetails;
 
-    const header = [
-      ['Voucher No.', voucher.voucherNumber],
-      ['Voucher Type', voucher.voucherType],
-      ['Date', format(new Date(voucher.date), 'dd-MM-yyyy')],
-    ];
-    if(voucher.partyLedgerId) header.push(['Party', partyLedgerName]);
+    const wb = XLSX.utils.book_new();
+    let ws_data: (string | number | null | Date)[][] = [];
+
+    // Header
+    ws_data.push([company.companyName]);
+    ws_data.push([isTaxInvoice ? "Tax Invoice" : voucher.voucherType.toUpperCase()]);
+    ws_data.push([]);
+    ws_data.push(['Voucher No.', voucher.voucherNumber, 'Date', format(new Date(voucher.date), 'dd-MM-yyyy')]);
+    ws_data.push(['Party', partyLedgerName]);
+    ws_data.push([]);
+
+    if (isTaxInvoice && voucher.invoiceDetails && calculations) {
+        ws_data.push(['#', 'Item', 'HSN/SAC', 'Qty', 'UQC', 'Rate', 'Discount %', 'Taxable Amount', 'GST %', 'GST Amt', 'Total']);
+        voucher.invoiceDetails.items.forEach((item, index) => {
+            const gstAmt = item.cgst + item.sgst + item.igst;
+            ws_data.push([
+                index + 1, item.name, item.hsnCode || item.sacCode || '', item.quantity,
+                item.uqc, item.rate, item.discount || 0, item.amount, item.gstRate, gstAmt, item.total
+            ]);
+        });
+        ws_data.push([]);
+        ws_data.push([null, null, null, null, null, null, null, 'Subtotal', calculations.subtotal]);
+        ws_data.push([null, null, null, null, null, null, null, 'Total GST', calculations.totalGst]);
+        if (calculations.roundOff) {
+            ws_data.push([null, null, null, null, null, null, null, 'Round Off', calculations.roundOff]);
+        }
+        ws_data.push([null, null, null, null, null, null, null, 'Grand Total', calculations.grandTotal]);
+    } else {
+        ws_data.push(['Particulars', 'Debit', 'Credit']);
+        voucher.entries.forEach(entry => {
+            ws_data.push([
+                ledgerMap.get(entry.ledgerId)?.ledgerName || 'Unknown Ledger',
+                entry.type === 'Dr' ? entry.amount : null,
+                entry.type === 'Cr' ? entry.amount : null,
+            ]);
+        });
+        ws_data.push([]);
+        ws_data.push(['Total', voucher.totalDebit, voucher.totalCredit]);
+    }
     
-    const ws_data = [
-      ...header,
-      [],
-      ['Particulars', 'Debit', 'Credit'],
-      ...voucher.entries.map(entry => [
-        ledgerMap.get(entry.ledgerId)?.ledgerName || 'Unknown Ledger',
-        entry.type === 'Dr' ? entry.amount : null,
-        entry.type === 'Cr' ? entry.amount : null,
-      ]),
-      ['Total', voucher.totalDebit, voucher.totalCredit],
-      [],
-      ['Narration', voucher.narration || '']
-    ];
+    ws_data.push([]);
+    ws_data.push(['Narration', voucher.narration || '']);
 
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
     
-    // Formatting
-    ws['!cols'] = [{ wch: 40 }, { wch: 15 }, { wch: 15 }];
-    const totalRowIndex = header.length + 2 + voucher.entries.length + 1;
+    const colWidths = isTaxInvoice
+      ? [{ wch: 5 }, { wch: 30 }, { wch: 10 }, { wch: 8 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 8 }, { wch: 12 }, { wch: 15 }]
+      : [{ wch: 40 }, { wch: 15 }, { wch: 15 }];
+    ws['!cols'] = colWidths;
     
-    const numberFormat = '#,##0.00';
-    voucher.entries.forEach((_, index) => {
-        const rowIndex = header.length + 2 + index + 1;
-        if (ws[`B${rowIndex}`]) ws[`B${rowIndex}`].s = { numFmt: numberFormat };
-        if (ws[`C${rowIndex}`]) ws[`C${rowIndex}`].s = { numFmt: numberFormat };
-    });
-    
-    if (ws[`B${totalRowIndex}`]) ws[`B${totalRowIndex}`].s = { font: { bold: true }, numFmt: numberFormat };
-    if (ws[`C${totalRowIndex}`]) ws[`C${totalRowIndex}`].s = { font: { bold: true }, numFmt: numberFormat };
-    
-    const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Voucher');
     XLSX.writeFile(wb, `Voucher_${voucher.voucherNumber}.xlsx`);
   };
 
-  if (!voucher) {
+  if (!voucher || !company) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Voucher Not Found</CardTitle>
-          <CardDescription>The voucher you are looking for does not exist.</CardDescription>
+          <CardDescription>The voucher or associated company could not be found.</CardDescription>
         </CardHeader>
         <CardContent>
             <Button onClick={() => router.back()}>
@@ -240,7 +439,7 @@ export default function VoucherViewPage() {
                   </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Link href={`/vouchers/${voucher.id}/edit`}>
+            <Link href={`/vouchers/${voucher.id}/edit?companyId=${companyId}`}>
                 <Button>
                     <Edit className="mr-2 h-4 w-4" /> Edit Voucher
                 </Button>
