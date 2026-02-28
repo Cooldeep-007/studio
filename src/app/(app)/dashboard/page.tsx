@@ -4,11 +4,8 @@
 import * as React from 'react';
 import {
   DollarSign,
-  Landmark,
   TrendingUp,
   TrendingDown,
-  ArrowUpRight,
-  ArrowDownRight,
   Wallet,
   Receipt,
   FileText,
@@ -16,18 +13,13 @@ import {
   CalendarCheck,
   FileWarning,
   Notebook,
-  AlarmClock,
   Download,
   FileSpreadsheet,
   Loader2,
-  Minus,
   AlertTriangle,
   Scale,
   GanttChartSquare,
-  BookOpen,
-  FileOutput,
-  FilePlus2,
-  PiggyBank
+  Building,
 } from 'lucide-react';
 import type { DateRange } from 'react-day-picker';
 import { format, subDays, differenceInDays } from 'date-fns';
@@ -50,10 +42,7 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
-  TableFooter
 } from '@/components/ui/table';
 import {
   DropdownMenu,
@@ -71,14 +60,17 @@ import {
 import { DateRangePicker } from '@/components/date-range-picker';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/firebase/auth/use-user';
 import { useToast } from '@/hooks/use-toast';
-import { mockVouchers, mockLedgers, mockCompanies, mockComplianceDueDates } from '@/lib/data';
+import { mockComplianceDueDates } from '@/lib/data';
 import type { Voucher, Ledger, Company, ComplianceDueDate } from '@/lib/types';
 import { MOCK_DATA_YEAR } from '@/lib/data';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+
 
 // --- Helper Functions ---
 const formatCurrency = (amount: number, minimumFractionDigits = 2) => {
@@ -109,7 +101,8 @@ const calculateMonthlyBreakdown = (vouchers: Voucher[], ledgers: Ledger[]) => {
   const expenseLedgers = new Set(ledgers.filter(l => l.group === 'Expense' && !l.isGroup).map(l => l.id));
 
   vouchers.forEach(v => {
-    const month = format(new Date(v.date), 'MMM yy');
+    const voucherDate = v.date instanceof Date ? v.date : (v.date as any).toDate();
+    const month = format(voucherDate, 'MMM yy');
     if (!monthlyData[month]) {
       monthlyData[month] = { revenue: 0, expenses: 0, profit: 0 };
     }
@@ -134,7 +127,7 @@ const calculateMonthlyBreakdown = (vouchers: Voucher[], ledgers: Ledger[]) => {
 
 const processFinancials = (vouchers: Voucher[], ledgers: Ledger[], startDate: Date, endDate: Date) => {
     const periodVouchers = vouchers.filter(v => {
-        const d = new Date(v.date);
+        const d = v.date instanceof Date ? v.date : (v.date as any).toDate();
         return d >= startDate && d <= endDate;
     });
 
@@ -199,6 +192,7 @@ const processFinancials = (vouchers: Voucher[], ledgers: Ledger[], startDate: Da
 
 export default function DashboardPage() {
   const { profile } = useUser();
+  const { firestore } = useFirebase();
   const { toast } = useToast();
   const [isExporting, setIsExporting] = React.useState(false);
   const canExport = profile?.role === 'Owner' || profile?.role === 'Admin';
@@ -207,6 +201,39 @@ export default function DashboardPage() {
     from: new Date(MOCK_DATA_YEAR, 3, 1), // Current FY Start
     to: new Date(MOCK_DATA_YEAR + 1, 2, 31), // Current FY End
   });
+
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState<string | undefined>();
+
+  const companiesQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId) return null;
+    return collection(firestore, 'firms', profile.firmId, 'companies');
+  }, [firestore, profile?.firmId]);
+
+  const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesQuery);
+
+  React.useEffect(() => {
+    if (!selectedCompanyId && companies && companies.length > 0) {
+      const activeCompany = companies.find(c => c.status === 'Active');
+      if (activeCompany) {
+        setSelectedCompanyId(activeCompany.id);
+      } else if (companies.length > 0) {
+        setSelectedCompanyId(companies[0].id);
+      }
+    }
+  }, [companies, selectedCompanyId]);
+  
+  const ledgersQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !selectedCompanyId) return null;
+    return collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'ledgers');
+  }, [firestore, profile?.firmId, selectedCompanyId]);
+  const { data: ledgersData, isLoading: isLoadingLedgers } = useCollection<Ledger>(ledgersQuery);
+
+  const vouchersQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !selectedCompanyId) return null;
+    return collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'vouchers');
+  }, [firestore, profile?.firmId, selectedCompanyId]);
+  const { data: vouchersData, isLoading: isLoadingVouchers } = useCollection<Voucher>(vouchersQuery);
+
 
   const {
       currentPeriodData,
@@ -217,17 +244,18 @@ export default function DashboardPage() {
       cashFlow,
       tdsSummary,
   } = React.useMemo(() => {
-      if (!date?.from || !date?.to) {
-          return { currentPeriodData: null, prevPeriodData: null, growth: {}, ratios: {}, alerts: [], cashFlow: {}, tdsSummary: { totalPayable: 0, breakdown: [] } };
+      const emptyState = { currentPeriodData: null, prevPeriodData: null, growth: {}, ratios: {}, alerts: [], cashFlow: {}, tdsSummary: { totalPayable: 0, breakdown: [] } };
+      if (!date?.from || !date?.to || !vouchersData || !ledgersData) {
+          return emptyState;
       }
 
-      const currentPeriodData = processFinancials(mockVouchers, mockLedgers, date.from, date.to);
+      const currentPeriodData = processFinancials(vouchersData, ledgersData, date.from, date.to);
 
       const periodLength = Math.abs(new Date(date.to).getTime() - new Date(date.from).getTime());
       const prevPeriodStart = new Date(new Date(date.from).getTime() - periodLength - (24 * 60 * 60 * 1000));
       const prevPeriodEnd = subDays(date.to, Math.round(periodLength / (1000 * 60 * 60 * 24)) + 1);
 
-      const prevPeriodData = processFinancials(mockVouchers, mockLedgers, prevPeriodStart, prevPeriodEnd);
+      const prevPeriodData = processFinancials(vouchersData, ledgersData, prevPeriodStart, prevPeriodEnd);
       
       const { totalRevenue, totalDirectExpenses, totalIndirectExpenses, netProfit, totalOutputGst, totalInputGst } = currentPeriodData;
       const totalExpenses = totalDirectExpenses + totalIndirectExpenses;
@@ -248,22 +276,28 @@ export default function DashboardPage() {
       // Alerts
       const alerts = [];
       if(netProfit < 0) alerts.push({ type: 'error', message: 'Net Profit is negative for the selected period.' });
-      const backdatedVouchers = mockVouchers.filter(v => new Date(v.createdAt) > new Date(v.date) && Math.abs(new Date(v.createdAt).getTime() - new Date(v.date).getTime()) / (1000 * 3600 * 24) > 1);
+      
+      const backdatedVouchers = vouchersData.filter(v => {
+          const createdAt = v.createdAt instanceof Date ? v.createdAt : (v.createdAt as any)?.toDate();
+          const voucherDate = v.date instanceof Date ? v.date : (v.date as any)?.toDate();
+          return createdAt > voucherDate && Math.abs(createdAt.getTime() - voucherDate.getTime()) / (1000 * 3600 * 24) > 1;
+      });
+      
       if(backdatedVouchers.length > 0) alerts.push({ type: 'warning', message: `${backdatedVouchers.length} backdated voucher(s) found.` });
       
-      const highReceivables = mockLedgers.filter(l => l.group === 'Sundry Debtor' && l.currentBalance > 50000);
+      const highReceivables = ledgersData.filter(l => l.group === 'Sundry Debtor' && l.currentBalance > 50000);
       if(highReceivables.length > 0) alerts.push({ type: 'warning', message: `${highReceivables.length} customer(s) with high outstanding balance.`});
 
       // Cash Flow
       const cashFlow = {
-        cashInHand: mockLedgers.find(l => l.ledgerName === 'Cash in Hand')?.currentBalance || 0,
-        bankBalance: mockLedgers.filter(l => l.group === 'Bank Accounts').reduce((acc, l) => acc + l.currentBalance, 0),
-        receivables: mockLedgers.filter(l => l.group === 'Sundry Debtor').reduce((acc, l) => acc + l.currentBalance, 0),
-        payables: mockLedgers.filter(l => l.group === 'Sundry Creditor').reduce((acc, l) => acc + l.currentBalance, 0),
+        cashInHand: ledgersData.find(l => l.ledgerName === 'Cash in Hand')?.currentBalance || 0,
+        bankBalance: ledgersData.filter(l => l.group === 'Bank Accounts').reduce((acc, l) => acc + l.currentBalance, 0),
+        receivables: ledgersData.filter(l => l.group === 'Sundry Debtor').reduce((acc, l) => acc + l.currentBalance, 0),
+        payables: ledgersData.filter(l => l.group === 'Sundry Creditor').reduce((acc, l) => acc + l.currentBalance, 0),
       }
       
       // TDS Summary
-      const tdsPayableLedgers = mockLedgers.filter(l => l.parentLedgerId === 'group-tds-payable');
+      const tdsPayableLedgers = ledgersData.filter(l => l.parentLedgerId === 'group-tds-payable');
       const tdsSummary = {
         totalPayable: tdsPayableLedgers.reduce((acc, l) => acc + l.currentBalance, 0),
         breakdown: tdsPayableLedgers.map(l => ({ name: l.ledgerName, balance: l.currentBalance }))
@@ -272,7 +306,7 @@ export default function DashboardPage() {
 
       return { currentPeriodData, prevPeriodData, growth, ratios, alerts, cashFlow, tdsSummary };
 
-  }, [date]);
+  }, [date, vouchersData, ledgersData]);
 
   const upcomingCompliances = React.useMemo(() => {
     // We mock "today" to a fixed date to ensure the overdue/upcoming logic is consistent for demonstration
@@ -293,8 +327,9 @@ export default function DashboardPage() {
   };
 
   const exportToPdf = () => {
+    if (!currentPeriodData || !companies || !selectedCompanyId) return;
     const doc = new jsPDF({ orientation: 'landscape' });
-    const companyName = mockCompanies[0]?.companyName || 'Pro Accounting';
+    const companyName = companies.find(c => c.id === selectedCompanyId)?.companyName || 'Pro Accounting';
     const period = `For: ${date?.from ? format(date.from, "PP") : ''} to ${date?.to ? format(date.to, "PP") : ''}`;
     const exportDate = format(new Date(), 'PPP p');
 
@@ -305,29 +340,29 @@ export default function DashboardPage() {
     doc.setFontSize(10);
     doc.text(`Exported on: ${exportDate}`, doc.internal.pageSize.getWidth() - 14, 20, { align: 'right' });
 
-    if (currentPeriodData) {
-        const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
-        
-        (doc as any).autoTable({
-            startY: 40,
-            head: [['Financial Summary', '', '% of Revenue']],
-            headStyles: { halign: 'center', fillColor: [41, 128, 185], },
-            columnStyles: { 0: { cellWidth: 'auto'}, 1: { halign: 'right' }, 2: { halign: 'right' } },
-            body: [
-                ['Revenue', formatCurrencyForPdf(totalRevenue), '100.00%'],
-                ['Direct Expenses', formatCurrencyForPdf(totalDirectExpenses), formatPercentage(totalRevenue > 0 ? (totalDirectExpenses / totalRevenue) * 100 : 0)],
-                ['Gross Profit', formatCurrencyForPdf(grossProfit), formatPercentage(totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0)],
-                ['Indirect Expenses', formatCurrencyForPdf(totalIndirectExpenses), formatPercentage(totalRevenue > 0 ? (totalIndirectExpenses / totalRevenue) * 100 : 0)],
-                ['Net Profit', formatCurrencyForPdf(netProfit), formatPercentage(ratios.netProfitMargin || 0)],
-            ],
-            theme: 'grid',
-            didParseCell: (data: any) => {
-                if(data.row.index === 2 || data.row.index === 4) {
-                     data.cell.styles.fontStyle = 'bold';
-                }
+    
+    const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
+    
+    (doc as any).autoTable({
+        startY: 40,
+        head: [['Financial Summary', '', '% of Revenue']],
+        headStyles: { halign: 'center', fillColor: [41, 128, 185], },
+        columnStyles: { 0: { cellWidth: 'auto'}, 1: { halign: 'right' }, 2: { halign: 'right' } },
+        body: [
+            ['Revenue', formatCurrencyForPdf(totalRevenue), '100.00%'],
+            ['Direct Expenses', formatCurrencyForPdf(totalDirectExpenses), formatPercentage(totalRevenue > 0 ? (totalDirectExpenses / totalRevenue) * 100 : 0)],
+            ['Gross Profit', formatCurrencyForPdf(grossProfit), formatPercentage(totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0)],
+            ['Indirect Expenses', formatCurrencyForPdf(totalIndirectExpenses), formatPercentage(totalRevenue > 0 ? (totalIndirectExpenses / totalRevenue) * 100 : 0)],
+            ['Net Profit', formatCurrencyForPdf(netProfit), formatPercentage(ratios.netProfitMargin || 0)],
+        ],
+        theme: 'grid',
+        didParseCell: (data: any) => {
+            if(data.row.index === 2 || data.row.index === 4) {
+                 data.cell.styles.fontStyle = 'bold';
             }
-        });
-    }
+        }
+    });
+    
     
     let finalY = (doc as any).lastAutoTable.finalY;
 
@@ -337,10 +372,10 @@ export default function DashboardPage() {
         headStyles: { halign: 'center', fillColor: [41, 128, 185] },
         columnStyles: { 1: { halign: 'right' } },
         body: [
-            ['Cash in Hand', formatCurrencyForPdf(cashFlow.cashInHand)],
-            ['Bank Balance', formatCurrencyForPdf(cashFlow.bankBalance)],
-            ['Outstanding Receivables', formatCurrencyForPdf(cashFlow.receivables)],
-            ['Outstanding Payables', formatCurrencyForPdf(cashFlow.payables)],
+            ['Cash in Hand', formatCurrencyForPdf(cashFlow.cashInHand || 0)],
+            ['Bank Balance', formatCurrencyForPdf(cashFlow.bankBalance || 0)],
+            ['Outstanding Receivables', formatCurrencyForPdf(cashFlow.receivables || 0)],
+            ['Outstanding Payables', formatCurrencyForPdf(cashFlow.payables || 0)],
         ],
         theme: 'grid',
     });
@@ -363,23 +398,25 @@ export default function DashboardPage() {
 
     finalY = (doc as any).lastAutoTable.finalY;
     
-    (doc as any).autoTable({
-        startY: finalY + 10,
-        head: [['TDS / TCS Summary', 'Amount']],
-        headStyles: { halign: 'center', fillColor: [39, 174, 96] },
-        columnStyles: { 1: { halign: 'right' } },
-        body: [
-            ...tdsSummary.breakdown.map(item => [item.name, formatCurrencyForPdf(item.balance)]),
-        ],
-        theme: 'grid',
-    });
+    if (tdsSummary.breakdown.length > 0) {
+      (doc as any).autoTable({
+          startY: finalY + 10,
+          head: [['TDS / TCS Summary', 'Amount']],
+          headStyles: { halign: 'center', fillColor: [39, 174, 96] },
+          columnStyles: { 1: { halign: 'right' } },
+          body: [
+              ...tdsSummary.breakdown.map(item => [item.name, formatCurrencyForPdf(item.balance)]),
+          ],
+          theme: 'grid',
+      });
 
-    (doc as any).autoTable({
-        startY: (doc as any).lastAutoTable.finalY,
-        body: [['Total Payable', formatCurrencyForPdf(tdsSummary.totalPayable)]],
-        theme: 'grid',
-        bodyStyles: { fontStyle: 'bold', halign: 'right' },
-    });
+      (doc as any).autoTable({
+          startY: (doc as any).lastAutoTable.finalY,
+          body: [['Total Payable', formatCurrencyForPdf(tdsSummary.totalPayable)]],
+          theme: 'grid',
+          bodyStyles: { fontStyle: 'bold', halign: 'right' },
+      });
+    }
 
     const pageCount = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
@@ -392,8 +429,9 @@ export default function DashboardPage() {
 };
 
 const exportToExcel = () => {
+    if (!currentPeriodData || !companies || !selectedCompanyId) return;
     const wb = XLSX.utils.book_new();
-    const companyName = mockCompanies[0]?.companyName || "Pro Accounting";
+    const companyName = companies.find(c => c.id === selectedCompanyId)?.companyName || "Pro Accounting";
     
     const aoa: (string | number | null)[][] = [];
 
@@ -411,14 +449,14 @@ const exportToExcel = () => {
     const financialSummaryStartRow = aoa.length;
     aoa.push(['Financial Summary', null, null]);
     aoa.push(['Description', 'Amount (INR)', '% of Revenue']);
-    if (currentPeriodData) {
-        const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
-        aoa.push(['Revenue', currency(totalRevenue), percent(100)]);
-        aoa.push(['Direct Expenses', currency(totalDirectExpenses), percent(totalRevenue > 0 ? (totalDirectExpenses / totalRevenue) * 100 : 0)]);
-        aoa.push(['Gross Profit', currency(grossProfit), percent(totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0)]);
-        aoa.push(['Indirect Expenses', currency(totalIndirectExpenses), percent(totalRevenue > 0 ? (totalIndirectExpenses / totalRevenue) * 100 : 0)]);
-        aoa.push(['Net Profit', currency(netProfit), percent(ratios.netProfitMargin || 0)]);
-    }
+    
+    const { totalRevenue, totalDirectExpenses, grossProfit, totalIndirectExpenses, netProfit } = currentPeriodData;
+    aoa.push(['Revenue', currency(totalRevenue), percent(100)]);
+    aoa.push(['Direct Expenses', currency(totalDirectExpenses), percent(totalRevenue > 0 ? (totalDirectExpenses / totalRevenue) * 100 : 0)]);
+    aoa.push(['Gross Profit', currency(grossProfit), percent(totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0)]);
+    aoa.push(['Indirect Expenses', currency(totalIndirectExpenses), percent(totalRevenue > 0 ? (totalIndirectExpenses / totalRevenue) * 100 : 0)]);
+    aoa.push(['Net Profit', currency(netProfit), percent(ratios.netProfitMargin || 0)]);
+    
     const financialSummaryEndRow = aoa.length - 1;
     aoa.push([null, null, null]);
 
@@ -426,10 +464,10 @@ const exportToExcel = () => {
     const keyBalancesStartRow = aoa.length;
     aoa.push(['Key Balances & Ratios', null, null]);
     aoa.push(['Description', 'Value', null]);
-    aoa.push(['Cash in Hand', currency(cashFlow.cashInHand)]);
-    aoa.push(['Bank Balance', currency(cashFlow.bankBalance)]);
-    aoa.push(['Outstanding Receivables', currency(cashFlow.receivables)]);
-    aoa.push(['Outstanding Payables', currency(cashFlow.payables)]);
+    aoa.push(['Cash in Hand', currency(cashFlow.cashInHand || 0)]);
+    aoa.push(['Bank Balance', currency(cashFlow.bankBalance || 0)]);
+    aoa.push(['Outstanding Receivables', currency(cashFlow.receivables || 0)]);
+    aoa.push(['Outstanding Payables', currency(cashFlow.payables || 0)]);
     aoa.push([null]);
     aoa.push(['Net Profit %', percent(ratios.netProfitMargin || 0)]);
     aoa.push(['Expense Ratio %', percent(ratios.expenseRatio || 0)]);
@@ -548,9 +586,17 @@ const exportToExcel = () => {
     }, 1500);
   }
   
-  if (!currentPeriodData) return <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  const showLoader = isLoadingCompanies || isLoadingLedgers || isLoadingVouchers;
 
-  const { totalRevenue, totalDirectExpenses, grossProfit, indirectExpensesBreakdown, totalIndirectExpenses, netProfit, monthlyData } = currentPeriodData;
+  if (isLoadingCompanies || !profile || !companies) {
+      return (
+          <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+      )
+  }
+
+  const { totalRevenue, totalDirectExpenses, grossProfit, indirectExpensesBreakdown, totalIndirectExpenses, netProfit, monthlyData } = currentPeriodData || { totalRevenue: 0, totalDirectExpenses: 0, grossProfit: 0, indirectExpensesBreakdown: {}, totalIndirectExpenses: 0, netProfit: 0, monthlyData: [] };
   const totalExpenses = totalDirectExpenses + totalIndirectExpenses;
   const chartColors = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042', '#0088FE', '#00C49F'];
 
@@ -560,14 +606,24 @@ const exportToExcel = () => {
       fill: chartColors[index % chartColors.length]
   }));
 
+  const activeCompanies = companies.filter(c => c.status === 'Active');
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-3xl font-bold tracking-tight">Financial Intelligence Dashboard</h1>
         <div className="flex items-center gap-4">
-          <Select defaultValue={mockCompanies[0]?.id}>
-            <SelectTrigger className="w-full sm:w-[180px]"><SelectValue placeholder="Select Company" /></SelectTrigger>
-            <SelectContent>{mockCompanies.filter(c => c.status === 'Active').map(c => <SelectItem key={c.id} value={c.id}>{c.companyName}</SelectItem>)}</SelectContent>
+          <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Select Company" />
+            </SelectTrigger>
+            <SelectContent>
+              {activeCompanies.length > 0 ? (
+                 activeCompanies.map(c => <SelectItem key={c.id} value={c.id}>{c.companyName}</SelectItem>)
+              ) : (
+                <div className="p-2 text-sm text-muted-foreground">No active companies.</div>
+              )}
+            </SelectContent>
           </Select>
           {canExport && (
             <DropdownMenu>
@@ -583,13 +639,18 @@ const exportToExcel = () => {
       
       <DateRangePicker date={date} setDate={setDate} />
 
-      {/* KPI Cards */}
+      {showLoader ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => <Card key={i} className="h-[120px] animate-pulse bg-muted"></Card>)}
+        </div>
+      ) : (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <GrowthCard title="Revenue" value={totalRevenue} change={growth.revenue} />
           <GrowthCard title="Total Expenses" value={totalExpenses} change={growth.expenses} isExpense />
           <GrowthCard title="Net Profit" value={netProfit} change={growth.profit} />
-          <RatioCard title="Net Profit Margin" value={ratios.netProfitMargin} icon={BadgePercent} />
+          <RatioCard title="Net Profit Margin" value={ratios.netProfitMargin || 0} icon={BadgePercent} />
       </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Main Content */}
@@ -597,6 +658,7 @@ const exportToExcel = () => {
             <Card>
                 <CardHeader><CardTitle>Profit &amp; Loss Statement</CardTitle><CardDescription>For the period: {date?.from ? format(date.from, "PP") : ''} - {date?.to ? format(date.to, "PP") : ''}</CardDescription></CardHeader>
                 <CardContent>
+                    {showLoader ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (
                     <Table>
                         <TableBody>
                             <TableRow><TableCell className="font-semibold">Revenue</TableCell><TableCell className="text-right">{formatCurrency(totalRevenue)}</TableCell><TableCell className="text-right text-muted-foreground">100.00%</TableCell></TableRow>
@@ -606,29 +668,38 @@ const exportToExcel = () => {
                             <TableRow className={cn("font-bold text-lg", netProfit >= 0 ? "bg-green-100/50 text-green-700" : "bg-red-100/50 text-red-700")}>
                                 <TableCell>Net Profit</TableCell>
                                 <TableCell className="text-right">{formatCurrency(netProfit)}</TableCell>
-                                <TableCell className="text-right">{formatPercentage(ratios.netProfitMargin)}</TableCell>
+                                <TableCell className="text-right">{formatPercentage(ratios.netProfitMargin || 0)}</TableCell>
                             </TableRow>
                         </TableBody>
                     </Table>
+                    )}
                 </CardContent>
             </Card>
              <div className="grid gap-6 md:grid-cols-2">
                 <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2"><Scale />Ratio Analysis</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="flex justify-between"><span>Net Profit %</span><span className={cn("font-semibold", ratios.netProfitMargin >= 0 ? 'text-green-600' : 'text-red-600')}>{formatPercentage(ratios.netProfitMargin)}</span></div>
-                        <div className="flex justify-between"><span>Expense Ratio %</span><span className="font-semibold">{formatPercentage(ratios.expenseRatio)}</span></div>
-                        <div className="flex justify-between"><span>GST Liability</span><span className="font-semibold">{formatCurrency(ratios.gstLiability)}</span></div>
-                        <div className="flex justify-between"><span>GST Liability / Revenue %</span><span className="font-semibold">{formatPercentage(ratios.gstLiabilityRatio)}</span></div>
+                      {showLoader ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (
+                        <>
+                          <div className="flex justify-between"><span>Net Profit %</span><span className={cn("font-semibold", (ratios.netProfitMargin || 0) >= 0 ? 'text-green-600' : 'text-red-600')}>{formatPercentage(ratios.netProfitMargin || 0)}</span></div>
+                          <div className="flex justify-between"><span>Expense Ratio %</span><span className="font-semibold">{formatPercentage(ratios.expenseRatio || 0)}</span></div>
+                          <div className="flex justify-between"><span>GST Liability</span><span className="font-semibold">{formatCurrency(ratios.gstLiability || 0)}</span></div>
+                          <div className="flex justify-between"><span>GST Liability / Revenue %</span><span className="font-semibold">{formatPercentage(ratios.gstLiabilityRatio || 0)}</span></div>
+                        </>
+                      )}
                     </CardContent>
                 </Card>
                  <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2"><GanttChartSquare />Cash Flow Snapshot</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="flex justify-between"><span>Cash in Hand</span><span className="font-semibold">{formatCurrency(cashFlow.cashInHand)}</span></div>
-                        <div className="flex justify-between"><span>Bank Balance</span><span className="font-semibold">{formatCurrency(cashFlow.bankBalance)}</span></div>
-                        <div className="flex justify-between"><span>Outstanding Receivables</span><span className="font-semibold">{formatCurrency(cashFlow.receivables)}</span></div>
-                        <div className="flex justify-between"><span>Outstanding Payables</span><span className="font-semibold">{formatCurrency(cashFlow.payables)}</span></div>
+                       {showLoader ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (
+                          <>
+                            <div className="flex justify-between"><span>Cash in Hand</span><span className="font-semibold">{formatCurrency(cashFlow.cashInHand || 0)}</span></div>
+                            <div className="flex justify-between"><span>Bank Balance</span><span className="font-semibold">{formatCurrency(cashFlow.bankBalance || 0)}</span></div>
+                            <div className="flex justify-between"><span>Outstanding Receivables</span><span className="font-semibold">{formatCurrency(cashFlow.receivables || 0)}</span></div>
+                            <div className="flex justify-between"><span>Outstanding Payables</span><span className="font-semibold">{formatCurrency(cashFlow.payables || 0)}</span></div>
+                          </>
+                       )}
                     </CardContent>
                 </Card>
             </div>
@@ -685,18 +756,18 @@ const exportToExcel = () => {
             <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2 text-amber-600"><AlertTriangle />Audit Alerts</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
-                    {alerts.length > 0 ? alerts.map((alert, i) => (
+                    {showLoader ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (alerts.length > 0 ? alerts.map((alert, i) => (
                         <Alert key={i} variant={alert.type === 'error' ? 'destructive' : 'default'} className={cn(alert.type === 'warning' && 'bg-amber-50 border-amber-200 [&>svg]:text-amber-500 text-amber-700')}>
                             <AlertTriangle className="h-4 w-4" />
                             <AlertDescription>{alert.message}</AlertDescription>
                         </Alert>
-                    )) : <p className="text-sm text-muted-foreground text-center py-4">No audit alerts for this period. ✨</p>}
+                    )) : <p className="text-sm text-muted-foreground text-center py-4">No audit alerts for this period. ✨</p>)}
                 </CardContent>
             </Card>
             <Card>
-                <CardHeader><CardTitle className="flex items-center gap-2 text-blue-600"><FileOutput />TDS / TCS Summary</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2 text-blue-600"><FileText />TDS / TCS Summary</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
-                    {tdsSummary.breakdown.length > 0 ? (
+                    {showLoader ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (tdsSummary.breakdown.length > 0 ? (
                         <>
                             <div className="flex justify-between font-bold text-base border-b pb-2">
                                 <span>Total Payable</span>
@@ -713,21 +784,23 @@ const exportToExcel = () => {
                         </>
                     ) : (
                         <p className="text-sm text-muted-foreground text-center py-4">No TDS/TCS data available.</p>
-                    )}
+                    ))}
                 </CardContent>
             </Card>
             <Card>
                 <CardHeader><CardTitle>Expense Distribution</CardTitle></CardHeader>
                 <CardContent>
-                    <ResponsiveContainer width="100%" height={200}>
-                        <PieChart>
-                            <Pie data={expenseChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                                {expenseChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
-                            </Pie>
-                            <Tooltip formatter={(value: number) => formatCurrency(value, 0)} />
-                             <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
+                    {showLoader ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (expenseChartData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={200}>
+                          <PieChart>
+                              <Pie data={expenseChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                                  {expenseChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
+                              </Pie>
+                              <Tooltip formatter={(value: number) => formatCurrency(value, 0)} />
+                               <Legend />
+                          </PieChart>
+                      </ResponsiveContainer>
+                    ) : <p className="text-sm text-center text-muted-foreground py-4">No expense data for this period.</p>)}
                 </CardContent>
             </Card>
         </div>
@@ -737,6 +810,7 @@ const exportToExcel = () => {
             <Card>
                 <CardHeader><CardTitle>Revenue vs. Expenses</CardTitle></CardHeader>
                 <CardContent>
+                    {showLoader ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (
                     <ResponsiveContainer width="100%" height={300}>
                         <BarChart data={monthlyData}>
                             <CartesianGrid strokeDasharray="3 3" />
@@ -748,11 +822,13 @@ const exportToExcel = () => {
                             <Bar dataKey="expenses" fill="#ff8042" name="Expenses" />
                         </BarChart>
                     </ResponsiveContainer>
+                    )}
                 </CardContent>
             </Card>
             <Card>
                 <CardHeader><CardTitle>Monthly Profit Trend</CardTitle></CardHeader>
                 <CardContent>
+                     {showLoader ? <Loader2 className="mx-auto h-6 w-6 animate-spin" /> : (
                     <ResponsiveContainer width="100%" height={300}>
                         <LineChart data={monthlyData}>
                             <CartesianGrid strokeDasharray="3 3" />
@@ -763,6 +839,7 @@ const exportToExcel = () => {
                             <Line type="monotone" dataKey="profit" stroke="#8884d8" name="Net Profit" strokeWidth={2} />
                         </LineChart>
                     </ResponsiveContainer>
+                    )}
                 </CardContent>
             </Card>
         </div>

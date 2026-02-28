@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -6,6 +7,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { format } from "date-fns";
 import type { Company } from "@/lib/types";
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirebase } from "@/firebase";
+import { useToast } from "@/hooks/use-toast";
+
 
 import {
   Loader2,
@@ -182,12 +187,16 @@ export function AddCompanySheet({
   open,
   onOpenChange,
   onCompanyCreated,
+  firmId
 }: {
   children: React.ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCompanyCreated: (company: Company) => void;
+  onCompanyCreated: () => void;
+  firmId: string;
 }) {
+  const { firestore } = useFirebase();
+  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(companyFormSchema),
@@ -208,24 +217,43 @@ export function AddCompanySheet({
   const isGstValid = gstRegex.test(form.watch('gstin') || '');
 
   async function onSubmit(data: CompanyFormValues) {
+    if (!firmId || !firestore) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Cannot create company. Firm is not identified.",
+      });
+      return;
+    }
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
     
-    const newCompany: Company = {
-      id: `comp-${new Date().getTime()}`,
+    const newCompanyData = {
       companyName: data.companyName,
-      gstin: data.gstin,
+      gstin: data.gstin || "",
       address: `${data.addressLine1 || ''}, ${data.city || ''}, ${data.state || ''}`,
       financialYearStart: data.financialYearStart,
       financialYearEnd: new Date(data.financialYearStart.getFullYear() + 1, 2, 31),
-      firmId: 'firm-abc',
+      firmId: firmId,
       status: 'Active',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     };
-
-    onCompanyCreated(newCompany);
-    setIsSubmitting(false);
-    onOpenChange(false);
-    form.reset();
+    
+    try {
+      const companiesColRef = collection(firestore, 'firms', firmId, 'companies');
+      await addDoc(companiesColRef, newCompanyData);
+      onCompanyCreated();
+      form.reset();
+    } catch(e) {
+      console.error("Error adding company:", e);
+      toast({
+        variant: "destructive",
+        title: "Failed to create company",
+        description: "An unexpected error occurred. Please try again."
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (

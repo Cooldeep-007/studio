@@ -2,7 +2,21 @@
 'use client';
 
 import * as React from 'react';
-import { MoreHorizontal, PlusCircle, Archive, ArchiveRestore } from 'lucide-react';
+import {
+  MoreHorizontal,
+  PlusCircle,
+  Archive,
+  ArchiveRestore,
+} from 'lucide-react';
+import {
+  collection,
+  doc,
+  deleteDoc,
+  updateDoc,
+  query,
+  where,
+  getDocs,
+} from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -11,12 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -32,22 +41,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { mockCompanies, mockVouchers } from '@/lib/data';
 import type { Company } from '@/lib/types';
 import { AddCompanySheet } from '@/components/add-company-sheet';
 import { DeleteCompanyDialog } from '@/components/delete-company-dialog';
 import { ArchiveCompanyDialog } from '@/components/archive-company-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from "@/components/ui/badge";
+import { Badge } from '@/components/ui/badge';
 import { useUser } from '@/firebase/auth/use-user';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { Loader2 } from 'lucide-react';
 
 export default function CompaniesPage() {
   const { profile } = useUser();
-  const userRole = profile?.role;
-  const canManage = userRole === 'Owner' || userRole === 'Admin';
+  const { firestore } = useFirebase();
+  const canManage = profile?.role === 'Owner' || profile?.role === 'Admin';
 
-  const [companies, setCompanies] = React.useState<Company[]>(mockCompanies);
-  const [activeTab, setActiveTab] = React.useState("active");
+  const [activeTab, setActiveTab] = React.useState('active');
   const [isAddSheetOpen, setIsAddSheetOpen] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = React.useState(false);
@@ -56,59 +65,109 @@ export default function CompaniesPage() {
   );
   const { toast } = useToast();
 
-  const activeCompanies = companies.filter((c) => c.status === 'Active');
-  const archivedCompanies = companies.filter((c) => c.status === 'Archived');
+  const companiesQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId) return null;
+    return collection(firestore, 'firms', profile.firmId, 'companies');
+  }, [firestore, profile?.firmId]);
 
-  const handleAddCompany = (newCompany: Company) => {
-    setCompanies((prev) => [...prev, newCompany]);
+  const { data: companies, isLoading: isLoadingCompanies } =
+    useCollection<Company>(companiesQuery);
+
+  const activeCompanies =
+    companies?.filter((c) => c.status === 'Active') || [];
+  const archivedCompanies =
+    companies?.filter((c) => c.status === 'Archived') || [];
+
+  const onCompanyCreated = () => {
+    setIsAddSheetOpen(false);
     toast({
       title: 'Company Created Successfully',
-      description: `${newCompany.companyName} has been added.`,
+      description: `The new company has been added to your list.`,
     });
     setActiveTab('active');
   };
 
-  const handleDeleteConfirm = () => {
-    if (!selectedCompany) return;
+  const handleDeleteConfirm = async () => {
+    if (!selectedCompany || !firestore || !profile?.firmId) return;
 
-    const hasTransactions = mockVouchers.some(
-      (v) => v.companyId === selectedCompany.id
-    );
+    try {
+      const vouchersRef = collection(
+        firestore,
+        'firms',
+        profile.firmId,
+        'companies',
+        selectedCompany.id,
+        'vouchers'
+      );
+      const vouchersSnapshot = await getDocs(query(vouchersRef));
 
-    if (hasTransactions) {
+      if (!vouchersSnapshot.empty) {
+        toast({
+          variant: 'destructive',
+          title: 'Deletion Failed',
+          description: `Company "${selectedCompany.companyName}" has existing financial records and cannot be deleted. Please archive it instead.`,
+        });
+        setIsDeleteDialogOpen(false);
+        setSelectedCompany(null);
+        return;
+      }
+
+      await deleteDoc(
+        doc(
+          firestore,
+          'firms',
+          profile.firmId,
+          'companies',
+          selectedCompany.id
+        )
+      );
+
+      toast({
+        title: 'Company Deleted Successfully',
+        description: `${selectedCompany.companyName} has been permanently removed.`,
+      });
+    } catch (error) {
       toast({
         variant: 'destructive',
-        title: 'Deletion Failed',
-        description: `Company "${selectedCompany.companyName}" has existing financial records and cannot be deleted. Please archive it instead.`,
+        title: 'Error Deleting Company',
+        description:
+          'An unexpected error occurred. Please try again.',
       });
+    } finally {
       setIsDeleteDialogOpen(false);
       setSelectedCompany(null);
-      return;
     }
-
-    setCompanies((prev) =>
-      prev.filter((c) => c.id !== selectedCompany.id)
-    );
-    toast({
-      title: 'Company Deleted Successfully',
-      description: `${selectedCompany.companyName} has been permanently removed.`,
-    });
-    setSelectedCompany(null);
   };
-  
-  const handleArchiveConfirm = () => {
-    if (!selectedCompany) return;
-    setCompanies(prev => prev.map(c => c.id === selectedCompany.id ? { ...c, status: 'Archived' } : c));
+
+  const handleArchiveConfirm = async () => {
+    if (!selectedCompany || !firestore || !profile?.firmId) return;
+    const companyRef = doc(
+      firestore,
+      'firms',
+      profile.firmId,
+      'companies',
+      selectedCompany.id
+    );
+    await updateDoc(companyRef, { status: 'Archived' });
     toast({
       title: 'Company Archived',
       description: `${selectedCompany.companyName} has been archived.`,
     });
+    setIsArchiveDialogOpen(false);
     setSelectedCompany(null);
     setActiveTab('archived');
   };
 
-  const handleRestoreCompany = (company: Company) => {
-    setCompanies(prev => prev.map(c => c.id === company.id ? { ...c, status: 'Active' } : c));
+  const handleRestoreCompany = async (company: Company) => {
+    if (!firestore || !profile?.firmId) return;
+    const companyRef = doc(
+      firestore,
+      'firms',
+      profile.firmId,
+      'companies',
+      company.id
+    );
+    await updateDoc(companyRef, { status: 'Active' });
     toast({
       title: 'Company Restored',
       description: `${company.companyName} has been moved to the active list.`,
@@ -127,10 +186,12 @@ export default function CompaniesPage() {
   };
 
   const getFinancialYearString = (start: Date, end: Date) => {
-    const startYear = start.getFullYear();
-    const endYear = end.getFullYear().toString().slice(-2);
+    const startDate = start instanceof Date ? start : (start as any).toDate();
+    const endDate = end instanceof Date ? end : (end as any).toDate();
+    const startYear = startDate.getFullYear();
+    const endYear = endDate.getFullYear().toString().slice(-2);
     return `${startYear}-${endYear}`;
-  }
+  };
 
   const renderCompanyActions = (company: Company, isArchived: boolean) => {
     if (!canManage) return null;
@@ -146,7 +207,7 @@ export default function CompaniesPage() {
 
     return (
       <>
-        <DropdownMenuItem>Edit</DropdownMenuItem>
+        <DropdownMenuItem disabled>Edit</DropdownMenuItem>
         <DropdownMenuItem onClick={() => openArchiveDialog(company)}>
           <Archive className="mr-2 h-4 w-4" />
           Archive
@@ -164,54 +225,78 @@ export default function CompaniesPage() {
               <TableHead>Company Name</TableHead>
               <TableHead>Financial Year</TableHead>
               <TableHead>GST Status</TableHead>
-              {canManage && <TableHead className="w-[50px] text-right">Actions</TableHead>}
+              {canManage && (
+                <TableHead className="w-[50px] text-right">Actions</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {companyList.length > 0 ? companyList.map((company) => (
-              <TableRow
-                key={company.id}
-                className="transition-colors hover:bg-muted/50"
-              >
-                <TableCell className="font-medium">
-                  {company.companyName}
-                </TableCell>
-                <TableCell>
-                  {getFinancialYearString(company.financialYearStart, company.financialYearEnd)}
-                </TableCell>
-                <TableCell>
-                  {company.gstin ? (
-                    <Badge variant="default" className="bg-green-100 text-green-800">Registered</Badge>
-                  ) : (
-                    <Badge variant="secondary">Unregistered</Badge>
-                  )}
-                </TableCell>
-                {canManage && (
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {renderCompanyActions(company, isArchived)}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => openDeleteDialog(company)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                )}
-              </TableRow>
-            )) : (
+            {isLoadingCompanies ? (
               <TableRow>
-                <TableCell colSpan={canManage ? 4 : 3} className="h-24 text-center">
+                <TableCell
+                  colSpan={canManage ? 4 : 3}
+                  className="h-24 text-center"
+                >
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                </TableCell>
+              </TableRow>
+            ) : companyList.length > 0 ? (
+              companyList.map((company) => (
+                <TableRow
+                  key={company.id}
+                  className="transition-colors hover:bg-muted/50"
+                >
+                  <TableCell className="font-medium">
+                    {company.companyName}
+                  </TableCell>
+                  <TableCell>
+                    {getFinancialYearString(
+                      company.financialYearStart,
+                      company.financialYearEnd
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {company.gstin ? (
+                      <Badge
+                        variant="default"
+                        className="bg-green-100 text-green-800"
+                      >
+                        Registered
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">Unregistered</Badge>
+                    )}
+                  </TableCell>
+                  {canManage && (
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {renderCompanyActions(company, isArchived)}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => openDeleteDialog(company)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={canManage ? 4 : 3}
+                  className="h-24 text-center"
+                >
                   No {isArchived ? 'archived' : 'active'} companies.
                 </TableCell>
               </TableRow>
@@ -227,11 +312,12 @@ export default function CompaniesPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Companies</h1>
-          {canManage && (
+          {canManage && profile?.firmId && (
             <AddCompanySheet
               open={isAddSheetOpen}
               onOpenChange={setIsAddSheetOpen}
-              onCompanyCreated={handleAddCompany}
+              onCompanyCreated={onCompanyCreated}
+              firmId={profile.firmId}
             >
               <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -241,11 +327,18 @@ export default function CompaniesPage() {
           )}
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="space-y-4"
+        >
           <TabsList>
             <TabsTrigger value="active">Active</TabsTrigger>
             <TabsTrigger value="archived">
-                Archived <Badge variant="secondary" className="ml-2">{archivedCompanies.length}</Badge>
+              Archived{' '}
+              <Badge variant="secondary" className="ml-2">
+                {archivedCompanies.length}
+              </Badge>
             </TabsTrigger>
           </TabsList>
           <TabsContent value="active">
