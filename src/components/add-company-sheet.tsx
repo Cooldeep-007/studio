@@ -6,8 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { format } from "date-fns";
-import type { Company } from "@/lib/types";
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import type { Company, LedgerGroup } from "@/lib/types";
+import { collection, addDoc, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
 import { useFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 
@@ -182,6 +182,43 @@ const financialYears = Array.from({ length: 6 }, (_, i) => {
     };
 });
 
+const defaultLedgerGroups = [
+  // Primary
+  { id: 'group-assets', ledgerName: 'Assets', group: 'Assets', nature: 'Asset' as const, parentLedgerId: null },
+  { id: 'group-liabilities', ledgerName: 'Liabilities', group: 'Liabilities', nature: 'Liability' as const, parentLedgerId: null },
+  { id: 'group-income', ledgerName: 'Income', group: 'Income', nature: 'Income' as const, parentLedgerId: null },
+  { id: 'group-expense', ledgerName: 'Expenses', group: 'Expense', nature: 'Expense' as const, parentLedgerId: null },
+
+  // Level 1 under Assets
+  { id: 'group-current-assets', ledgerName: 'Current Assets', group: 'Current Assets', nature: 'Asset' as const, parentLedgerId: 'group-assets' },
+  { id: 'group-fixed-assets', ledgerName: 'Fixed Assets', group: 'Assets', nature: 'Asset' as const, parentLedgerId: 'group-assets' },
+  
+  // Level 2 under Current Assets
+  { id: 'group-bank-accounts', ledgerName: 'Bank Accounts', group: 'Bank Accounts', nature: 'Asset' as const, parentLedgerId: 'group-current-assets' },
+  { id: 'group-cash-in-hand', ledgerName: 'Cash-in-Hand', group: 'Cash-in-Hand', nature: 'Asset' as const, parentLedgerId: 'group-current-assets' },
+  { id: 'group-sundry-debtors', ledgerName: 'Sundry Debtors', group: 'Sundry Debtor', nature: 'Asset' as const, parentLedgerId: 'group-current-assets' },
+
+  // Level 1 under Liabilities
+  { id: 'group-current-liabilities', ledgerName: 'Current Liabilities', group: 'Liabilities', nature: 'Liability' as const, parentLedgerId: 'group-liabilities' },
+  { id: 'group-capital-account', ledgerName: 'Capital Account', group: 'Liabilities', nature: 'Liability' as const, parentLedgerId: 'group-liabilities' },
+
+  // Level 2 under Current Liabilities
+  { id: 'group-sundry-creditors', ledgerName: 'Sundry Creditors', group: 'Sundry Creditor', nature: 'Liability' as const, parentLedgerId: 'group-current-liabilities' },
+  { id: 'group-duties-taxes', ledgerName: 'Duties & Taxes', group: 'Liabilities', nature: 'Liability' as const, parentLedgerId: 'group-current-liabilities' },
+  
+  // Level 3 under Duties & Taxes
+  { id: 'group-tds-payable', ledgerName: 'TDS Payable', group: 'Liabilities', nature: 'Liability' as const, parentLedgerId: 'group-duties-taxes' },
+
+  // Level 1 under Income
+  { id: 'group-sales-accounts', ledgerName: 'Sales Accounts', group: 'Income', nature: 'Income' as const, parentLedgerId: 'group-income' },
+  { id: 'group-indirect-income', ledgerName: 'Indirect Incomes', group: 'Income', nature: 'Income' as const, parentLedgerId: 'group-income' },
+
+  // Level 1 under Expense
+  { id: 'group-purchase-accounts', ledgerName: 'Purchase Accounts', group: 'Expense', nature: 'Expense' as const, parentLedgerId: 'group-expense' },
+  { id: 'group-indirect-expenses', ledgerName: 'Indirect Expenses', group: 'Expense', nature: 'Expense' as const, parentLedgerId: 'group-expense' },
+];
+
+
 export function AddCompanySheet({
   children,
   open,
@@ -227,7 +264,11 @@ export function AddCompanySheet({
     }
     setIsSubmitting(true);
     
+    const companiesColRef = collection(firestore, 'firms', firmId, 'companies');
+    const newCompanyRef = doc(companiesColRef); // Generate ID upfront
+    
     const newCompanyData = {
+      id: newCompanyRef.id,
       companyName: data.companyName,
       gstin: data.gstin || "",
       address: `${data.addressLine1 || ''}, ${data.city || ''}, ${data.state || ''}`,
@@ -240,12 +281,38 @@ export function AddCompanySheet({
     };
     
     try {
-      const companiesColRef = collection(firestore, 'firms', firmId, 'companies');
-      await addDoc(companiesColRef, newCompanyData);
+      const batch = writeBatch(firestore);
+      
+      // 1. Create the company document
+      batch.set(newCompanyRef, newCompanyData);
+      
+      // 2. Create the default ledger groups for this company
+      const ledgersColRef = collection(newCompanyRef, 'ledgers');
+      defaultLedgerGroups.forEach(group => {
+        const ledgerDocRef = doc(ledgersColRef, group.id);
+        batch.set(ledgerDocRef, {
+          ...group,
+          id: group.id,
+          isGroup: true,
+          openingBalance: 0,
+          currentBalance: 0,
+          balanceType: group.nature === 'Asset' || group.nature === 'Expense' ? 'Dr' : 'Cr',
+          gstApplicable: false,
+          status: 'Active',
+          isSystem: true,
+          firmId: firmId,
+          companyId: newCompanyRef.id,
+          createdAt: serverTimestamp(),
+          lastUpdatedAt: serverTimestamp(),
+        });
+      });
+      
+      await batch.commit();
+
       onCompanyCreated();
       form.reset();
     } catch(e) {
-      console.error("Error adding company:", e);
+      console.error("Error adding company and default ledgers:", e);
       toast({
         variant: "destructive",
         title: "Failed to create company",

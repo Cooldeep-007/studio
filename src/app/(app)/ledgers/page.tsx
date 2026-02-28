@@ -8,7 +8,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import type { jsPDF as jsPDFType } from 'jspdf';
 
-import { PlusCircle, ListFilter, Upload, Search, Download, FileText, FileSpreadsheet, Loader2 } from "lucide-react";
+import { PlusCircle, ListFilter, Upload, Search, Download, FileText, FileSpreadsheet, Loader2, Building } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -25,6 +25,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -38,11 +45,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { AddLedgerSheet } from "@/components/add-ledger-sheet";
 import { Checkbox } from "@/components/ui/checkbox";
-import { mockLedgers, mockCompanies } from "@/lib/data";
 import type { Company, Ledger } from "@/lib/types";
 import { TallyImportDialog } from "@/components/tally-import-dialog";
 import { useUser } from "@/firebase/auth/use-user";
 import { useToast } from "@/hooks/use-toast";
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import Link from "next/link";
 
 
 // Helper type for tree structure
@@ -114,10 +123,13 @@ function LedgerRow({
   selectedRows: Record<string, boolean>;
   onSelectionChange: (ledgerId: string, checked: boolean) => void;
 }) {
-  const formatCurrency = (amount: number) => amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const formatCurrency = (amount: number) => amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
   const getNestedValue = (obj: any, path: string): any => path.split('.').reduce((o, i) => o?.[i], obj);
 
   const isSelected = !!selectedRows[ledger.id];
+  const createdAt = ledger.createdAt instanceof Date ? ledger.createdAt : (ledger.createdAt as any)?.toDate();
+  const lastUpdatedAt = ledger.lastUpdatedAt instanceof Date ? ledger.lastUpdatedAt : (ledger.lastUpdatedAt as any)?.toDate();
+
 
   return (
     <>
@@ -150,8 +162,8 @@ function LedgerRow({
         {visibleColumns['gstDetails.gstin'] && <TableCell>{getNestedValue(ledger, 'gstDetails.gstin') || '-'}</TableCell>}
         {visibleColumns['creditControl.creditLimit'] && <TableCell>{getNestedValue(ledger, 'creditControl.creditLimit') ? formatCurrency(getNestedValue(ledger, 'creditControl.creditLimit')) : '-'}</TableCell>}
         {visibleColumns['creditControl.creditPeriod'] && <TableCell>{getNestedValue(ledger, 'creditControl.creditPeriod') || '-'}</TableCell>}
-        {visibleColumns.createdAt && <TableCell>{new Date(ledger.createdAt).toLocaleDateString()}</TableCell>}
-        {visibleColumns.lastUpdatedAt && <TableCell>{new Date(ledger.lastUpdatedAt).toLocaleDateString()}</TableCell>}
+        {visibleColumns.createdAt && <TableCell>{createdAt ? format(createdAt, 'PPP') : '-'}</TableCell>}
+        {visibleColumns.lastUpdatedAt && <TableCell>{lastUpdatedAt ? format(lastUpdatedAt, 'PPP') : '-'}</TableCell>}
       </TableRow>
       {ledger.children.map(child => (
         <LedgerRow key={child.id} ledger={child} visibleColumns={visibleColumns} level={level + 1} parentName={ledger.ledgerName} selectedRows={selectedRows} onSelectionChange={onSelectionChange}/>
@@ -162,10 +174,10 @@ function LedgerRow({
 
 export default function LedgersPage() {
   const { profile } = useUser();
+  const { firestore } = useFirebase();
   const { toast } = useToast();
 
-  const [ledgers, setLedgers] = React.useState<Ledger[]>(mockLedgers);
-  const [companies, setCompanies] = React.useState<Company[]>(mockCompanies);
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState<string | undefined>();
   const [ledgerTree, setLedgerTree] = React.useState<LedgerWithChildren[]>([]);
   const [visibleColumns, setVisibleColumns] = React.useState<Record<string, boolean>>({});
   const [isMounted, setIsMounted] = React.useState(false);
@@ -175,14 +187,30 @@ export default function LedgersPage() {
   const [isExporting, setIsExporting] = React.useState(false);
   const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
 
-
-  const canExport = profile?.role === 'Owner' || profile?.role === 'Admin';
+  const canManage = profile?.role === 'Owner' || profile?.role === 'Admin';
   
-  const ledgerMap = React.useMemo(() => Object.fromEntries(ledgers.map(l => [l.id, l])), [ledgers]);
+  const companiesQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId) return null;
+    return query(collection(firestore, 'firms', profile.firmId, 'companies'), where('status', '==', 'Active'));
+  }, [firestore, profile?.firmId]);
 
-  const handleLedgerCreated = (newLedger: Ledger) => {
-    setLedgers((prev) => [...prev, newLedger]);
-  };
+  const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesQuery);
+
+  React.useEffect(() => {
+    if (!selectedCompanyId && companies && companies.length > 0) {
+      setSelectedCompanyId(companies[0].id);
+    }
+  }, [companies, selectedCompanyId]);
+  
+  const ledgersQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !selectedCompanyId) return null;
+    return collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'ledgers');
+  }, [firestore, profile?.firmId, selectedCompanyId]);
+
+  const { data: ledgersData, isLoading: isLoadingLedgers } = useCollection<Ledger>(ledgersQuery);
+  const ledgers = ledgersData || [];
+
+  const ledgerMap = React.useMemo(() => Object.fromEntries(ledgers.map(l => [l.id, l])), [ledgers]);
 
   React.useEffect(() => {
     setIsMounted(true);
@@ -243,7 +271,8 @@ export default function LedgersPage() {
             if (value === undefined || value === null) return false;
 
             if (colId === 'createdAt' || colId === 'lastUpdatedAt') {
-              value = new Date(value).toLocaleDateString();
+              const dateVal = value instanceof Date ? value : (value as any)?.toDate();
+              if (dateVal) value = format(dateVal, 'PPP');
             }
 
             return String(value).toLowerCase().includes(lowercasedFilter);
@@ -294,6 +323,7 @@ export default function LedgersPage() {
   };
 
   const handleExport = async (formatType: 'pdf' | 'xlsx') => {
+      if (!selectedCompanyId) return;
       setIsExporting(true);
       toast({ title: 'Exporting...', description: `Your ledger data is being prepared as a ${formatType.toUpperCase()} file.` });
       await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing
@@ -320,11 +350,11 @@ export default function LedgersPage() {
           'Contact Person': ledger.contactDetails?.contactPerson || '-',
           'Mobile': ledger.contactDetails?.mobileNumber || '-',
           'Email': ledger.contactDetails?.email || '-',
-          'Created Date': format(ledger.createdAt, 'yyyy-MM-dd'),
+          'Created Date': ledger.createdAt ? format(ledger.createdAt instanceof Date ? ledger.createdAt : (ledger.createdAt as any).toDate(), 'yyyy-MM-dd') : '-',
       }));
 
       const today = format(new Date(), 'yyyy_MM_dd');
-      const companyName = mockCompanies.find(c => c.id === 'comp-001')?.companyName || "Pro Accounting";
+      const companyName = companies?.find(c => c.id === selectedCompanyId)?.companyName || "Pro Accounting";
 
       if (formatType === 'xlsx') {
           exportToExcel(exportData, companyName, today);
@@ -337,11 +367,40 @@ export default function LedgersPage() {
   };
 
 
-  if (!isMounted) {
-    return null; 
+  if (!isMounted || isLoadingCompanies) {
+    return <div className="flex items-center justify-center h-96"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  }
+  
+  if (!companies || companies.length === 0) {
+     return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Chart of Accounts</h1>
+        </div>
+        <Card className="text-center">
+          <CardHeader>
+              <div className="mx-auto bg-primary/10 rounded-full p-3 w-fit">
+                <Building className="h-8 w-8 text-primary" />
+              </div>
+            <CardTitle className="mt-4">No Active Company Found</CardTitle>
+            <CardDescription>
+              To manage your chart of accounts, you first need to create a company.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/companies">
+                <PlusCircle className="mr-2 h-4 w-4" /> Go to Companies
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const visibleCols = allColumns.filter(col => visibleColumns[col.id]);
+  const isLoading = isLoadingCompanies || isLoadingLedgers;
 
   return (
     <>
@@ -349,13 +408,19 @@ export default function LedgersPage() {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">Chart of Accounts</h1>
         <div className="flex w-full sm:w-auto items-center gap-2">
+            {companies && companies.length > 1 && (
+                <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+                    <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="Select Company" /></SelectTrigger>
+                    <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.companyName}</SelectItem>)}</SelectContent>
+                </Select>
+            )}
             <div className="relative flex-grow sm:flex-grow-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                     placeholder="Search ledgers..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10 w-full sm:w-64"
+                    className="pl-10 w-full sm:w-48"
                 />
             </div>
             <DropdownMenu>
@@ -392,8 +457,8 @@ export default function LedgersPage() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            <TallyImportDialog companies={companies} ledgers={ledgers} />
-             {canExport && (
+            <TallyImportDialog companies={companies} />
+             {canManage && (
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="outline" disabled={isExporting}>
@@ -413,7 +478,7 @@ export default function LedgersPage() {
                     </DropdownMenuContent>
                 </DropdownMenu>
             )}
-            <Button onClick={() => setIsAddLedgerSheetOpen(true)}>
+            <Button onClick={() => setIsAddLedgerSheetOpen(true)} disabled={!selectedCompanyId}>
               <PlusCircle className="mr-2 h-4 w-4" />
               Add
             </Button>
@@ -460,7 +525,13 @@ export default function LedgersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ledgerTree.length > 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={visibleCols.length} className="h-24 text-center">
+                      <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                    </TableCell>
+                  </TableRow>
+                ) : ledgerTree.length > 0 ? (
                   ledgerTree.map((ledger) => (
                     <LedgerRow key={ledger.id} ledger={ledger} visibleColumns={visibleColumns} level={0} parentName={ledger.parentLedgerId ? ledgerMap[ledger.parentLedgerId]?.ledgerName : '-'} selectedRows={selectedRows} onSelectionChange={handleSelectionChange}/>
                   ))
@@ -477,12 +548,15 @@ export default function LedgersPage() {
         </CardContent>
       </Card>
     </div>
-    <AddLedgerSheet 
-        open={isAddLedgerSheetOpen}
-        onOpenChange={setIsAddLedgerSheetOpen}
-        ledgers={ledgers} 
-        onLedgerCreated={handleLedgerCreated} 
-    />
+    {profile && selectedCompanyId && (
+        <AddLedgerSheet 
+            open={isAddLedgerSheetOpen}
+            onOpenChange={setIsAddLedgerSheetOpen}
+            ledgers={ledgers} 
+            firmId={profile.firmId}
+            companyId={selectedCompanyId}
+        />
+    )}
     </>
   );
 }

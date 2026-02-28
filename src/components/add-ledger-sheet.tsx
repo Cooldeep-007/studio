@@ -61,6 +61,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
+import { useFirebase } from "@/firebase";
+import { addDoc, collection, doc, serverTimestamp } from "firebase/firestore";
 
 
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
@@ -390,15 +392,18 @@ export function AddLedgerSheet({
   open,
   onOpenChange,
   ledgers,
-  onLedgerCreated,
   initialValues,
+  firmId,
+  companyId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   ledgers: Ledger[];
-  onLedgerCreated: (ledger: Ledger) => void;
   initialValues?: Partial<LedgerFormValues>;
+  firmId: string;
+  companyId: string;
 }) {
+    const { firestore } = useFirebase();
     const [isSubmitting, setIsSubmitting] = React.useState(false);
 
     // Groups are simply ledgers with isGroup: true
@@ -515,6 +520,10 @@ export function AddLedgerSheet({
     }, [tdsEnabled, isPanMissing, natureOfPayment, deducteeType, form]);
 
     async function onSubmit(data: LedgerFormValues) {
+        if (!firmId || !companyId || !firestore) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Cannot create ledger: Firm or Company not identified.' });
+            return;
+        }
         setIsSubmitting(true);
         try {
             const isDuplicate = ledgers.some(
@@ -529,24 +538,20 @@ export function AddLedgerSheet({
                 });
                 return;
             }
-
-            await new Promise((resolve) => setTimeout(resolve, 1000));
             
-            const newLedger: Ledger = {
-                id: `led-${new Date().getTime()}`,
+            const newLedgerData: Omit<Ledger, 'id' | 'createdAt' | 'lastUpdatedAt'> = {
                 ledgerName: data.ledgerName,
                 parentLedgerId: data.parentLedgerId,
                 group: (derivedGroup || 'Assets') as LedgerGroup,
-                isGroup: false, // This form only creates ledgers
+                nature: selectedParent?.nature || 'Asset',
+                isGroup: false,
                 openingBalance: data.openingBalance,
                 currentBalance: data.openingBalance,
                 balanceType: data.balanceType,
                 gstApplicable: data.gstApplicable,
                 status: 'Active',
-                createdAt: new Date(),
-                lastUpdatedAt: new Date(),
-                firmId: 'firm-abc', // Mock data
-                companyId: 'comp-001', // Mock data
+                firmId,
+                companyId,
                 ledgerCode: data.ledgerCode,
                 gstDetails: data.gstApplicable ? {
                   ...(data.gstDetails || {}),
@@ -561,7 +566,9 @@ export function AddLedgerSheet({
                 complianceConfig: data.complianceConfig,
             };
 
-            onLedgerCreated(newLedger);
+            const ledgersColRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'ledgers');
+            const newDocRef = doc(ledgersColRef);
+            await addDoc(ledgersColRef, { ...newLedgerData, id: newDocRef.id, createdAt: serverTimestamp(), lastUpdatedAt: serverTimestamp()});
 
             toast({
                 title: "Ledger Created Successfully",
@@ -644,7 +651,7 @@ export function AddLedgerSheet({
                     />
                     <FormItem>
                         <FormLabel>Primary Nature</FormLabel>
-                        <Input disabled value={derivedGroup || 'Select a parent first'} />
+                        <Input disabled value={selectedParent?.nature || 'Select a parent first'} />
                     </FormItem>
                 </div>
                 <Separator />
@@ -1077,5 +1084,3 @@ export function AddLedgerSheet({
     </Sheet>
   );
 }
-
-    
