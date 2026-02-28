@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -79,7 +80,7 @@ export default function BankPage() {
 
   const accounts = React.useMemo(() => {
     if (!allLedgers) return [];
-    return allLedgers.filter(l => (l.group === 'Bank Accounts' || l.group === 'Cash-in-Hand') && !l.isGroup);
+    return allLedgers.filter(l => (l.parentLedgerId === 'group-bank-accounts' || l.parentLedgerId === 'group-cash-in-hand') && !l.isGroup);
   }, [allLedgers]);
 
   const totalBalance = React.useMemo(
@@ -283,7 +284,7 @@ export default function BankPage() {
                         href={`/bank/${account.id}?companyId=${selectedCompanyId}`}
                         className="hover:underline text-primary flex items-center gap-2"
                       >
-                        {account.group === 'Bank Accounts' ? <Landmark className="h-4 w-4 text-muted-foreground" /> : <Wallet className="h-4 w-4 text-muted-foreground" />}
+                        {account.isBankAccount ? <Landmark className="h-4 w-4 text-muted-foreground" /> : <Wallet className="h-4 w-4 text-muted-foreground" />}
                         {account.bankDetails?.bankName || account.ledgerName}
                       </Link>
                     </TableCell>
