@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/select';
 import { useUser } from '@/firebase/auth/use-user';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import type { Ledger, Voucher, Company } from '@/lib/types';
 import { AddBankAccountSheet } from '@/components/add-bank-account-sheet';
 import { AddPettyCashSheet } from '@/components/add-petty-cash-sheet';
@@ -91,43 +91,46 @@ export default function BankPage() {
   const isLoading = isLoadingCompanies || isLoadingLedgers;
 
   const handleAddBankAccount = async (data: any) => {
-    if (!firestore || !profile?.firmId || !selectedCompanyId || !allLedgers) return;
-
-    const bankAccountsGroup = allLedgers.find(l => l.isGroup && l.ledgerName === 'Bank Accounts');
-    if (!bankAccountsGroup) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not find "Bank Accounts" group.' });
-      return;
-    }
-    
-    const newLedgerData = {
-      ledgerName: data.accountName,
-      parentLedgerId: bankAccountsGroup.id,
-      group: 'Bank Accounts',
-      isGroup: false,
-      isBankAccount: true,
-      openingBalance: data.openingBalance || 0,
-      balanceType: 'Dr',
-      currentBalance: data.openingBalance || 0,
-      bankDetails: {
-        bankName: data.bankName,
-        accountNumber: data.accountNumber,
-        ifscCode: data.ifscCode,
-        branchName: data.branchName,
-        accountType: data.accountType,
-        upiId: data.upiId,
-        swiftCode: data.swiftCode,
-      },
-      firmId: profile.firmId,
-      companyId: selectedCompanyId,
-      status: 'Active',
-      createdAt: serverTimestamp(),
-      lastUpdatedAt: serverTimestamp(),
-      nature: 'Asset',
-      gstApplicable: false,
-    };
+    if (!firestore || !profile?.firmId || !selectedCompanyId) return;
 
     try {
       const ledgersColRef = collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'ledgers');
+      const groupQuery = query(ledgersColRef, where('isGroup', '==', true), where('ledgerName', '==', 'Bank Accounts'));
+      const groupSnapshot = await getDocs(groupQuery);
+
+      if (groupSnapshot.empty) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not find "Bank Accounts" group.' });
+        return;
+      }
+      const bankAccountsGroup = groupSnapshot.docs[0];
+
+      const newLedgerData = {
+        ledgerName: data.accountName,
+        parentLedgerId: bankAccountsGroup.id,
+        group: 'Bank Accounts',
+        isGroup: false,
+        isBankAccount: true,
+        openingBalance: data.openingBalance || 0,
+        balanceType: 'Dr',
+        currentBalance: data.openingBalance || 0,
+        bankDetails: {
+          bankName: data.bankName,
+          accountNumber: data.accountNumber,
+          ifscCode: data.ifscCode,
+          branchName: data.branchName,
+          accountType: data.accountType,
+          upiId: data.upiId,
+          swiftCode: data.swiftCode,
+        },
+        firmId: profile.firmId,
+        companyId: selectedCompanyId,
+        status: 'Active',
+        createdAt: serverTimestamp(),
+        lastUpdatedAt: serverTimestamp(),
+        nature: 'Asset',
+        gstApplicable: false,
+      };
+
       await addDoc(ledgersColRef, newLedgerData);
     } catch (e) {
       console.error(e);
@@ -136,35 +139,37 @@ export default function BankPage() {
   };
 
   const handleAddPettyCash = async (data: any) => {
-    if (!firestore || !profile?.firmId || !selectedCompanyId || !allLedgers) return;
-
-    const cashGroup = allLedgers.find(l => l.isGroup && l.ledgerName === 'Cash-in-Hand');
-     if (!cashGroup) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not find "Cash-in-Hand" group.' });
-      return;
-    }
-
-    const newLedgerData = {
-      ledgerName: data.cashName,
-      parentLedgerId: cashGroup.id,
-      group: 'Cash-in-Hand',
-      isGroup: false,
-      isCashAccount: true,
-      responsiblePerson: data.responsiblePerson,
-      openingBalance: data.openingBalance || 0,
-      balanceType: 'Dr',
-      currentBalance: data.openingBalance || 0,
-      firmId: profile.firmId,
-      companyId: selectedCompanyId,
-      status: 'Active',
-      createdAt: serverTimestamp(),
-      lastUpdatedAt: serverTimestamp(),
-      nature: 'Asset',
-      gstApplicable: false,
-    };
-
+    if (!firestore || !profile?.firmId || !selectedCompanyId) return;
+    
     try {
       const ledgersColRef = collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'ledgers');
+      const groupQuery = query(ledgersColRef, where('isGroup', '==', true), where('ledgerName', '==', 'Cash-in-Hand'));
+      const groupSnapshot = await getDocs(groupQuery);
+      if (groupSnapshot.empty) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not find "Cash-in-Hand" group.' });
+        return;
+      }
+      const cashGroup = groupSnapshot.docs[0];
+
+      const newLedgerData = {
+        ledgerName: data.cashName,
+        parentLedgerId: cashGroup.id,
+        group: 'Cash-in-Hand',
+        isGroup: false,
+        isCashAccount: true,
+        responsiblePerson: data.responsiblePerson,
+        openingBalance: data.openingBalance || 0,
+        balanceType: 'Dr',
+        currentBalance: data.openingBalance || 0,
+        firmId: profile.firmId,
+        companyId: selectedCompanyId,
+        status: 'Active',
+        createdAt: serverTimestamp(),
+        lastUpdatedAt: serverTimestamp(),
+        nature: 'Asset',
+        gstApplicable: false,
+      };
+
       await addDoc(ledgersColRef, newLedgerData);
     } catch (e) {
       console.error(e);
