@@ -1,0 +1,61 @@
+<ENVELOPE>
+  <BODY>
+    <IMPORTDATA>
+      <REQUESTDATA>
+        <TALLYMESSAGE>
+          <LEDGER NAME="Aarav Enterprises (Customer)" RESERVED="No">
+            <PARENT>Sundry Debtors</PARENT>
+            <OPENINGBALANCE>5000.00 Dr</OPENINGBALANCE>
+            <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+            <GSTREGISTRATIONTYPE>Regular</GSTREGISTRATIONTYPE>
+            <PARTYGSTIN>29AATCA1234B1Z5</PARTYGSTIN>
+            <ADDRESS>
+              <V>#123, 4th Cross, Industrial Area</V>
+              <V>Koramangala</V>
+            </ADDRESS>
+            <STATENAME>Karnataka</STATENAME>
+            <PINCODE>560034</PINCODE>
+            <INCOMETAXNUMBER>AATCA1234B</INCOMETAXNUMBER>
+            <LEDGERCONTACT>Mr. Aarav</LEDGERCONTACT>
+            <LEDGERPHONE>9876543210</LEDGERPHONE>
+            <LEDGEREMAIL>contact@aarav.com</LEDGEREMAIL>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE>
+          <LEDGER NAME="Priya Suppliers (Vendor)" RESERVED="No">
+            <PARENT>Sundry Creditors</PARENT>
+            <OPENINGBALANCE>12500.50 Cr</OPENINGBALANCE>
+            <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
+            <GSTREGISTRATIONTYPE>Regular</GSTREGISTRATIONTYPE>
+            <PARTYGSTIN>27AATCP5678A1Z9</PARTYGSTIN>
+            <ADDRESS>
+                <V>Unit 5, Trade Center, BKC</V>
+            </ADDRESS>
+            <STATENAME>Maharashtra</STATENAME>
+            <PINCODE>400051</PINCODE>
+            <INCOMETAXNUMBER>AATCP5678A</INCOMETAXNUMBER>
+            <LEDGERCONTACT>Ms. Priya</LEDGERCONTACT>
+            <LEDGERPHONE>9988776655</LEDGERPHONE>
+            <LEDGEREMAIL>sales@priyasuppliers.in</LEDGEREMAIL>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE>
+          <LEDGER NAME="Office Stationery" RESERVED="No">
+            <PARENT>Indirect Expenses</PARENT>
+            <OPENINGBALANCE>0</OPENINGBALANCE>
+            <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
+            <GSTAPPLICABLE>Yes</GSTAPPLICABLE>
+            <GSTCLASSIFICATIONNAME>Goods @ 12%</GSTCLASSIFICATIONNAME>
+          </LEDGER>
+        </TALLYMESSAGE>
+        <TALLYMESSAGE>
+          <LEDGER NAME="Unregistered Customer" RESERVED="No">
+            <PARENT>Sundry Debtors</PARENT>
+            <GSTREGISTRATIONTYPE>Unregistered</GSTREGISTRATIONTYPE>
+            <STATENAME>Karnataka</STATENAME>
+          </LEDGER>
+        </TALLYMESSAGE>
+      </REQUESTDATA>
+    </IMPORTDATA>
+  </BODY>
+</ENVELOPE>

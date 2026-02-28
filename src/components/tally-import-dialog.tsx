@@ -7,7 +7,7 @@ import { handleTallyImport, type TallyImportState, type TallyPreviewLedger } fro
 import type { Company, Ledger } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
-import { Upload, Loader2, FileCheck2, ListChecks } from "lucide-react";
+import { Upload, Loader2, FileCheck2, ListChecks, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -160,6 +160,14 @@ function TallyImportFormContent({
                             <Label htmlFor="xml-file">Tally XML File</Label>
                             <Input id="xml-file" name="xml-file" type="file" accept=".xml" required onChange={handleFileChange} ref={fileInputRef}/>
                             <input type="hidden" name="xmlContent" value={fileContent || ''} />
+                             <a
+                                href="/Tally_Ledger_Masters_Sample.xml"
+                                download
+                                className="text-sm text-primary hover:underline flex items-center gap-1"
+                            >
+                                <Download className="h-3 w-3" />
+                                Download Sample File
+                            </a>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="companyId">Select Company</Label>
