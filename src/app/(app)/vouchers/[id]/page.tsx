@@ -55,13 +55,16 @@ const formatCurrency = (amount: number) => {
 
 const badgeColors: Record<string, string> = {
   Sales: 'bg-green-100 text-green-800 hover:bg-green-100/80',
+  'Adhoc Sale': 'bg-green-100 text-green-800 hover:bg-green-100/80',
   Purchase: 'bg-blue-100 text-blue-800 hover:bg-blue-100/80',
+  'Adhoc Purchase': 'bg-blue-100 text-blue-800 hover:bg-blue-100/80',
   Payment: 'bg-red-100 text-red-800 hover:bg-red-100/80',
   Receipt: 'bg-purple-100 text-purple-800 hover:bg-purple-100/80',
   Journal: 'bg-gray-100 text-gray-800 hover:bg-gray-100/80',
   Contra: 'bg-orange-100 text-orange-800 hover:bg-orange-100/80',
   'Debit Note': 'bg-pink-100 text-pink-800 hover:bg-pink-100/80',
   'Credit Note': 'bg-indigo-100 text-indigo-800 hover:bg-indigo-100/80',
+  'Proforma Invoice': 'bg-cyan-100 text-cyan-800 hover:bg-cyan-100/80',
 };
 
 
@@ -211,12 +214,12 @@ export default function VoucherViewPage() {
 
   return (
     <div className="space-y-6">
-       <div className="flex items-center justify-between">
+       <div className="flex items-center justify-between print:hidden">
         <Button variant="outline" onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Vouchers
         </Button>
         <div className="flex gap-2">
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => window.print()}>
                 <Printer className="mr-2 h-4 w-4" /> Print
             </Button>
             <DropdownMenu>
@@ -244,8 +247,8 @@ export default function VoucherViewPage() {
             </Link>
         </div>
       </div>
-      <Card className="w-full max-w-4xl mx-auto">
-        <CardHeader className="bg-muted/50 p-6">
+      <Card className="w-full max-w-4xl mx-auto print:shadow-none print:border-none">
+        <CardHeader className="bg-muted/50 p-6 print:bg-transparent">
             <div className="flex justify-between items-start">
                 <div>
                     <Badge className={badgeColors[voucher.voucherType]}>{voucher.voucherType}</Badge>
@@ -301,7 +304,7 @@ export default function VoucherViewPage() {
                 </div>
             )}
         </CardContent>
-         <CardFooter className="bg-muted/50 p-4 text-xs text-muted-foreground text-center justify-center">
+         <CardFooter className="bg-muted/50 p-4 text-xs text-muted-foreground text-center justify-center print:hidden">
             <p>Created on {format(new Date(voucher.createdAt), 'PPpp')}</p>
         </CardFooter>
       </Card>

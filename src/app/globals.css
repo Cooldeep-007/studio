@@ -92,3 +92,22 @@
     @apply bg-clip-text text-transparent;
   }
 }
+
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  .print\:hidden {
+    display: none;
+  }
+  .print\:shadow-none {
+    box-shadow: none;
+  }
+  .print\:border-none {
+    border: none;
+  }
+  .print\:bg-transparent {
+    background-color: transparent;
+  }
+}
