@@ -16,7 +16,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { mockLedgers, mockItems, mockCompanies } from '@/lib/data';
-import type { Ledger, Item, InvoiceItem, Company, Voucher, LedgerGroup } from '@/lib/types';
+import type { Ledger, Item, InvoiceItem, Company, Voucher, LedgerGroup, VoucherEntry } from '@/lib/types';
 import { Combobox } from '@/components/ui/combobox';
 import { AddItemSheet } from '@/components/add-item-sheet';
 import { indianStates, gstStateCodes } from '@/lib/constants';
@@ -27,6 +27,8 @@ import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AddLedgerSheet } from '../add-ledger-sheet';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { useFirebase } from '@/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const lineItemSchema = z.object({
   itemId: z.string().min(1, 'Item is required.'),
@@ -65,10 +67,13 @@ const formatCurrency = (amount: number) => {
 
 interface PurchaseInvoiceFormProps {
     initialData?: Voucher;
+    companyId: string;
+    firmId: string;
 }
 
-export function PurchaseInvoiceForm({ initialData }: PurchaseInvoiceFormProps) {
+export function PurchaseInvoiceForm({ initialData, companyId, firmId }: PurchaseInvoiceFormProps) {
     const { toast } = useToast();
+    const { firestore } = useFirebase();
     const [ledgers, setLedgers] = React.useState<Ledger[]>(() => mockLedgers);
     const [items, setItems] = React.useState<Item[]>(() => mockItems);
     const [company] = React.useState<Company | undefined>(() => mockCompanies.find(c => c.id === 'comp-001'));
@@ -219,14 +224,102 @@ export function PurchaseInvoiceForm({ initialData }: PurchaseInvoiceFormProps) {
     }, [watchedForm, items, company, selectedSupplier]);
 
 
-    function onSubmit(data: FormValues) {
-        console.log({ ...data, calculations });
-        toast({
-            title: `Purchase Invoice ${isEditMode ? 'Updated' : 'Created'}`,
-            description: 'The purchase voucher has been successfully saved.',
+    async function onSubmit(data: FormValues) {
+         if (!firestore) return;
+        // TODO: Implement edit mode
+        if (isEditMode) {
+             toast({
+                title: `Purchase Invoice Updated`,
+                description: "The purchase voucher has been successfully updated.",
+            });
+            return;
+        }
+
+        const {
+            items: calculatedItems, 
+            grandTotal,
+            totalCgst,
+            totalSgst,
+            totalIgst,
+            subtotal
+        } = calculations;
+
+        // Find necessary ledgers
+        const cgstLedger = ledgers.find(l => l.ledgerName === "CGST");
+        const sgstLedger = ledgers.find(l => l.ledgerName === "SGST");
+        const igstLedger = ledgers.find(l => l.ledgerName === "IGST");
+        
+        let purchaseLedgerEntries: { ledgerId: string, amount: number }[] = [];
+
+        calculatedItems.forEach(item => {
+            const fullItem = items.find(i => i.id === item.itemId);
+            if (!fullItem) return;
+
+            const existingEntry = purchaseLedgerEntries.find(e => e.ledgerId === fullItem.expenseLedgerId);
+            if (existingEntry) {
+                existingEntry.amount += item.amount;
+            } else {
+                purchaseLedgerEntries.push({ ledgerId: fullItem.expenseLedgerId, amount: item.amount });
+            }
         });
-        if (!isEditMode) {
-            form.reset(defaultValues);
+
+
+        let entries: Omit<VoucherEntry, 'id'>[] = [
+            ...purchaseLedgerEntries.map(entry => ({ ledgerId: entry.ledgerId, type: 'Dr' as 'Dr', amount: entry.amount })),
+        ];
+
+        if (totalCgst > 0 && cgstLedger) entries.push({ ledgerId: cgstLedger.id, type: 'Dr', amount: totalCgst });
+        if (totalSgst > 0 && sgstLedger) entries.push({ ledgerId: sgstLedger.id, type: 'Dr', amount: totalSgst });
+        if (totalIgst > 0 && igstLedger) entries.push({ ledgerId: igstLedger.id, type: 'Dr', amount: totalIgst });
+        
+        entries.push({ ledgerId: data.supplierLedgerId, type: 'Cr', amount: grandTotal });
+        
+
+        const newVoucher: Omit<Voucher, 'id'> = {
+            voucherNumber: `FY24-AUTO-${Math.floor(Math.random() * 1000)}`, // Replace with real sequencing
+            voucherType: 'Purchase',
+            date: data.invoiceDate,
+            createdAt: serverTimestamp(),
+            narration: data.remarks || `Purchase from ${selectedSupplier?.ledgerName}`,
+            partyLedgerId: data.supplierLedgerId,
+            referenceNumber: data.supplierInvoiceNo,
+            entries,
+            totalDebit: grandTotal,
+            totalCredit: grandTotal,
+            firmId,
+            companyId,
+            createdByUserId: 'user-123', // Replace with actual user ID from auth
+            isReconciled: false,
+            isCancelled: false,
+            invoiceDetails: {
+                items: calculatedItems,
+                subtotal: subtotal,
+                totalDiscount: calculations.totalDiscount,
+                totalGst: calculations.totalGst,
+                roundOff: calculations.roundOff,
+                grandTotal: calculations.grandTotal,
+                placeOfSupply: data.placeOfSupply,
+                isReverseCharge: data.isReverseCharge,
+            },
+            status: 'Unpaid',
+            outstandingAmount: grandTotal,
+        };
+        
+        try {
+            const vouchersColRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'vouchers');
+            await addDoc(vouchersColRef, newVoucher);
+            toast({
+                title: `Purchase Invoice Created`,
+                description: 'The purchase voucher has been successfully saved.',
+            });
+            form.reset();
+        } catch (error) {
+            console.error(error);
+             toast({
+                variant: 'destructive',
+                title: `Error`,
+                description: `Failed to create purchase voucher.`,
+            });
         }
     }
 

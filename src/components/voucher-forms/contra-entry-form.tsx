@@ -19,6 +19,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { Combobox } from '../ui/combobox';
 import { AddLedgerSheet } from '../add-ledger-sheet';
+import { useFirebase } from '@/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const contraEntrySchema = z.object({
   date: z.date(),
@@ -46,10 +48,13 @@ const defaultValues: Partial<FormValues> = {
 
 interface ContraEntryFormProps {
     initialData?: Voucher;
+    companyId: string;
+    firmId: string;
 }
 
-export function ContraEntryForm({ initialData }: ContraEntryFormProps) {
+export function ContraEntryForm({ initialData, companyId, firmId }: ContraEntryFormProps) {
     const { toast } = useToast();
+    const { firestore } = useFirebase();
     const [ledgers, setLedgers] = React.useState(() => mockLedgers);
     const isEditMode = !!initialData;
     const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
@@ -103,14 +108,53 @@ export function ContraEntryForm({ initialData }: ContraEntryFormProps) {
     };
 
 
-    function onSubmit(data: FormValues) {
-        toast({
-            title: `Contra Voucher ${isEditMode ? 'Updated' : 'Created'}`,
-            description: "The fund transfer has been successfully recorded.",
-        });
-        console.log("Form Submitted", data);
-        if (!isEditMode) {
+    async function onSubmit(data: FormValues) {
+        if (!firestore) return;
+        // TODO: Implement edit mode
+        if (isEditMode) {
+             toast({
+                title: `Contra Voucher Updated`,
+                description: "The fund transfer has been successfully updated.",
+            });
+            return;
+        }
+
+        const newVoucher: Omit<Voucher, 'id'> = {
+            voucherNumber: `FY24-AUTO-${Math.floor(Math.random() * 1000)}`, // Replace with real sequencing
+            voucherType: 'Contra',
+            date: data.date,
+            createdAt: serverTimestamp(),
+            narration: data.narration || `Transfer from ${ledgers.find(l=>l.id === data.fromAccountId)?.ledgerName} to ${ledgers.find(l=>l.id === data.toAccountId)?.ledgerName}`,
+            referenceNumber: data.referenceNumber,
+            entries: [
+                { ledgerId: data.toAccountId, type: 'Dr', amount: data.amount },
+                { ledgerId: data.fromAccountId, type: 'Cr', amount: data.amount },
+            ],
+            totalDebit: data.amount,
+            totalCredit: data.amount,
+            firmId,
+            companyId,
+            createdByUserId: 'user-123', // Replace with actual user ID from auth
+            isReconciled: false,
+            isCancelled: false,
+            status: 'Paid',
+        };
+
+        try {
+            const vouchersColRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'vouchers');
+            await addDoc(vouchersColRef, newVoucher);
+             toast({
+                title: `Contra Voucher Created`,
+                description: "The fund transfer has been successfully recorded.",
+            });
             form.reset();
+        } catch (error) {
+            console.error(error);
+             toast({
+                variant: 'destructive',
+                title: `Error`,
+                description: "Failed to create contra voucher.",
+            });
         }
     }
 

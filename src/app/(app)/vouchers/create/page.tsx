@@ -29,6 +29,7 @@ import { DebitNoteForm } from '@/components/voucher-forms/debit-note-form';
 import { CreditNoteForm } from '@/components/voucher-forms/credit-note-form';
 import { FileWarning, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useUser } from '@/firebase/auth/use-user';
 
 
 const allVoucherTypes = [
@@ -59,8 +60,34 @@ const NotImplemented = ({ type }: { type: string }) => (
 
 export default function CreateVoucherPage() {
   const searchParams = useSearchParams();
+  const { profile } = useUser();
   const context = searchParams.get('context');
+  const companyId = searchParams.get('companyId');
   const [voucherType, setVoucherType] = React.useState<string>(searchParams.get('type') || '');
+  
+  if (!profile || !companyId) {
+    return (
+        <div className="space-y-6">
+             <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold">Add Transaction</h1>
+                <Link href="/vouchers">
+                    <Button variant="outline">
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Back to Vouchers
+                    </Button>
+                </Link>
+            </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-destructive">Company Not Selected</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p>Please select a company from the Vouchers page before creating a new transaction.</p>
+                </CardContent>
+            </Card>
+        </div>
+    )
+  }
 
   const voucherTypes = context === 'bank' || context === 'cash' 
     ? allVoucherTypes.filter(vt => bankVoucherTypes.includes(vt.value)) 
@@ -69,17 +96,17 @@ export default function CreateVoucherPage() {
   const renderVoucherForm = () => {
     switch (voucherType) {
       case 'Sales':
-        return <SalesInvoiceForm />;
+        return <SalesInvoiceForm companyId={companyId} firmId={profile.firmId} />;
       case 'Purchase':
-        return <PurchaseInvoiceForm />;
+        return <PurchaseInvoiceForm companyId={companyId} firmId={profile.firmId} />;
       case 'Payment':
-        return <PaymentReceiptForm type="Payment" />;
+        return <PaymentReceiptForm type="Payment" companyId={companyId} firmId={profile.firmId} />;
       case 'Receipt':
-        return <PaymentReceiptForm type="Receipt" />;
+        return <PaymentReceiptForm type="Receipt" companyId={companyId} firmId={profile.firmId} />;
       case 'Contra':
-        return <ContraEntryForm />;
+        return <ContraEntryForm companyId={companyId} firmId={profile.firmId} />;
       case 'Journal':
-        return <JournalEntryForm />;
+        return <JournalEntryForm companyId={companyId} firmId={profile.firmId} />;
       case 'Adhoc Voucher':
         return <AdhocVoucherForm />;
       case 'Proforma Invoice':

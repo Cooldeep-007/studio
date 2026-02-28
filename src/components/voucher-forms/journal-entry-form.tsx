@@ -21,6 +21,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { AddLedgerSheet } from '../add-ledger-sheet';
 import { Combobox } from '../ui/combobox';
+import { useFirebase } from '@/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const lineItemSchema = z.object({
   ledgerId: z.string().min(1, 'Ledger is required.'),
@@ -56,10 +58,13 @@ const defaultValues: JournalEntryFormValues = {
 
 interface JournalEntryFormProps {
     initialData?: Voucher;
+    companyId: string;
+    firmId: string;
 }
 
-export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
+export function JournalEntryForm({ initialData, companyId, firmId }: JournalEntryFormProps) {
     const { toast } = useToast();
+    const { firestore } = useFirebase();
     const [ledgers, setLedgers] = React.useState(() => mockLedgers);
     const isEditMode = !!initialData;
     const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
@@ -109,14 +114,50 @@ export function JournalEntryForm({ initialData }: JournalEntryFormProps) {
     const totalCredit = watchedLineItems.reduce((sum, li) => sum + (li.type === 'Cr' ? (Number(li.amount) || 0) : 0), 0);
     const difference = totalDebit - totalCredit;
 
-    function onSubmit(data: JournalEntryFormValues) {
-        console.log(data);
-        toast({
-            title: `Journal Entry ${isEditMode ? 'Updated' : 'Posted'}`,
-            description: "The journal voucher has been successfully saved.",
-        });
-        if (!isEditMode) {
+    async function onSubmit(data: JournalEntryFormValues) {
+        if (!firestore) return;
+        // TODO: Implement edit mode
+        if (isEditMode) {
+             toast({
+                title: `Journal Entry Updated`,
+                description: "The journal voucher has been successfully updated.",
+            });
+            return;
+        }
+        
+        const newVoucher: Omit<Voucher, 'id'> = {
+            voucherNumber: `FY24-AUTO-${Math.floor(Math.random() * 1000)}`, // Replace with real sequencing
+            voucherType: 'Journal',
+            date: data.date,
+            createdAt: serverTimestamp(),
+            narration: data.narration,
+            referenceNumber: data.reference,
+            entries: data.lineItems.map(item => ({ ledgerId: item.ledgerId, type: item.type, amount: item.amount })),
+            totalDebit: totalDebit,
+            totalCredit: totalCredit,
+            firmId,
+            companyId,
+            createdByUserId: 'user-123', // Replace with actual user ID from auth
+            isReconciled: false,
+            isCancelled: false,
+            status: 'Paid', // Journal entries are considered settled
+        };
+
+         try {
+            const vouchersColRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'vouchers');
+            await addDoc(vouchersColRef, newVoucher);
+             toast({
+                title: `Journal Entry Posted`,
+                description: "The journal voucher has been successfully saved.",
+            });
             form.reset();
+        } catch (error) {
+            console.error(error);
+             toast({
+                variant: 'destructive',
+                title: `Error`,
+                description: "Failed to post journal entry.",
+            });
         }
     }
 

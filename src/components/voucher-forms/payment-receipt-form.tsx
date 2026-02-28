@@ -22,6 +22,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { BillAllocationDialog } from '../bill-allocation-dialog';
 import { AddLedgerSheet } from '../add-ledger-sheet';
+import { useFirebase } from '@/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const paymentReceiptSchema = z.object({
   date: z.date(),
@@ -55,10 +57,13 @@ const defaultValues: Partial<FormValues> = {
 interface PaymentReceiptFormProps {
     type: 'Payment' | 'Receipt';
     initialData?: Voucher;
+    companyId: string;
+    firmId: string;
 }
 
-export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProps) {
+export function PaymentReceiptForm({ type, initialData, companyId, firmId }: PaymentReceiptFormProps) {
     const { toast } = useToast();
+    const { firestore } = useFirebase();
     const [ledgers, setLedgers] = React.useState(() => mockLedgers);
     const [outstandingVouchers, setOutstandingVouchers] = React.useState<Voucher[]>([]);
     const [isAllocationDialogOpen, setIsAllocationDialogOpen] = React.useState(false);
@@ -150,7 +155,7 @@ export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProp
         setAddLedgerInitialValues({
             ledgerName: searchValue,
             parentLedgerId: parentId,
-            group: initialGroup,
+            group: initialGroup as any,
         });
         setIsAddLedgerSheetOpen(true);
     };
@@ -166,15 +171,59 @@ export function PaymentReceiptForm({ type, initialData }: PaymentReceiptFormProp
     };
 
 
-    function onSubmit(data: FormValues) {
-        toast({
-            title: `${type} Voucher ${isEditMode ? 'Updated' : 'Created'}`,
-            description: "The voucher has been successfully saved.",
-        });
-        console.log("Form Submitted", {...data, tdsAmount, netPayable});
-        if (!isEditMode) {
+    async function onSubmit(data: FormValues) {
+        if (!firestore) return;
+        // TODO: Implement edit mode
+        if (isEditMode) {
+            toast({
+                title: `${type} Voucher Updated`,
+                description: "The voucher has been successfully updated.",
+            });
+            return;
+        }
+
+        const newVoucher: Omit<Voucher, 'id'> = {
+            voucherNumber: `FY24-AUTO-${Math.floor(Math.random() * 1000)}`, // Replace with real sequencing
+            voucherType: type,
+            date: data.date,
+            createdAt: serverTimestamp(),
+            narration: data.narration || `Amount ${type === 'Payment' ? 'paid to' : 'received from'} ${ledgers.find(l=>l.id === data.partyLedgerId)?.ledgerName}`,
+            partyLedgerId: data.partyLedgerId,
+            referenceNumber: data.referenceNumber,
+            entries: [
+                { ledgerId: type === 'Payment' ? data.partyLedgerId : data.bankCashLedgerId, type: 'Dr', amount: data.amount },
+                { ledgerId: type === 'Payment' ? data.bankCashLedgerId : data.partyLedgerId, type: 'Cr', amount: data.amount },
+            ],
+            totalDebit: data.amount,
+            totalCredit: data.amount,
+            firmId,
+            companyId,
+            createdByUserId: 'user-123', // Replace with actual user ID from auth
+            isReconciled: false,
+            isCancelled: false,
+            paymentMode: data.paymentMode as any,
+            chequeNumber: data.chequeNumber,
+            chequeDate: data.chequeDate,
+            billAllocations: data.billAllocations,
+            status: 'Paid', // Assuming full payment
+        };
+        
+        try {
+            const vouchersColRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'vouchers');
+            await addDoc(vouchersColRef, newVoucher);
+            toast({
+                title: `${type} Voucher Created`,
+                description: "The voucher has been successfully saved.",
+            });
             form.reset();
             setOutstandingVouchers([]);
+        } catch (error) {
+            console.error(error);
+             toast({
+                variant: 'destructive',
+                title: `Error`,
+                description: `Failed to create ${type} voucher.`,
+            });
         }
     }
     
