@@ -20,6 +20,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Landmark, PlusCircle, Wallet, Loader2, Building } from 'lucide-react';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -28,8 +34,11 @@ import {
 } from '@/components/ui/select';
 import { useUser } from '@/firebase/auth/use-user';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, addDoc, serverTimestamp } from 'firebase/firestore';
 import type { Ledger, Voucher, Company } from '@/lib/types';
+import { AddBankAccountSheet } from '@/components/add-bank-account-sheet';
+import { AddPettyCashSheet } from '@/components/add-petty-cash-sheet';
+import { useToast } from '@/hooks/use-toast';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', {
@@ -42,8 +51,11 @@ const formatCurrency = (amount: number) => {
 export default function BankPage() {
   const { profile } = useUser();
   const { firestore } = useFirebase();
+  const { toast } = useToast();
 
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string | undefined>();
+  const [isAddBankAccountSheetOpen, setIsAddBankAccountSheetOpen] = React.useState(false);
+  const [isAddPettyCashSheetOpen, setIsAddPettyCashSheetOpen] = React.useState(false);
 
   const companiesQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.firmId) return null;
@@ -57,16 +69,18 @@ export default function BankPage() {
       setSelectedCompanyId(companies[0].id);
     }
   }, [companies, selectedCompanyId]);
-
-  const ledgersQuery = useMemoFirebase(() => {
+  
+  const allLedgersQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.firmId || !selectedCompanyId) return null;
-    return query(
-      collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'ledgers'),
-      where('group', 'in', ['Bank Accounts', 'Cash-in-Hand'])
-    );
+    return collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'ledgers');
   }, [firestore, profile?.firmId, selectedCompanyId]);
 
-  const { data: accounts, isLoading: isLoadingLedgers } = useCollection<Ledger>(ledgersQuery);
+  const { data: allLedgers, isLoading: isLoadingLedgers } = useCollection<Ledger>(allLedgersQuery);
+
+  const accounts = React.useMemo(() => {
+    if (!allLedgers) return [];
+    return allLedgers.filter(l => (l.group === 'Bank Accounts' || l.group === 'Cash-in-Hand') && !l.isGroup);
+  }, [allLedgers]);
 
   const vouchersQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.firmId || !selectedCompanyId) return null;
@@ -107,6 +121,88 @@ export default function BankPage() {
   
   const isLoading = isLoadingCompanies || isLoadingLedgers || isLoadingVouchers;
 
+  const handleAddBankAccount = async (data: any) => {
+    if (!firestore || !profile?.firmId || !selectedCompanyId || !allLedgers) return;
+
+    const bankAccountsGroup = allLedgers.find(l => l.isGroup && l.ledgerName === 'Bank Accounts');
+    if (!bankAccountsGroup) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not find "Bank Accounts" group.' });
+      return;
+    }
+    
+    const newLedgerData = {
+      ledgerName: data.accountName,
+      parentLedgerId: bankAccountsGroup.id,
+      group: 'Bank Accounts',
+      isGroup: false,
+      isBankAccount: true,
+      openingBalance: data.openingBalance || 0,
+      balanceType: 'Dr',
+      currentBalance: data.openingBalance || 0,
+      bankDetails: {
+        bankName: data.bankName,
+        accountNumber: data.accountNumber,
+        ifscCode: data.ifscCode,
+        branchName: data.branchName,
+        accountType: data.accountType,
+        upiId: data.upiId,
+        swiftCode: data.swiftCode,
+      },
+      firmId: profile.firmId,
+      companyId: selectedCompanyId,
+      status: 'Active',
+      createdAt: serverTimestamp(),
+      lastUpdatedAt: serverTimestamp(),
+      nature: 'Asset',
+      gstApplicable: false,
+    };
+
+    try {
+      const ledgersColRef = collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'ledgers');
+      await addDoc(ledgersColRef, newLedgerData);
+    } catch (e) {
+      console.error(e);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to create bank account.' });
+    }
+  };
+
+  const handleAddPettyCash = async (data: any) => {
+    if (!firestore || !profile?.firmId || !selectedCompanyId || !allLedgers) return;
+
+    const cashGroup = allLedgers.find(l => l.isGroup && l.ledgerName === 'Cash-in-Hand');
+     if (!cashGroup) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Could not find "Cash-in-Hand" group.' });
+      return;
+    }
+
+    const newLedgerData = {
+      ledgerName: data.cashName,
+      parentLedgerId: cashGroup.id,
+      group: 'Cash-in-Hand',
+      isGroup: false,
+      isCashAccount: true,
+      responsiblePerson: data.responsiblePerson,
+      openingBalance: data.openingBalance || 0,
+      balanceType: 'Dr',
+      currentBalance: data.openingBalance || 0,
+      firmId: profile.firmId,
+      companyId: selectedCompanyId,
+      status: 'Active',
+      createdAt: serverTimestamp(),
+      lastUpdatedAt: serverTimestamp(),
+      nature: 'Asset',
+      gstApplicable: false,
+    };
+
+    try {
+      const ledgersColRef = collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'ledgers');
+      await addDoc(ledgersColRef, newLedgerData);
+    } catch (e) {
+      console.error(e);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to create petty cash account.' });
+    }
+  };
+
   if (!isLoadingCompanies && (!companies || companies.length === 0)) {
     return (
       <div className="space-y-6">
@@ -136,6 +232,7 @@ export default function BankPage() {
   }
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-2xl font-bold">Cash & Bank</h1>
@@ -146,10 +243,24 @@ export default function BankPage() {
                     <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.companyName}</SelectItem>)}</SelectContent>
                 </Select>
             )}
-            <Button disabled>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add New Account
-            </Button>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add New Account
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => setIsAddBankAccountSheetOpen(true)}>
+                        <Landmark className="mr-2 h-4 w-4" />
+                        Add Bank Account
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setIsAddPettyCashSheetOpen(true)}>
+                        <Wallet className="mr-2 h-4 w-4" />
+                        Add Petty Cash
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </div>
       </div>
 
@@ -223,7 +334,7 @@ export default function BankPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center">
-                    No cash or bank accounts found. Create one from the Masters module.
+                    No cash or bank accounts found. Click 'Add New Account' to create one.
                   </TableCell>
                 </TableRow>
               )}
@@ -232,5 +343,8 @@ export default function BankPage() {
         </CardContent>
       </Card>
     </div>
+    <AddBankAccountSheet open={isAddBankAccountSheetOpen} onOpenChange={setIsAddBankAccountSheetOpen} onSave={handleAddBankAccount} />
+    <AddPettyCashSheet open={isAddPettyCashSheetOpen} onOpenChange={setIsAddPettyCashSheetOpen} onSave={handleAddPettyCash} />
+    </>
   );
 }
