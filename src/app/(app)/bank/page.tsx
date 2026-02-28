@@ -82,44 +82,12 @@ export default function BankPage() {
     return allLedgers.filter(l => (l.group === 'Bank Accounts' || l.group === 'Cash-in-Hand') && !l.isGroup);
   }, [allLedgers]);
 
-  const vouchersQuery = useMemoFirebase(() => {
-    if (!firestore || !profile?.firmId || !selectedCompanyId) return null;
-    return collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'vouchers');
-  }, [firestore, profile?.firmId, selectedCompanyId]);
-
-  const { data: vouchers, isLoading: isLoadingVouchers } = useCollection<Voucher>(vouchersQuery);
-
-  const accountBalances = React.useMemo(() => {
-    const balances = new Map<string, number>();
-    if (!accounts || !vouchers) return balances;
-
-    accounts.forEach(acc => {
-      const opening = (acc.openingBalance || 0) * (acc.balanceType === 'Cr' ? -1 : 1);
-      balances.set(acc.id, opening);
-    });
-
-    vouchers.forEach(voucher => {
-      voucher.entries.forEach(entry => {
-        if (balances.has(entry.ledgerId)) {
-          let currentBalance = balances.get(entry.ledgerId)!;
-          if (entry.type === 'Dr') {
-            currentBalance += entry.amount;
-          } else {
-            currentBalance -= entry.amount;
-          }
-          balances.set(entry.ledgerId, currentBalance);
-        }
-      });
-    });
-    return balances;
-  }, [accounts, vouchers]);
-
   const totalBalance = React.useMemo(
-    () => Array.from(accountBalances.values()).reduce((acc, balance) => acc + balance, 0),
-    [accountBalances]
+    () => accounts.reduce((acc, account) => acc + (account.currentBalance || 0), 0),
+    [accounts]
   );
   
-  const isLoading = isLoadingCompanies || isLoadingLedgers || isLoadingVouchers;
+  const isLoading = isLoadingCompanies || isLoadingLedgers;
 
   const handleAddBankAccount = async (data: any) => {
     if (!firestore || !profile?.firmId || !selectedCompanyId || !allLedgers) return;
@@ -323,11 +291,11 @@ export default function BankPage() {
                       {account.bankDetails?.accountNumber || 'N/A'}
                     </TableCell>
                     <TableCell>
-                      {account.bankDetails?.accountType || (account.ledgerName === 'Cash in Hand' ? 'Cash' : 'N/A')}
+                      {account.bankDetails?.accountType || (account.isCashAccount ? 'Cash' : 'N/A')}
                     </TableCell>
                     <TableCell>{account.bankDetails?.ifscCode || 'N/A'}</TableCell>
                     <TableCell className="text-right">
-                      {formatCurrency(accountBalances.get(account.id) || 0)}
+                      {formatCurrency(account.currentBalance || 0)}
                     </TableCell>
                   </TableRow>
                 ))
