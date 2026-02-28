@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { PlusCircle, Search, MoreHorizontal, Loader2 } from 'lucide-react';
+import { PlusCircle, Search, MoreHorizontal, Loader2, Building } from 'lucide-react';
 import { format } from 'date-fns';
 import type { DateRange } from 'react-day-picker';
 import {
@@ -169,10 +169,44 @@ export default function VouchersPage() {
 
   const isLoading = isLoadingCompanies || isLoadingVouchers || isLoadingLedgers;
 
+  if (!isLoadingCompanies && (!companies || companies.length === 0)) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Voucher Register</h1>
+        </div>
+        <Card className="text-center">
+          <CardHeader>
+              <div className="mx-auto bg-primary/10 rounded-full p-3 w-fit">
+                <Building className="h-8 w-8 text-primary" />
+              </div>
+            <CardTitle className="mt-4">No Active Company Found</CardTitle>
+            <CardDescription>
+              To create or view vouchers, you first need to create a company.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/companies">
+                <PlusCircle className="mr-2 h-4 w-4" /> Go to Companies
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-2xl font-bold">Voucher Register</h1>
+        <Link href={`/vouchers/create?companyId=${selectedCompanyId}`}>
+          <Button className="w-full md:w-auto" disabled={!selectedCompanyId}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Create Voucher
+          </Button>
+        </Link>
       </div>
 
       <Card>
@@ -200,14 +234,6 @@ export default function VouchersPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-           <div className="md:col-start-4 flex justify-end">
-            <Link href={`/vouchers/create?companyId=${selectedCompanyId}`}>
-                <Button className="w-full md:w-auto" disabled={!selectedCompanyId}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create Voucher
-                </Button>
-            </Link>
-           </div>
         </CardContent>
       </Card>
 
