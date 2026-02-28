@@ -18,11 +18,19 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Landmark, PlusCircle, Wallet } from 'lucide-react';
-import { mockLedgers, mockVouchers } from '@/lib/data';
-import type { Ledger } from '@/lib/types';
+import { Landmark, PlusCircle, Wallet, Loader2, Building } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useUser } from '@/firebase/auth/use-user';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import type { Ledger, Voucher, Company } from '@/lib/types';
 
-// Helper function for currency formatting
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -32,48 +40,117 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function BankPage() {
-  const accounts = React.useMemo(
-    () => mockLedgers.filter((l) => (l.group === 'Bank Accounts' || l.ledgerName === 'Cash in Hand') && !l.isGroup),
-    []
-  );
+  const { profile } = useUser();
+  const { firestore } = useFirebase();
+
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState<string | undefined>();
+
+  const companiesQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId) return null;
+    return query(collection(firestore, 'firms', profile.firmId, 'companies'), where('status', '==', 'Active'));
+  }, [firestore, profile?.firmId]);
+
+  const { data: companies, isLoading: isLoadingCompanies } = useCollection<Company>(companiesQuery);
+
+  React.useEffect(() => {
+    if (!selectedCompanyId && companies && companies.length > 0) {
+      setSelectedCompanyId(companies[0].id);
+    }
+  }, [companies, selectedCompanyId]);
+
+  const ledgersQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !selectedCompanyId) return null;
+    return query(
+      collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'ledgers'),
+      where('group', 'in', ['Bank Accounts', 'Cash-in-Hand'])
+    );
+  }, [firestore, profile?.firmId, selectedCompanyId]);
+
+  const { data: accounts, isLoading: isLoadingLedgers } = useCollection<Ledger>(ledgersQuery);
+
+  const vouchersQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !selectedCompanyId) return null;
+    return collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'vouchers');
+  }, [firestore, profile?.firmId, selectedCompanyId]);
+
+  const { data: vouchers, isLoading: isLoadingVouchers } = useCollection<Voucher>(vouchersQuery);
 
   const accountBalances = React.useMemo(() => {
     const balances = new Map<string, number>();
+    if (!accounts || !vouchers) return balances;
+
     accounts.forEach(acc => {
-        const opening = (acc.openingBalance || 0) * (acc.balanceType === 'Cr' ? -1 : 1);
-        balances.set(acc.id, opening);
+      const opening = (acc.openingBalance || 0) * (acc.balanceType === 'Cr' ? -1 : 1);
+      balances.set(acc.id, opening);
     });
 
-    mockVouchers.forEach(voucher => {
-        voucher.entries.forEach(entry => {
-            if (balances.has(entry.ledgerId)) {
-                let currentBalance = balances.get(entry.ledgerId)!;
-                if (entry.type === 'Dr') {
-                    currentBalance += entry.amount;
-                } else {
-                    currentBalance -= entry.amount;
-                }
-                balances.set(entry.ledgerId, currentBalance);
-            }
-        });
+    vouchers.forEach(voucher => {
+      voucher.entries.forEach(entry => {
+        if (balances.has(entry.ledgerId)) {
+          let currentBalance = balances.get(entry.ledgerId)!;
+          if (entry.type === 'Dr') {
+            currentBalance += entry.amount;
+          } else {
+            currentBalance -= entry.amount;
+          }
+          balances.set(entry.ledgerId, currentBalance);
+        }
+      });
     });
     return balances;
-  }, [accounts]);
-
+  }, [accounts, vouchers]);
 
   const totalBalance = React.useMemo(
     () => Array.from(accountBalances.values()).reduce((acc, balance) => acc + balance, 0),
     [accountBalances]
   );
+  
+  const isLoading = isLoadingCompanies || isLoadingLedgers || isLoadingVouchers;
+
+  if (!isLoadingCompanies && (!companies || companies.length === 0)) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Cash & Bank</h1>
+        </div>
+        <Card className="text-center">
+          <CardHeader>
+              <div className="mx-auto bg-primary/10 rounded-full p-3 w-fit">
+                <Building className="h-8 w-8 text-primary" />
+              </div>
+            <CardTitle className="mt-4">No Active Company Found</CardTitle>
+            <CardDescription>
+              To manage cash and bank accounts, you first need to create a company.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/companies">
+                <PlusCircle className="mr-2 h-4 w-4" /> Go to Companies
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-2xl font-bold">Cash & Bank</h1>
-        <Button disabled>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add New Account
-        </Button>
+        <div className="flex items-center gap-4">
+            {companies && companies.length > 1 && (
+                <Select value={selectedCompanyId} onValueChange={setSelectedCompanyId}>
+                    <SelectTrigger className="w-full sm:w-[200px]"><SelectValue placeholder="Select Company" /></SelectTrigger>
+                    <SelectContent>{companies.map(c => <SelectItem key={c.id} value={c.id}>{c.companyName}</SelectItem>)}</SelectContent>
+                </Select>
+            )}
+            <Button disabled>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add New Account
+            </Button>
+        </div>
       </div>
 
       <Card>
@@ -85,7 +162,7 @@ export default function BankPage() {
             </CardDescription>
           </div>
           <div className="text-3xl font-bold tracking-tight">
-            {formatCurrency(totalBalance)}
+            {isLoading ? <Loader2 className="h-6 w-6 animate-spin" /> : formatCurrency(totalBalance)}
           </div>
         </CardHeader>
       </Card>
@@ -110,7 +187,13 @@ export default function BankPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {accounts.length > 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center">
+                    <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                  </TableCell>
+                </TableRow>
+              ) : accounts && accounts.length > 0 ? (
                 accounts.map((account) => (
                   <TableRow
                     key={account.id}
@@ -118,7 +201,7 @@ export default function BankPage() {
                   >
                     <TableCell className="font-medium">
                       <Link
-                        href={`/bank/${account.id}`}
+                        href={`/bank/${account.id}?companyId=${selectedCompanyId}`}
                         className="hover:underline text-primary flex items-center gap-2"
                       >
                         {account.group === 'Bank Accounts' ? <Landmark className="h-4 w-4 text-muted-foreground" /> : <Wallet className="h-4 w-4 text-muted-foreground" />}
@@ -140,7 +223,7 @@ export default function BankPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center">
-                    No cash or bank accounts found.
+                    No cash or bank accounts found. Create one from the Masters module.
                   </TableCell>
                 </TableRow>
               )}

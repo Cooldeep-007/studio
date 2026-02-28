@@ -1,9 +1,8 @@
-
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -19,14 +18,26 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { DateRangePicker } from '@/components/date-range-picker';
-import { mockVouchers, mockLedgers } from '@/lib/data';
 import type { DateRange } from 'react-day-picker';
-import { ArrowDown, ArrowUp, Banknote, Landmark, Scale, PlusCircle, Wallet, FileInput, Repeat, ArrowRightLeft, HandCoins } from 'lucide-react';
+import { ArrowDown, ArrowUp, Banknote, Landmark, Scale, PlusCircle, Wallet, FileInput, Repeat, ArrowRightLeft, HandCoins, Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import type { Voucher } from '@/lib/types';
+import type { Voucher, Ledger } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import { useFirebase, useCollection, useDoc, useMemoFirebase } from '@/firebase';
+import { useUser } from '@/firebase/auth/use-user';
+import { collection, doc } from 'firebase/firestore';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { useToast } from '@/hooks/use-toast';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', {
@@ -38,29 +49,46 @@ const formatCurrency = (amount: number) => {
 
 export default function BankStatementPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
+  const { profile } = useUser();
+  const { firestore } = useFirebase();
+
   const accountLedgerId = params.id as string;
+  const companyId = searchParams.get('companyId');
+  const [isExporting, setIsExporting] = React.useState(false);
   
-  const [vouchers] = React.useState<Voucher[]>(mockVouchers);
   const [date, setDate] = React.useState<DateRange | undefined>({
     from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     to: new Date(),
   });
 
-  const accountLedger = React.useMemo(
-    () => mockLedgers.find((l) => l.id === accountLedgerId),
-    [accountLedgerId]
-  );
-  const ledgerMap = React.useMemo(
-    () => new Map(mockLedgers.map((l) => [l.id, l])),
-    []
-  );
+  const accountLedgerRef = useMemoFirebase(() => {
+      if (!firestore || !profile?.firmId || !companyId || !accountLedgerId) return null;
+      return doc(firestore, 'firms', profile.firmId, 'companies', companyId, 'ledgers', accountLedgerId);
+  }, [firestore, profile?.firmId, companyId, accountLedgerId]);
+  const { data: accountLedger, isLoading: isLoadingLedger } = useDoc<Ledger>(accountLedgerRef);
+
+  const vouchersQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !companyId) return null;
+    return collection(firestore, 'firms', profile.firmId, 'companies', companyId, 'vouchers');
+  }, [firestore, profile?.firmId, companyId]);
+  const { data: vouchers, isLoading: isLoadingVouchers } = useCollection<Voucher>(vouchersQuery);
+  
+  const ledgersQuery = useMemoFirebase(() => {
+    if (!firestore || !profile?.firmId || !companyId) return null;
+    return collection(firestore, 'firms', profile.firmId, 'companies', companyId, 'ledgers');
+  }, [firestore, profile?.firmId, companyId]);
+  const { data: ledgers, isLoading: isLoadingLedgers } = useCollection<Ledger>(ledgersQuery);
+  
+  const ledgerMap = React.useMemo(() => new Map(ledgers?.map((l) => [l.id, l])), [ledgers]);
 
   const transactions = React.useMemo(() => {
-    if (!accountLedger) return [];
+    if (!accountLedger || !vouchers) return [];
 
     const relevantVouchers = vouchers
       .filter((v) => {
-        const voucherDate = new Date(v.date);
+        const voucherDate = v.date instanceof Date ? v.date : (v.date as any).toDate();
         return (
           (!date?.from || voucherDate >= date.from) &&
           (!date?.to || voucherDate <= date.to) &&
@@ -76,6 +104,7 @@ export default function BankStatementPage() {
 
         return {
           ...v,
+          date: v.date instanceof Date ? v.date : (v.date as any).toDate(),
           debit,
           credit,
           particulars: ledgerMap.get(otherEntry?.ledgerId || '')?.ledgerName || v.narration || 'Journal Adjustment',
@@ -89,12 +118,88 @@ export default function BankStatementPage() {
       runningBalance += tx.debit - tx.credit;
       return { ...tx, balance: runningBalance };
     });
-  }, [accountLedger, date, ledgerMap, vouchers]);
+  }, [accountLedger, vouchers, date, ledgerMap]);
 
   const openingBalance = accountLedger ? (accountLedger.openingBalance || 0) * (accountLedger.balanceType === 'Cr' ? -1 : 1) : 0;
   const totalInflow = transactions.reduce((sum, tx) => sum + tx.debit, 0);
   const totalOutflow = transactions.reduce((sum, tx) => sum + tx.credit, 0);
   const closingBalance = openingBalance + totalInflow - totalOutflow;
+
+  const handleExport = (formatType: 'pdf' | 'xlsx') => {
+    setIsExporting(true);
+    toast({ title: "Exporting...", description: `Preparing your ${formatType.toUpperCase()} file.` });
+
+    try {
+        if (formatType === 'pdf') {
+            exportToPdf();
+        } else {
+            exportToExcel();
+        }
+        toast({ title: "Export Successful", description: "Your file has been downloaded." });
+    } catch (e) {
+        toast({ variant: 'destructive', title: "Export Failed", description: "An error occurred during export." });
+    } finally {
+        setIsExporting(false);
+    }
+  };
+
+  const exportToPdf = () => {
+    const doc = new jsPDF();
+    doc.text(`${accountLedger?.ledgerName} Statement`, 14, 15);
+    doc.text(`Period: ${date?.from ? format(date.from, 'PP') : ''} to ${date?.to ? format(date.to, 'PP') : ''}`, 14, 22);
+
+    (doc as any).autoTable({
+        startY: 30,
+        head: [['Date', 'Particulars', 'Voucher Type', 'Voucher No', 'Debit', 'Credit', 'Balance']],
+        body: transactions.map(tx => [
+            format(tx.date, 'dd-MMM-yy'),
+            tx.particulars,
+            tx.voucherType,
+            tx.voucherNumber,
+            tx.debit > 0 ? formatCurrency(tx.debit) : '',
+            tx.credit > 0 ? formatCurrency(tx.credit) : '',
+            `${formatCurrency(Math.abs(tx.balance))} ${tx.balance >= 0 ? 'Dr' : 'Cr'}`
+        ]),
+        foot: [
+            ['', 'Closing Balance', '', '', '', '', `${formatCurrency(Math.abs(closingBalance))} ${closingBalance >= 0 ? 'Dr' : 'Cr'}`]
+        ],
+        footStyles: { fontStyle: 'bold' }
+    });
+    doc.save(`${accountLedger?.ledgerName}_Statement.pdf`);
+  };
+
+  const exportToExcel = () => {
+    const ws_data = [
+        [`${accountLedger?.ledgerName} Statement`],
+        [`Period: ${date?.from ? format(date.from, 'PP') : ''} to ${date?.to ? format(date.to, 'PP') : ''}`],
+        [],
+        ['Date', 'Particulars', 'Voucher Type', 'Voucher No', 'Debit', 'Credit', 'Balance']
+    ];
+    transactions.forEach(tx => {
+        ws_data.push([
+            format(tx.date, 'dd-MM-yyyy'),
+            tx.particulars,
+            tx.voucherType,
+            tx.voucherNumber,
+            tx.debit > 0 ? tx.debit : '',
+            tx.credit > 0 ? tx.credit : '',
+            `${Math.abs(tx.balance).toFixed(2)} ${tx.balance >= 0 ? 'Dr' : 'Cr'}`
+        ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(ws_data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Statement');
+    XLSX.writeFile(wb, `${accountLedger?.ledgerName}_Statement.xlsx`);
+  };
+
+  if (isLoadingLedger || isLoadingVouchers || isLoadingLedgers) {
+      return (
+          <div className="flex h-full items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+      )
+  }
 
   if (!accountLedger) {
     return (
@@ -121,7 +226,19 @@ export default function BankStatementPage() {
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-2">
             <DateRangePicker date={date} setDate={setDate} />
-             <Link href={`/vouchers/create?context=${isBank ? 'bank' : 'cash'}`}>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" disabled={isExporting}>
+                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                        Export
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => handleExport('pdf')}><FileText className="mr-2 h-4 w-4" />Export as PDF</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleExport('xlsx')}><FileSpreadsheet className="mr-2 h-4 w-4" />Export as Excel</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+             <Link href={`/vouchers/create?context=${isBank ? 'bank' : 'cash'}&companyId=${companyId}`}>
                 <Button className="w-full sm:w-auto">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Add Transaction
