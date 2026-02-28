@@ -108,6 +108,7 @@ function buildLedgerTree(ledgers: Ledger[]): LedgerWithChildren[] {
 }
 
 // Component to render a single row (and its children recursively)
+// MOVED OUTSIDE of the main component to prevent re-creation on every render.
 function LedgerRow({ 
   ledger, 
   visibleColumns, 
@@ -307,20 +308,25 @@ export default function LedgersPage() {
     setColumnFilters(prev => ({ ...prev, [columnId]: value }));
   };
 
-  const handleSelectionChange = (ledgerId: string, checked: boolean) => {
-    setSelectedRows(prev => ({...prev, [ledgerId]: checked }));
-  };
+  const handleSelectionChange = React.useCallback((ledgerId: string, checked: boolean) => {
+    setSelectedRows(prev => ({
+        ...prev,
+        [ledgerId]: checked,
+    }));
+  }, []);
 
   const visibleLedgerIds = React.useMemo(() => flattenTree(ledgerTree).map(l => l.id), [ledgerTree, flattenTree]);
   const isAllVisibleSelected = React.useMemo(() => visibleLedgerIds.length > 0 && visibleLedgerIds.every(id => selectedRows[id]), [visibleLedgerIds, selectedRows]);
 
-  const handleSelectAll = (checked: boolean) => {
-      const newSelectedRows = {...selectedRows};
-      visibleLedgerIds.forEach(id => {
-          newSelectedRows[id] = checked;
+  const handleSelectAll = React.useCallback((checked: boolean) => {
+      setSelectedRows(prev => {
+          const newSelected = { ...prev };
+          visibleLedgerIds.forEach(id => {
+              newSelected[id] = checked;
+          });
+          return newSelected;
       });
-      setSelectedRows(newSelectedRows);
-  };
+  }, [visibleLedgerIds]);
 
   const handleExport = async (formatType: 'pdf' | 'xlsx') => {
       if (!selectedCompanyId) return;
@@ -621,3 +627,5 @@ const exportToExcel = (data: Record<string, any>[], companyName: string, dateStr
     XLSX.utils.book_append_sheet(wb, ws, 'Ledgers');
     XLSX.writeFile(wb, `ProAccounting_Masters_${dateStr}.xlsx`);
 };
+
+    
