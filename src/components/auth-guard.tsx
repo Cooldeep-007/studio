@@ -31,8 +31,10 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   // This prevents the flicker by not rendering children until we are sure they should be seen.
   if (isLoading || !user || !profile) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
       </div>
     );
   }

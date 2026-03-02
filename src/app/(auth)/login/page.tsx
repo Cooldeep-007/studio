@@ -107,6 +107,16 @@ export default function LoginPage() {
     }
     setIsSubmitting(false);
   };
+  
+  if (isLoading) {
+    return (
+      <Card className="w-full">
+        <CardContent className="flex h-[450px] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full">
