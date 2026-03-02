@@ -1,163 +1,362 @@
-
 /**
  * Core Philosophy:
- * This ruleset enforces a strict multi-tenant security model centered around "Firms".
- * A user's access is determined by their membership and role within that firm.
- * The primary goal is to ensure no user from one firm can ever access data
- * from another firm, and that actions are restricted based on user roles.
+ * This ruleset enforces a strict multi-tenant security model for a SaaS accounting application.
+ * All data is segregated by a top-level `firmId`. A user's access to any piece of data is
+ * primarily determined by their membership in a specific firm. A global 'SuperAdmin' role
+ * exists with read-only privileges across all firms for administrative oversight, but this
+ * role is explicitly forbidden from making data modifications to prevent accidental changes
+ * to tenant data.
  *
- * Data Structure & Roles:
- * - /users/{userId}: Private user profiles, storing their `firmId` and `role`.
- * - /firms/{firmId}: Root of a tenant's data.
- * - Roles: Owner, Admin, Accountant, Staff.
+ * Data Structure:
+ * The data is hierarchically organized under the `/firms/{firmId}` collection. All firm-specific
+ * data, such as companies, ledgers, and vouchers, are nested within their parent firm's document path.
+ * A separate top-level `/users/{userId}` collection stores user profiles, which critically contain
+ * the `firmId` and `role` for each user. An auxiliary collection, `/roles_superAdmins/{userId}`,
+ * is used as a fast, inexpensive lookup table to identify SuperAdmins.
  *
  * Key Security Decisions:
- * - Strict Tenant Isolation: Access to `/firms/{firmId}` data requires matching `firmId`.
- * - Role-Based Access Control (RBAC): Write permissions (create, update, delete)
- *   are restricted based on the user's role (e.g., only Owners/Admins can manage companies).
- * - User Privacy: Users can only read/write their own profile.
- * - Write Integrity: All writes validate that the denormalized `firmId` and
- *   `companyId` within a document match the document's path.
- * - Immutable Audit Logs: Append-only for firm members.
+ * - Default Deny: All access is denied by default. Rules explicitly grant permissions.
+ * - Firm-Scoped Access: A user can only access data within the `firmId` specified in their user profile.
+ * - SuperAdmin Read-Only: SuperAdmins have read-only access to all firm data but are blocked from all write operations.
+ * - User Privacy: Users can only read and modify their own profile in the `/users` collection. User listing is disabled to prevent enumeration.
+ * - Immutable Logs: The `/auditLogs` collection is create-only for firm members. Updates and deletes are disallowed to ensure the integrity of the audit trail.
+ * - Client-Side Management: Most firm data can be managed by authenticated members of that firm, allowing for rapid prototyping of features.
+ *
+ * Denormalization for Authorization:
+ * To ensure fast and simple security rules, authorization-critical data is denormalized.
+ * Every document within a firm's data tree contains a `firmId`. Every document under a company's
+ * subcollection (e.g., ledgers, vouchers) contains both a `firmId` and `companyId`. This strategy
+ * avoids slow and costly `get()` calls to parent documents within rules, making checks instantaneous
+ * and enabling atomic batch writes.
+ *
+ * Structural Segregation:
+ * The path structure `/firms/{firmId}/companies/{companyId}/...` inherently segregates data by tenant and sub-entity.
+ * Additionally, the `/roles_superAdmins` collection is structurally segregated to provide a performant
+ * authorization mechanism (`exists()`) distinct from general user data (`get()`).
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // =================================
+    // --------------------------------------------------------------------------------
     // Helper Functions
-    // =================================
-    
+    // --------------------------------------------------------------------------------
+
+    /**
+     * Checks if the user is authenticated.
+     */
     function isSignedIn() {
       return request.auth != null;
     }
 
+    /**
+     * Checks if the currently authenticated user's UID matches the provided userId.
+     * This is the primary check for document ownership.
+     */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function docExists() {
+    /**
+     * Checks if a document being updated or deleted actually exists.
+     * This prevents erroneous writes to non-existent paths.
+     */
+    function isExistingDoc() {
       return resource != null;
     }
-    
-    function userProfile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+
+    /**
+     * Checks if the user is a SuperAdmin via a fast, non-billable existence check.
+     */
+    function isSuperAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_superAdmins/$(request.auth.uid));
     }
 
-    function userRole() {
-      return userProfile().role;
+    /**
+     * Checks if the user belongs to a specific firm by reading their user profile.
+     * This is the core function for authorizing access to tenant data.
+     * Note: This incurs one document read per check.
+     */
+    function isFirmMember(firmId) {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.firmId == firmId;
     }
 
-    function isMemberOfFirm(firmId) {
-      return isSignedIn() && userProfile().firmId == firmId;
-    }
-    
-    function isExistingFirmMember(firmId) {
-      return isMemberOfFirm(firmId) && docExists();
-    }
-
-    // Role-based helpers
-    function isOwnerOrAdmin(firmId) {
-      return isMemberOfFirm(firmId) && (userRole() == 'Owner' || userRole() == 'Admin');
-    }
-    
-    function isAccountantOrHigher(firmId) {
-      return isOwnerOrAdmin(firmId) || (isMemberOfFirm(firmId) && userRole() == 'Accountant');
+    /**
+     * Determines if a user can read data belonging to a specific firm.
+     * Access is granted to members of the firm or SuperAdmins.
+     */
+    function canReadFirmData(firmId) {
+      return isFirmMember(firmId) || isSuperAdmin();
     }
 
-    function isStaffOrHigher(firmId) {
-        return isAccountantOrHigher(firmId) || (isMemberOfFirm(firmId) && userRole() == 'Staff');
+    /**
+     * Determines if a user can write data within a specific firm.
+     * Access is restricted to firm members only. SuperAdmins are excluded.
+     */
+    function canWriteFirmData(firmId) {
+      return isFirmMember(firmId);
     }
 
-    // =================================
+    /**
+     * Validates that the `firmId` in the path matches the `firmId` in the new document's data.
+     */
+    function hasValidFirmIdOnCreate(firmId) {
+      return request.resource.data.firmId == firmId;
+    }
+
+    /**
+     * Enforces that the `firmId` of a document cannot be changed after creation.
+     */
+    function firmIdIsImmutable(firmId) {
+      return request.resource.data.firmId == firmId && request.resource.data.firmId == resource.data.firmId;
+    }
+
+    /**
+     * Validates that `firmId` and `companyId` in the path match the data upon creation.
+     */
+    function hasValidFirmAndCompanyIdsOnCreate(firmId, companyId) {
+      return request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
+    }
+
+    /**
+     * Enforces that `firmId` and `companyId` cannot be changed after creation.
+     */
+    function firmAndCompanyIdsAreImmutable(firmId, companyId) {
+      return request.resource.data.firmId == firmId && request.resource.data.firmId == resource.data.firmId && request.resource.data.companyId == companyId && request.resource.data.companyId == resource.data.companyId;
+    }
+
+    // --------------------------------------------------------------------------------
     // Collection Rules
-    // =================================
+    // --------------------------------------------------------------------------------
 
+    /**
+     * @description Governs access to Firm documents. Only members of the firm can write,
+     * while members and SuperAdmins can read.
+     * @path /firms/{firmId}
+     * @allow (get) a user who is a member of firm 'FIRM_A' reads `/firms/FIRM_A`.
+     * @deny (update) a SuperAdmin attempts to update `/firms/FIRM_A`.
+     * @principle Enforces tenant data segregation at the root level.
+     */
+    match /firms/{firmId} {
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmIdOnCreate(firmId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmIdIsImmutable(firmId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
+    }
+
+    /**
+     * @description Governs access to User profile documents. A user can only create,
+     * read, update, or delete their own document.
+     * @path /users/{userId}
+     * @allow (create) a new user with auth.uid 'USER_123' creates their profile at `/users/USER_123`.
+     * @deny (get) user 'USER_ABC' tries to read the profile at `/users/USER_XYZ`.
+     * @principle Restricts access to a user's own data tree and prevents user enumeration.
+     */
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow list: if false;
-      allow create: if isOwner(userId) && request.resource.data.uid == userId;
-      allow update: if isOwner(userId) && docExists() && request.resource.data.uid == resource.data.uid;
-      allow delete: if false; // Users should not be able to delete their own profiles.
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isOwner(userId) && isExistingDoc() && request.resource.data.id == resource.data.id;
+      allow delete: if isOwner(userId) && isExistingDoc();
     }
 
-    match /firms/{firmId} {
-      allow get: if isMemberOfFirm(firmId);
-      allow list: if false; // Disallow listing all firms.
-      allow create: if request.resource.data.ownerId == request.auth.uid; // Only the user creating it can be the owner.
-      allow update: if isOwnerOrAdmin(firmId) && request.resource.data.ownerId == resource.data.ownerId; // Prevent changing owner.
-      allow delete: if isOwnerOrAdmin(firmId) && userRole() == 'Owner'; // Only owner can delete firm.
+    /**
+     * @description A read-only collection for efficient SuperAdmin role checks.
+     * This collection should only be managed by a trusted backend service.
+     * @path /roles_superAdmins/{userId}
+     * @allow (get) any signed-in user or rule can check for a document's existence here.
+     * @deny (create) any client attempts to create a document to escalate privileges.
+     * @principle Provides a secure, low-cost mechanism for role lookup.
+     */
+    match /roles_superAdmins/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
     }
 
-    match /firms/{firmId}/auditLogs/{auditLogId} {
-      allow get, list: if isOwnerOrAdmin(firmId);
-      allow create: if isMemberOfFirm(firmId) && request.resource.data.firmId == firmId;
-      allow update, delete: if false; // Immutable
-    }
-    
+    /**
+     * @description Governs access to Company documents within a Firm.
+     * @path /firms/{firmId}/companies/{companyId}
+     * @allow (create) a member of 'FIRM_A' creates a new company document.
+     * @deny (update) a user from 'FIRM_B' attempts to update a company in 'FIRM_A'.
+     * @principle Validates relational integrity between a Company and its parent Firm.
+     */
     match /firms/{firmId}/companies/{companyId} {
-      allow get, list: if isMemberOfFirm(firmId);
-      allow create: if isOwnerOrAdmin(firmId) && request.resource.data.firmId == firmId;
-      allow update: if isOwnerOrAdmin(firmId) && request.resource.data.firmId == firmId;
-      allow delete: if isOwnerOrAdmin(firmId);
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmAndCompanyIdsOnCreate(firmId, companyId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmAndCompanyIdsAreImmutable(firmId, companyId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
     }
 
+    /**
+     * @description Governs access to Ledger documents.
+     * @path /firms/{firmId}/companies/{companyId}/ledgers/{ledgerId}
+     * @allow (list) a member of 'FIRM_A' lists all ledgers for a company in that firm.
+     * @deny (create) a SuperAdmin attempts to create a new ledger.
+     * @principle Enforces tenant data segregation and validates relational integrity.
+     */
     match /firms/{firmId}/companies/{companyId}/ledgers/{ledgerId} {
-      allow get, list: if isMemberOfFirm(firmId);
-      allow create, update: if isAccountantOrHigher(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
-      allow delete: if isOwnerOrAdmin(firmId);
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmAndCompanyIdsOnCreate(firmId, companyId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmAndCompanyIdsAreImmutable(firmId, companyId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
     }
 
+    /**
+     * @description Governs access to Voucher documents.
+     * @path /firms/{firmId}/companies/{companyId}/vouchers/{voucherId}
+     * @allow (update) a member of 'FIRM_A' updates a voucher document.
+     * @deny (get) a user from 'FIRM_B' attempts to read a voucher from 'FIRM_A'.
+     * @principle Enforces tenant data segregation and validates relational integrity.
+     */
     match /firms/{firmId}/companies/{companyId}/vouchers/{voucherId} {
-      allow get, list: if isMemberOfFirm(firmId);
-      allow create: if isStaffOrHigher(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId && request.resource.data.createdByUserId == request.auth.uid;
-      allow update: if isAccountantOrHigher(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
-      allow delete: if isOwnerOrAdmin(firmId);
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmAndCompanyIdsOnCreate(firmId, companyId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmAndCompanyIdsAreImmutable(firmId, companyId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
     }
 
-    match /firms/{firmId}/companies/{companyId}/vouchers/{voucherId}/lineItems/{lineItemId} {
-      allow get, list: if isMemberOfFirm(firmId);
-      allow create: if isStaffOrHigher(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
-      allow update: if isAccountantOrHigher(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
-      allow delete: if isOwnerOrAdmin(firmId);
+    /**
+     * @description Governs access to VoucherLineItem documents.
+     * CRITICAL: These rules assume each VoucherLineItem document has denormalized `firmId` and `companyId` fields for authorization independence.
+     * @path /firms/{firmId}/companies/{companyId}/vouchers/{voucherId}/voucherLineItems/{voucherLineItemId}
+     * @allow (create) a firm member creates a line item with correct `firmId` and `companyId` in its data.
+     * @deny (update) a firm member tries to change the `companyId` on an existing line item.
+     * @principle Enforces tenant data segregation and validates relational integrity.
+     */
+    match /firms/{firmId}/companies/{companyId}/vouchers/{voucherId}/voucherLineItems/{voucherLineItemId} {
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmAndCompanyIdsOnCreate(firmId, companyId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmAndCompanyIdsAreImmutable(firmId, companyId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
     }
 
+    /**
+     * @description Governs access to InvoiceTemplate documents.
+     * @path /firms/{firmId}/companies/{companyId}/invoiceTemplates/{invoiceTemplateId}
+     * @allow (get) a SuperAdmin reads an invoice template for auditing purposes.
+     * @deny (delete) a user from another firm tries to delete an invoice template.
+     * @principle Enforces tenant data segregation and validates relational integrity.
+     */
+    match /firms/{firmId}/companies/{companyId}/invoiceTemplates/{invoiceTemplateId} {
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmAndCompanyIdsOnCreate(firmId, companyId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmAndCompanyIdsAreImmutable(firmId, companyId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
+    }
+
+    /**
+     * @description Governs access to Invoice documents.
+     * @path /firms/{firmId}/companies/{companyId}/invoices/{invoiceId}
+     * @allow (list) a member of 'FIRM_A' lists all invoices for one of their companies.
+     * @deny (create) a SuperAdmin attempts to create an invoice.
+     * @principle Enforces tenant data segregation and validates relational integrity.
+     */
     match /firms/{firmId}/companies/{companyId}/invoices/{invoiceId} {
-      allow get, list: if isMemberOfFirm(firmId);
-      allow create, update: if isAccountantOrHigher(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
-      allow delete: if isOwnerOrAdmin(firmId);
-    }
-    
-    match /firms/{firmId}/companies/{companyId}/invoiceTemplates/{templateId} {
-      allow get, list: if isMemberOfFirm(firmId);
-      allow create, update: if isOwnerOrAdmin(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
-      allow delete: if isOwnerOrAdmin(firmId);
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmAndCompanyIdsOnCreate(firmId, companyId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmAndCompanyIdsAreImmutable(firmId, companyId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
     }
 
-    match /firms/{firmId}/companies/{companyId}/customFieldDefinitions/{definitionId} {
-      allow get, list: if isMemberOfFirm(firmId);
-      allow create, update, delete: if isOwnerOrAdmin(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
+    /**
+     * @description Governs access to CustomFieldSchema documents.
+     * @path /firms/{firmId}/companies/{companyId}/customFieldSchemas/{customFieldSchemaId}
+     * @allow (create) a firm member creates a new custom field schema.
+     * @deny (update) a firm member tries to move a schema to a different company by changing its `companyId`.
+     * @principle Enforces tenant data segregation and validates relational integrity.
+     */
+    match /firms/{firmId}/companies/{companyId}/customFieldSchemas/{customFieldSchemaId} {
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmAndCompanyIdsOnCreate(firmId, companyId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmAndCompanyIdsAreImmutable(firmId, companyId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
     }
 
-    // Bank data is sensitive, read-only for most.
-    match /firms/{firmId}/companies/{companyId}/bankTransactions/{bankTransactionId} {
-      allow get, list: if isAccountantOrHigher(firmId);
-      allow create, update: if isOwnerOrAdmin(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId;
-      allow delete: if isOwnerOrAdmin(firmId);
+    /**
+     * @description Governs access to BankAccount documents.
+     * @path /firms/{firmId}/companies/{companyId}/bankAccounts/{bankAccountId}
+     * @allow (get) a member of 'FIRM_A' reads a bank account's details.
+     * @deny (list) a user from 'FIRM_B' attempts to list bank accounts from 'FIRM_A'.
+     * @principle Enforces tenant data segregation and validates relational integrity.
+     */
+    match /firms/{firmId}/companies/{companyId}/bankAccounts/{bankAccountId} {
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmAndCompanyIdsOnCreate(firmId, companyId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmAndCompanyIdsAreImmutable(firmId, companyId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
     }
 
-    match /firms/{firmId}/companies/{companyId}/uploadedBankStatements/{statementId} {
-      allow get, list: if isAccountantOrHigher(firmId);
-      allow create: if isAccountantOrHigher(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId && request.resource.data.uploadedByUserId == request.auth.uid;
-      allow update, delete: if isOwnerOrAdmin(firmId);
+    /**
+     * @description Governs access to BankTransaction documents.
+     * @path /firms/{firmId}/companies/{companyId}/bankAccounts/{bankAccountId}/bankTransactions/{bankTransactionId}
+     * @allow (create) a firm member imports a new bank transaction.
+     * @deny (create) a SuperAdmin attempts to import a transaction.
+     * @principle Enforces tenant data segregation and validates relational integrity.
+     */
+    match /firms/{firmId}/companies/{companyId}/bankAccounts/{bankAccountId}/bankTransactions/{bankTransactionId} {
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmAndCompanyIdsOnCreate(firmId, companyId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmAndCompanyIdsAreImmutable(firmId, companyId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
     }
 
-    match /firms/{firmId}/companies/{companyId}/tallyImportJobs/{jobId} {
-      allow get, list: if isAccountantOrHigher(firmId);
-      allow create: if isAccountantOrHigher(firmId) && request.resource.data.firmId == firmId && request.resource.data.companyId == companyId && request.resource.data.uploadedByUserId == request.auth.uid;
-      allow update, delete: if isOwnerOrAdmin(firmId);
+    /**
+     * @description Governs access to TallyImportLog documents.
+     * @path /firms/{firmId}/companies/{companyId}/tallyImportLogs/{tallyImportLogId}
+     * @allow (list) a firm member views the history of Tally imports.
+     * @deny (update) a SuperAdmin attempts to modify an import log.
+     * @principle Enforces tenant data segregation and validates relational integrity.
+     */
+    match /firms/{firmId}/companies/{companyId}/tallyImportLogs/{tallyImportLogId} {
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmAndCompanyIdsOnCreate(firmId, companyId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmAndCompanyIdsAreImmutable(firmId, companyId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
+    }
+
+    /**
+     * @description Governs access to TallyMapping documents.
+     * @path /firms/{firmId}/companies/{companyId}/tallyMappings/{tallyMappingId}
+     * @allow (update) a firm member adjusts a Tally mapping rule.
+     * @deny (delete) a user from a different firm attempts to delete a mapping rule.
+     * @principle Enforces tenant data segregation and validates relational integrity.
+     */
+    match /firms/{firmId}/companies/{companyId}/tallyMappings/{tallyMappingId} {
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmAndCompanyIdsOnCreate(firmId, companyId);
+      allow update: if canWriteFirmData(firmId) && isExistingDoc() && firmAndCompanyIdsAreImmutable(firmId, companyId);
+      allow delete: if canWriteFirmData(firmId) && isExistingDoc();
+    }
+
+    /**
+     * @description Governs access to AuditLog documents. Logs are create-only for firm
+     * members to ensure they cannot be tampered with after creation.
+     * @path /firms/{firmId}/auditLogs/{auditLogId}
+     * @allow (create) a firm member's action creates a new audit log entry.
+     * @deny (update) any user, including a firm member, attempts to modify an existing log.
+     * @principle Ensures the integrity and immutability of audit trail records.
+     */
+    match /firms/{firmId}/auditLogs/{auditLogId} {
+      allow get: if canReadFirmData(firmId);
+      allow list: if canReadFirmData(firmId);
+      allow create: if canWriteFirmData(firmId) && hasValidFirmIdOnCreate(firmId);
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }
-
-  
