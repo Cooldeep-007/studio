@@ -29,6 +29,11 @@ const nextConfig = {
       },
     ],
   },
+  devServer: {
+    allowedDevOrigins: [
+      'https://9000-firebase-studio-1771588599021.cluster-fdkw7vjj7bgguspe3fbbc25tra.cloudworkstations.dev',
+    ],
+  },
 };
 
 module.exports = nextConfig;
