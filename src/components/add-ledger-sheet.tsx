@@ -280,27 +280,34 @@ const ledgerFormSchema = z.object({
     
     const isPartyLedger = data.group === 'Sundry Debtors' || data.group === 'Sundry Creditors';
 
+    const isUnregistered = data.gstDetails?.gstType === 'Unregistered' || data.gstDetails?.gstType === 'Consumer';
+
     if (data.gstApplicable && !isPartyLedger) {
         if (!data.gstDetails?.gstClassification) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Type of Supply is required for non-party GST ledgers.", path: ["gstDetails.gstClassification"] });
         }
 
-        if (data.gstDetails?.gstClassification === 'Goods') {
-            if (!data.gstDetails.hsnCode) {
-                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: "HSN Code is required.", path: ["gstDetails.hsnCode"] });
-            } else if (!/^\d{4,8}$/.test(data.gstDetails.hsnCode)) {
-                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "HSN must be 4, 6, or 8 digits.", path: ["gstDetails.hsnCode"] });
+        if (!isUnregistered) {
+            if (data.gstDetails?.gstClassification === 'Goods') {
+                if (!data.gstDetails.hsnCode) {
+                     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "HSN Code is required.", path: ["gstDetails.hsnCode"] });
+                } else if (!/^\d{4,8}$/.test(data.gstDetails.hsnCode)) {
+                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "HSN must be 4, 6, or 8 digits.", path: ["gstDetails.hsnCode"] });
+                }
+                if (!data.gstDetails.uqc) {
+                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "UQC is required for Goods.", path: ["gstDetails.uqc"] });
+                }
             }
-            if (!data.gstDetails.uqc) {
-                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "UQC is required for Goods.", path: ["gstDetails.uqc"] });
+            if (data.gstDetails?.gstClassification === 'Services') {
+                if (!data.gstDetails.hsnCode) {
+                     ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SAC Code is required.", path: ["gstDetails.hsnCode"] });
+                } else if (!/^\d{4,8}$/.test(data.gstDetails.hsnCode)) {
+                    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SAC must be 4, 6, or 8 digits.", path: ["gstDetails.hsnCode"] });
+                }
             }
-        }
-        if (data.gstDetails?.gstClassification === 'Services') {
-            if (!data.gstDetails.hsnCode) {
-                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SAC Code is required.", path: ["gstDetails.hsnCode"] });
-            } else if (!/^\d{4,8}$/.test(data.gstDetails.hsnCode)) {
-                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "SAC must be 4, 6, or 8 digits.", path: ["gstDetails.hsnCode"] });
-            }
+        } else if (data.gstDetails?.hsnCode && !/^\d{4,8}$/.test(data.gstDetails.hsnCode)) {
+            const label = data.gstDetails?.gstClassification === 'Services' ? 'SAC' : 'HSN';
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: `${label} must be 4, 6, or 8 digits.`, path: ["gstDetails.hsnCode"] });
         }
     }
 
