@@ -1,0 +1,118 @@
+When a user clicks "Select a group", it should show system-defined groups like:
+
+📌 Default Parent Groups (Pre-Saved)
+
+Sundry Debtors
+
+Sundry Creditors
+
+Direct Expenses
+
+Indirect Expenses
+
+Direct Income
+
+Indirect Income
+
+Purchase
+
+Sales
+
+Bank Accounts
+
+Cash-in-Hand
+
+Capital Account
+
+Loans (Liability)
+
+Current Assets
+
+Current Liabilities
+
+Fixed Assets
+
+Duties & Taxes
+
+Expenses (Payroll)
+
+🏗️ Functional Requirements:
+1️⃣ Database Structure
+
+Create a parent_groups table:
+
+id (Primary Key)
+group_name (VARCHAR, unique)
+primary_nature (Assets / Liabilities / Income / Expense)
+is_system (BOOLEAN default TRUE)
+created_at
+
+And update ledgers table:
+
+parent_group_id (Foreign Key → parent_groups.id)
+2️⃣ Insert Default Groups Automatically
+
+When the app runs for the first time (or via migration/seed file), automatically insert:
+
+Group Name	Primary Nature
+Sundry Debtors	Assets
+Sundry Creditors	Liabilities
+Direct Expenses	Expense
+Indirect Expenses	Expense
+Direct Income	Income
+Indirect Income	Income
+Purchase	Expense
+Sales	Income
+Bank Accounts	Assets
+Cash-in-Hand	Assets
+Capital Account	Liabilities
+Loans (Liability)	Liabilities
+Current Assets	Assets
+Current Liabilities	Liabilities
+Fixed Assets	Assets
+Duties & Taxes	Liabilities
+Expenses (Payroll)	Expense
+3️⃣ Frontend Behavior (Create Ledger Form)
+
+The Parent Group dropdown should:
+
+Fetch data from parent_groups table
+
+Show only active groups
+
+Be searchable
+
+When user selects a Parent Group:
+
+Auto-fill the Primary Nature field (readonly)
+
+4️⃣ Restrictions
+
+System groups (is_system = true) cannot be deleted.
+
+User-created groups (is_system = false) can be edited or deleted.
+
+5️⃣ Extra Features (Optional but Recommended)
+
+Add ability to create custom parent groups.
+
+Add sub-groups under parent groups.
+
+Add hierarchy support (parent_group_id reference inside parent_groups table).
+
+🎯 Expected Output
+
+Migration file
+
+Seeder file
+
+Backend API (GET parent groups)
+
+Updated Create Ledger Form code
+
+Dropdown auto-population logic
+
+Auto Primary Nature selection logic
+
+Use Node.js + Express + MySQL (or PostgreSQL).
+Write complete working code.

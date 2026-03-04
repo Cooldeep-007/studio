@@ -38,10 +38,17 @@ docs/           # Project documentation
 
 ## Backend (PostgreSQL)
 
-Three tables power the admin analytics:
+Four tables power the backend:
 - `auth_events` — logs every login, signup, logout, and failed attempt
 - `active_sessions` — real-time heartbeat tracking of currently active users
 - `audit_log` — tracks all Firestore document changes (create, update, delete, set)
+- `parent_groups` — system-defined and user-created parent groups for the Chart of Accounts (17 default groups seeded on first API call, supports hierarchy via parent_group_id self-reference)
+
+### Parent Groups API (`/api/parent-groups`)
+- **GET** — returns all active parent groups
+- **POST** — create a custom group (requires `group_name` + `primary_nature`)
+- **PUT** — update a custom group (system groups protected)
+- **DELETE** — soft-delete a custom group (system groups protected)
 
 ## Admin Dashboard
 

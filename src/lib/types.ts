@@ -40,11 +40,24 @@ export type LedgerGroup =
   | 'Liabilities'
   | 'Income'
   | 'Expense'
-  | 'Sundry Debtor'
-  | 'Sundry Creditor'
+  | 'Sundry Debtors'
+  | 'Sundry Creditors'
+  | 'Direct Expenses'
+  | 'Indirect Expenses'
+  | 'Direct Income'
+  | 'Indirect Income'
+  | 'Purchase'
+  | 'Sales'
   | 'Bank Accounts'
+  | 'Cash-in-Hand'
+  | 'Capital Account'
+  | 'Loans (Liability)'
   | 'Current Assets'
-  | 'Cash-in-Hand';
+  | 'Current Liabilities'
+  | 'Fixed Assets'
+  | 'Duties & Taxes'
+  | 'Expenses (Payroll)'
+  | string;
 export type BalanceType = 'Dr' | 'Cr';
 
 export type Ledger = {

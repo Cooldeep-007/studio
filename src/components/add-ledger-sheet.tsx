@@ -63,7 +63,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
 import { useFirebase } from "@/firebase";
-import { addDoc, setDoc, collection, doc, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, doc, serverTimestamp } from "firebase/firestore";
 
 
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
@@ -278,7 +278,7 @@ const ledgerFormSchema = z.object({
         }
     }
     
-    const isPartyLedger = data.group === 'Sundry Debtor' || data.group === 'Sundry Creditor';
+    const isPartyLedger = data.group === 'Sundry Debtors' || data.group === 'Sundry Creditors';
 
     if (data.gstApplicable && !isPartyLedger) {
         if (!data.gstDetails?.gstClassification) {
@@ -314,7 +314,7 @@ const ledgerFormSchema = z.object({
         }
     }
 
-    if (data.group === 'Sundry Debtor' || data.group === 'Sundry Creditor') {
+    if (data.group === 'Sundry Debtors' || data.group === 'Sundry Creditors') {
         if (!data.contactDetails?.mobileNumber && !data.contactDetails?.email) {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Either Mobile Number or Email is required for Parties.", path: ["contactDetails.mobileNumber"] });
         }
@@ -406,57 +406,89 @@ export function AddLedgerSheet({
 }) {
     const { firestore } = useFirebase();
     const [isSubmitting, setIsSubmitting] = React.useState(false);
-    const [localGroups, setLocalGroups] = React.useState<Array<{ id: string; ledgerName: string; group: LedgerGroup; nature: Ledger['nature'] }>>([]);
 
-    const parentLedgerOptions = React.useMemo(() => {
-        const fromLedgers = ledgers
-            .filter(l => l.isGroup)
-            .map(p => ({ value: p.id, label: p.ledgerName }));
-        const fromLocal = localGroups
-            .filter(lg => !ledgers.some(l => l.id === lg.id))
-            .map(lg => ({ value: lg.id, label: lg.ledgerName }));
-        return [...fromLedgers, ...fromLocal];
-    }, [ledgers, localGroups]);
+    type ParentGroup = {
+        id: number;
+        group_name: string;
+        primary_nature: 'Assets' | 'Liabilities' | 'Income' | 'Expense';
+        is_system: boolean;
+        parent_group_id: number | null;
+        is_active: boolean;
+    };
 
-    const handleCreateGroup = async (groupName: string) => {
-        if (!firmId || !companyId || !firestore) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Cannot create group: Firm or Company not identified.' });
-            return;
+    const [parentGroups, setParentGroups] = React.useState<ParentGroup[]>([]);
+    const [isLoadingGroups, setIsLoadingGroups] = React.useState(false);
+    const [showCreateGroupDialog, setShowCreateGroupDialog] = React.useState(false);
+    const [newGroupName, setNewGroupName] = React.useState('');
+    const [newGroupNature, setNewGroupNature] = React.useState<'Assets' | 'Liabilities' | 'Income' | 'Expense'>('Assets');
+
+    const fetchParentGroups = React.useCallback(async () => {
+        setIsLoadingGroups(true);
+        try {
+            const res = await fetch('/api/parent-groups');
+            if (res.ok) {
+                const data = await res.json();
+                setParentGroups(data.groups || []);
+            }
+        } catch (error) {
+            console.error('Failed to fetch parent groups:', error);
+        } finally {
+            setIsLoadingGroups(false);
         }
-        const trimmed = groupName.trim();
+    }, []);
+
+    React.useEffect(() => {
+        if (open) {
+            fetchParentGroups();
+        }
+    }, [open, fetchParentGroups]);
+
+    const parentGroupOptions = React.useMemo(() => {
+        return parentGroups.map(g => ({
+            value: String(g.id),
+            label: g.group_name,
+        }));
+    }, [parentGroups]);
+
+    const natureMap: Record<string, 'Asset' | 'Liability' | 'Income' | 'Expense'> = {
+        'Assets': 'Asset',
+        'Liabilities': 'Liability',
+        'Income': 'Income',
+        'Expense': 'Expense',
+    };
+
+    const handleCreateGroupPrompt = (groupName: string) => {
+        setNewGroupName(groupName);
+        setNewGroupNature('Assets');
+        setShowCreateGroupDialog(true);
+    };
+
+    const handleCreateGroupConfirm = async () => {
+        const trimmed = newGroupName.trim();
         if (!trimmed) return;
 
-        const exists = parentLedgerOptions.some(
-            o => o.label.toLowerCase() === trimmed.toLowerCase()
-        );
-        if (exists) {
-            toast({ variant: 'destructive', title: 'Group already exists', description: `"${trimmed}" already exists.` });
-            return;
-        }
-
         try {
-            const ledgersColRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'ledgers');
-            const newDocRef = doc(ledgersColRef);
-            const newGroup = {
-                id: newDocRef.id,
-                ledgerName: trimmed,
-                parentLedgerId: '',
-                group: 'Assets' as LedgerGroup,
-                nature: 'Asset' as const,
-                isGroup: true,
-                openingBalance: 0,
-                currentBalance: 0,
-                balanceType: 'Dr' as const,
-                gstApplicable: false,
-                status: 'Active',
-                firmId,
-                companyId,
-                createdAt: serverTimestamp(),
-                lastUpdatedAt: serverTimestamp(),
-            };
-            await setDoc(newDocRef, newGroup);
-            setLocalGroups(prev => [...prev, { id: newDocRef.id, ledgerName: trimmed, group: 'Assets', nature: 'Asset' }]);
-            form.setValue('parentLedgerId', newDocRef.id, { shouldValidate: true });
+            const res = await fetch('/api/parent-groups', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ group_name: trimmed, primary_nature: newGroupNature }),
+            });
+
+            if (res.status === 409) {
+                toast({ variant: 'destructive', title: 'Group already exists', description: `"${trimmed}" already exists.` });
+                return;
+            }
+
+            if (!res.ok) {
+                throw new Error('Failed to create group');
+            }
+
+            const data = await res.json();
+            const newGroup = data.group as ParentGroup;
+            setParentGroups(prev => [...prev, newGroup]);
+            form.setValue('parentLedgerId', String(newGroup.id), { shouldValidate: true });
+            setShowCreateGroupDialog(false);
+            setNewGroupName('');
             toast({ title: 'Group Created', description: `"${trimmed}" has been added as a new parent group.` });
         } catch (error) {
             console.error(error);
@@ -494,16 +526,13 @@ export function AddLedgerSheet({
     const pan = form.watch('contactDetails.pan');
     const isPanMissing = tdsEnabled && !pan;
 
-    const selectedParent = React.useMemo(() => {
-        const fromLedgers = ledgers.find(l => l.id === parentLedgerId);
-        if (fromLedgers) return fromLedgers;
-        const fromLocal = localGroups.find(lg => lg.id === parentLedgerId);
-        if (fromLocal) return { ...fromLocal, isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr' as const, gstApplicable: false, status: 'Active' as const } as Ledger;
-        return undefined;
-    }, [parentLedgerId, ledgers, localGroups]);
+    const selectedParentGroup = React.useMemo(() => {
+        return parentGroups.find(g => String(g.id) === parentLedgerId);
+    }, [parentLedgerId, parentGroups]);
 
-    const derivedGroup = selectedParent?.group;
-    const isPartyLedger = derivedGroup === 'Sundry Debtor' || derivedGroup === 'Sundry Creditor';
+    const derivedGroup = selectedParentGroup?.group_name as LedgerGroup | undefined;
+    const derivedNature = selectedParentGroup ? natureMap[selectedParentGroup.primary_nature] : undefined;
+    const isPartyLedger = derivedGroup === 'Sundry Debtors' || derivedGroup === 'Sundry Creditors';
 
 
     React.useEffect(() => {
@@ -600,7 +629,7 @@ export function AddLedgerSheet({
                 ledgerName: data.ledgerName,
                 parentLedgerId: data.parentLedgerId,
                 group: (derivedGroup || 'Assets') as LedgerGroup,
-                nature: selectedParent?.nature || 'Asset',
+                nature: derivedNature || 'Asset',
                 isGroup: false,
                 openingBalance: data.openingBalance,
                 currentBalance: data.openingBalance,
@@ -690,11 +719,11 @@ export function AddLedgerSheet({
                                 <FormLabel>Parent Group <span className="text-destructive">*</span></FormLabel>
                                 <FormControl>
                                     <Combobox
-                                        options={parentLedgerOptions}
+                                        options={parentGroupOptions}
                                         value={field.value}
                                         onChange={field.onChange}
-                                        onCreate={handleCreateGroup}
-                                        placeholder="Select a group"
+                                        onCreate={handleCreateGroupPrompt}
+                                        placeholder={isLoadingGroups ? "Loading groups..." : "Select a group"}
                                         searchPlaceholder="Search or type to create..."
                                         emptyText="No groups found. Type a name to create one."
                                     />
@@ -705,9 +734,48 @@ export function AddLedgerSheet({
                     />
                     <FormItem>
                         <FormLabel>Primary Nature</FormLabel>
-                        <Input disabled value={selectedParent?.nature || 'Select a parent first'} />
+                        <Input disabled value={derivedNature || 'Select a parent first'} />
                     </FormItem>
                 </div>
+
+                {showCreateGroupDialog && (
+                    <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
+                        <h4 className="text-sm font-medium">Create New Parent Group</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <label className="text-sm text-muted-foreground">Group Name</label>
+                                <Input
+                                    value={newGroupName}
+                                    onChange={(e) => setNewGroupName(e.target.value)}
+                                    placeholder="e.g., Investments"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-sm text-muted-foreground">Primary Nature</label>
+                                <Select value={newGroupNature} onValueChange={(v) => setNewGroupNature(v as typeof newGroupNature)}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Assets">Assets</SelectItem>
+                                        <SelectItem value="Liabilities">Liabilities</SelectItem>
+                                        <SelectItem value="Income">Income</SelectItem>
+                                        <SelectItem value="Expense">Expense</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                            <Button type="button" variant="outline" size="sm" onClick={() => { setShowCreateGroupDialog(false); setNewGroupName(''); }}>
+                                Cancel
+                            </Button>
+                            <Button type="button" size="sm" onClick={handleCreateGroupConfirm} disabled={!newGroupName.trim()}>
+                                Create Group
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
                 <Separator />
                 <h3 className="text-lg font-medium">Opening Balance</h3>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1055,7 +1123,7 @@ export function AddLedgerSheet({
                       </AccordionContent>
                     </AccordionItem>
 
-                    {(derivedGroup === 'Sundry Debtor' || derivedGroup === 'Sundry Creditor') && (
+                    {(derivedGroup === 'Sundry Debtors' || derivedGroup === 'Sundry Creditors') && (
                     <AccordionItem value="credit-control">
                       <AccordionTrigger className="text-base"><HeartPulse className="mr-2 h-5 w-5 text-primary" />Credit & Risk Management</AccordionTrigger>
                       <AccordionContent className="pt-4 space-y-4">
