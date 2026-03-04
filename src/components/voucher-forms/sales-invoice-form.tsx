@@ -49,6 +49,7 @@ const salesInvoiceSchema = z.object({
   tcsRate: z.coerce.number().optional(),
   eInvoiceRef: z.string().optional(),
   eWayBillNo: z.string().optional(),
+  adjustment: z.coerce.number().default(0),
   remarks: z.string().optional(),
   items: z.array(lineItemSchema).min(1, 'At least one item is required.'),
 });
@@ -62,6 +63,7 @@ const defaultValues: Partial<FormValues> = {
     isGstApplicable: true,
     isReverseCharge: false,
     isTcsApplicable: false,
+    adjustment: 0,
     remarks: "Thank You For Your Business",
     items: [{ itemId: '', quantity: 1, rate: 0, discount: 0 }],
 };
@@ -239,11 +241,12 @@ export function SalesInvoiceForm({ initialData, companyId, firmId }: SalesInvoic
         }).filter(Boolean) as (InvoiceItem & { itemId: string })[];
 
         const totalGst = totalCgst + totalSgst + totalIgst;
-        const grandTotal = subtotal + totalGst + tcsAmount;
+        const adjustment = watchedForm.adjustment || 0;
+        const grandTotal = subtotal + totalGst + tcsAmount + adjustment;
         const roundedTotal = Math.round(grandTotal);
         const roundOff = roundedTotal - grandTotal;
 
-        return { items: processedItems, subtotal, totalDiscount, totalCgst, totalSgst, totalIgst, totalGst, tcsAmount, grandTotal: roundedTotal, roundOff, isIntraState, taxableValueForTcs };
+        return { items: processedItems, subtotal, totalDiscount, totalCgst, totalSgst, totalIgst, totalGst, tcsAmount, adjustment, grandTotal: roundedTotal, roundOff, isIntraState, taxableValueForTcs };
     }, [watchedForm, items, company]);
 
 
@@ -267,6 +270,7 @@ export function SalesInvoiceForm({ initialData, companyId, firmId }: SalesInvoic
             totalGst,
             subtotal,
             tcsAmount,
+            adjustment,
             roundOff,
             totalDiscount
         } = calculations;
@@ -313,6 +317,7 @@ export function SalesInvoiceForm({ initialData, companyId, firmId }: SalesInvoic
                 totalDiscount,
                 totalGst,
                 tcsAmount,
+                adjustment,
                 roundOff,
                 grandTotal,
                 placeOfSupply: data.placeOfSupply,
@@ -486,6 +491,19 @@ export function SalesInvoiceForm({ initialData, companyId, firmId }: SalesInvoic
                                     {watchedForm.isTcsApplicable && (
                                         <div className="flex justify-between text-muted-foreground"><span>TCS ({watchedForm.tcsRate || 0}%)</span><span>{formatCurrency(calculations.tcsAmount)}</span></div>
                                     )}
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Adjustment (+/-)</span>
+                                        <FormField control={form.control} name="adjustment" render={({ field }) => (
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                placeholder="0.00"
+                                                className="w-28 h-7 text-right text-sm"
+                                                {...field}
+                                                onChange={(e) => field.onChange(e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                                            />
+                                        )} />
+                                    </div>
                                     {calculations.roundOff !== 0 && (
                                         <div className="flex justify-between text-muted-foreground"><span>Round Off</span><span>{calculations.roundOff.toFixed(2)}</span></div>
                                     )}
