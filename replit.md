@@ -50,6 +50,13 @@ Four tables power the backend:
 - **PUT** — update a custom group (system groups protected)
 - **DELETE** — soft-delete a custom group (system groups protected)
 
+## Company Management
+
+- **Add Company**: Sheet with tabs (General, Financial, Tax) — stores all fields including address breakdown, bank details, GST info
+- **Edit Company**: Same sheet reused with `editCompany` prop — pre-fills form from Firestore data, uses `updateDoc` to save
+- **Archive/Restore**: Soft status toggle between Active/Archived
+- **Delete**: Only allowed if company has no vouchers
+
 ## Admin Dashboard
 
 Accessible at `/admin` (Owner/Admin roles only). Features:

@@ -7,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { format } from "date-fns";
 import type { Company, LedgerGroup } from "@/lib/types";
-import { collection, addDoc, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, writeBatch, doc, updateDoc } from 'firebase/firestore';
 import { useFirebase } from "@/firebase";
 import { useToast } from "@/hooks/use-toast";
 
@@ -224,21 +224,71 @@ export function AddCompanySheet({
   open,
   onOpenChange,
   onCompanyCreated,
-  firmId
+  firmId,
+  editCompany,
 }: {
   children: React.ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCompanyCreated: () => void;
   firmId: string;
+  editCompany?: Company | null;
 }) {
   const { firestore } = useFirebase();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const isEditing = !!editCompany;
   const form = useForm<CompanyFormValues>({
     resolver: zodResolver(companyFormSchema),
     defaultValues,
   });
+
+  React.useEffect(() => {
+    if (editCompany && open) {
+      const fyStart = editCompany.financialYearStart instanceof Date
+        ? editCompany.financialYearStart
+        : (editCompany.financialYearStart as any)?.toDate?.() || currentFinancialYearStart;
+      const booksStartDate = editCompany.booksStart
+        ? (editCompany.booksStart instanceof Date ? editCompany.booksStart : (editCompany.booksStart as any)?.toDate?.() || fyStart)
+        : fyStart;
+
+      form.reset({
+        companyName: editCompany.companyName || '',
+        mailingName: editCompany.mailingName || '',
+        addressLine1: editCompany.addressLine1 || '',
+        addressLine2: editCompany.addressLine2 || '',
+        city: editCompany.city || '',
+        district: editCompany.district || '',
+        state: editCompany.state || '',
+        country: editCompany.country || 'India',
+        pincode: editCompany.pincode || '',
+        telephone: editCompany.telephone || '',
+        mobileNumber: editCompany.mobileNumber || '',
+        email: editCompany.email || '',
+        website: editCompany.website || '',
+        financialYearStart: fyStart,
+        booksStart: booksStartDate,
+        baseCurrencySymbol: editCompany.baseCurrencySymbol || '₹',
+        formalCurrencyName: editCompany.formalCurrencyName || 'INR',
+        inventory: editCompany.inventory || false,
+        multiCurrency: editCompany.multiCurrency || false,
+        gstApplicable: editCompany.gstApplicable || !!editCompany.gstin,
+        gstin: editCompany.gstin || '',
+        gstRegType: editCompany.gstRegType || undefined,
+        pan: editCompany.pan || '',
+        tan: editCompany.tan || '',
+        bankDetails: {
+          bankName: editCompany.bankDetails?.bankName || '',
+          accountHolderName: editCompany.bankDetails?.accountHolderName || '',
+          accountNumber: editCompany.bankDetails?.accountNumber || '',
+          ifscCode: editCompany.bankDetails?.ifscCode || '',
+          branchName: editCompany.bankDetails?.branchName || '',
+        },
+      });
+    } else if (!editCompany && open) {
+      form.reset(defaultValues);
+    }
+  }, [editCompany, open]);
 
   const handleGstinBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     const gstinValue = e.target.value.toUpperCase();
@@ -258,65 +308,94 @@ export function AddCompanySheet({
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Cannot create company. Firm is not identified.",
+        description: `Cannot ${isEditing ? 'update' : 'create'} company. Firm is not identified.`,
       });
       return;
     }
     setIsSubmitting(true);
-    
-    const companiesColRef = collection(firestore, 'firms', firmId, 'companies');
-    const newCompanyRef = doc(companiesColRef); // Generate ID upfront
-    
-    const newCompanyData = {
-      id: newCompanyRef.id,
-      companyId: newCompanyRef.id,
+
+    const companyFields = {
       companyName: data.companyName,
-      gstin: data.gstin || "",
-      address: `${data.addressLine1 || ''}, ${data.city || ''}, ${data.state || ''}`,
+      mailingName: data.mailingName || '',
+      gstin: data.gstin || '',
+      address: [data.addressLine1, data.city, data.state].filter(Boolean).join(', '),
+      addressLine1: data.addressLine1 || '',
+      addressLine2: data.addressLine2 || '',
+      city: data.city || '',
+      district: data.district || '',
+      state: data.state || '',
+      country: data.country || 'India',
+      pincode: data.pincode || '',
+      telephone: data.telephone || '',
+      mobileNumber: data.mobileNumber || '',
+      email: data.email || '',
+      website: data.website || '',
       financialYearStart: data.financialYearStart,
       financialYearEnd: new Date(data.financialYearStart.getFullYear() + 1, 2, 31),
+      booksStart: data.booksStart,
+      baseCurrencySymbol: data.baseCurrencySymbol || '₹',
+      formalCurrencyName: data.formalCurrencyName || 'INR',
+      inventory: data.inventory || false,
+      multiCurrency: data.multiCurrency || false,
+      gstApplicable: data.gstApplicable || false,
+      gstRegType: data.gstRegType || null,
+      pan: data.pan || '',
+      tan: data.tan || '',
+      bankDetails: data.bankDetails || null,
       firmId: firmId,
-      status: 'Active',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
     };
     
     try {
-      const batch = writeBatch(firestore);
-      
-      // 1. Create the company document
-      batch.set(newCompanyRef, newCompanyData);
-      
-      // 2. Create the default ledger groups for this company
-      const ledgersColRef = collection(newCompanyRef, 'ledgers');
-      defaultLedgerGroups.forEach(group => {
-        const ledgerDocRef = doc(ledgersColRef, group.id);
-        batch.set(ledgerDocRef, {
-          ...group,
-          id: group.id,
-          isGroup: true,
-          openingBalance: 0,
-          currentBalance: 0,
-          balanceType: group.nature === 'Asset' || group.nature === 'Expense' ? 'Dr' : 'Cr',
-          gstApplicable: false,
-          status: 'Active',
-          isSystem: true,
-          firmId: firmId,
-          companyId: newCompanyRef.id,
-          createdAt: serverTimestamp(),
-          lastUpdatedAt: serverTimestamp(),
+      if (isEditing && editCompany) {
+        const companyRef = doc(firestore, 'firms', firmId, 'companies', editCompany.id);
+        await updateDoc(companyRef, {
+          ...companyFields,
+          updatedAt: serverTimestamp(),
         });
-      });
-      
-      await batch.commit();
+        onCompanyCreated();
+      } else {
+        const companiesColRef = collection(firestore, 'firms', firmId, 'companies');
+        const newCompanyRef = doc(companiesColRef);
 
-      onCompanyCreated();
-      form.reset();
+        const batch = writeBatch(firestore);
+        batch.set(newCompanyRef, {
+          ...companyFields,
+          id: newCompanyRef.id,
+          companyId: newCompanyRef.id,
+          status: 'Active',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+
+        const ledgersColRef = collection(newCompanyRef, 'ledgers');
+        defaultLedgerGroups.forEach(group => {
+          const ledgerDocRef = doc(ledgersColRef, group.id);
+          batch.set(ledgerDocRef, {
+            ...group,
+            id: group.id,
+            isGroup: true,
+            openingBalance: 0,
+            currentBalance: 0,
+            balanceType: group.nature === 'Asset' || group.nature === 'Expense' ? 'Dr' : 'Cr',
+            gstApplicable: false,
+            status: 'Active',
+            isSystem: true,
+            firmId: firmId,
+            companyId: newCompanyRef.id,
+            createdAt: serverTimestamp(),
+            lastUpdatedAt: serverTimestamp(),
+          });
+        });
+
+        await batch.commit();
+        onCompanyCreated();
+        form.reset();
+      }
     } catch(e) {
-      console.error("Error adding company and default ledgers:", e);
+      console.error(`Error ${isEditing ? 'updating' : 'adding'} company:`, e);
       toast({
         variant: "destructive",
-        title: "Failed to create company",
+        title: `Failed to ${isEditing ? 'update' : 'create'} company`,
         description: "An unexpected error occurred. Please try again."
       });
     } finally {
@@ -331,9 +410,9 @@ export function AddCompanySheet({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full">
             <SheetHeader>
-              <SheetTitle>Create New Company</SheetTitle>
+              <SheetTitle>{isEditing ? 'Edit Company' : 'Create New Company'}</SheetTitle>
               <SheetDescription>
-                Fill in the details for the new company profile.
+                {isEditing ? 'Update the company profile details.' : 'Fill in the details for the new company profile.'}
               </SheetDescription>
             </SheetHeader>
             <Separator className="my-4" />
@@ -464,7 +543,7 @@ export function AddCompanySheet({
               </SheetClose>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isSubmitting ? "Saving..." : "Save Company"}
+                {isSubmitting ? "Saving..." : (isEditing ? "Update Company" : "Save Company")}
               </Button>
             </SheetFooter>
           </form>

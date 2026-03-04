@@ -58,6 +58,8 @@ export default function CompaniesPage() {
 
   const [activeTab, setActiveTab] = React.useState('active');
   const [isAddSheetOpen, setIsAddSheetOpen] = React.useState(false);
+  const [isEditSheetOpen, setIsEditSheetOpen] = React.useState(false);
+  const [editingCompany, setEditingCompany] = React.useState<Company | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = React.useState(false);
   const [selectedCompany, setSelectedCompany] = React.useState<Company | null>(
@@ -85,6 +87,20 @@ export default function CompaniesPage() {
       description: `The new company has been added to your list.`,
     });
     setActiveTab('active');
+  };
+
+  const onCompanyUpdated = () => {
+    setIsEditSheetOpen(false);
+    setEditingCompany(null);
+    toast({
+      title: 'Company Updated',
+      description: 'The company details have been updated successfully.',
+    });
+  };
+
+  const openEditSheet = (company: Company) => {
+    setEditingCompany(company);
+    setIsEditSheetOpen(true);
   };
 
   const handleDeleteConfirm = async () => {
@@ -207,7 +223,9 @@ export default function CompaniesPage() {
 
     return (
       <>
-        <DropdownMenuItem disabled>Edit</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => openEditSheet(company)}>
+          Edit
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => openArchiveDialog(company)}>
           <Archive className="mr-2 h-4 w-4" />
           Archive
@@ -362,6 +380,20 @@ export default function CompaniesPage() {
         company={selectedCompany}
         onConfirm={handleArchiveConfirm}
       />
+      {profile?.firmId && (
+        <AddCompanySheet
+          open={isEditSheetOpen}
+          onOpenChange={(open) => {
+            setIsEditSheetOpen(open);
+            if (!open) setEditingCompany(null);
+          }}
+          onCompanyCreated={onCompanyUpdated}
+          firmId={profile.firmId}
+          editCompany={editingCompany}
+        >
+          <span />
+        </AddCompanySheet>
+      )}
     </>
   );
 }

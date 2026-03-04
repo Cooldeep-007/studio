@@ -26,11 +26,40 @@ export type Firm = {
 
 export type Company = {
   id: string;
+  companyId?: string;
   companyName: string;
+  mailingName?: string;
   gstin?: string;
   address?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  district?: string;
+  state?: string;
+  country?: string;
+  pincode?: string;
+  telephone?: string;
+  mobileNumber?: string;
+  email?: string;
+  website?: string;
   financialYearStart: Date;
   financialYearEnd: Date;
+  booksStart?: Date;
+  baseCurrencySymbol?: string;
+  formalCurrencyName?: string;
+  inventory?: boolean;
+  multiCurrency?: boolean;
+  gstApplicable?: boolean;
+  gstRegType?: 'Regular' | 'Composition' | 'Unregistered';
+  pan?: string;
+  tan?: string;
+  bankDetails?: {
+    bankName?: string;
+    accountHolderName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    branchName?: string;
+  };
   firmId: string;
   status: 'Active' | 'Archived';
 };
