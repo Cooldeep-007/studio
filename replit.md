@@ -91,6 +91,14 @@ Configurable per company/voucher type with Auto or Manual mode:
 - Component: `VoucherNumberSettings` in `src/components/voucher-number-settings.tsx`
 - Prefixes: SLS (Sales), PUR (Purchase), PAY (Payment), RCT (Receipt), JRN (Journal), CNT (Contra), DBN (Debit Note), CRN (Credit Note), PRF (Proforma), ADS (Adhoc Sale), ADP (Adhoc Purchase)
 
+## Important UI Rules
+
+- **Sidebar navigation**: ALWAYS use `router.push()` (not `asChild` + `Link`) for `SidebarMenuButton` items — multiple Radix Slot layers break Link clicks.
+- **Cross-layout navigation**: ALWAYS use `window.location.href` between `(auth)` and `(app)` route groups.
+- **Sheet/Dialog dropdowns**: NEVER use Radix Select/Popover inside a Sheet or Dialog — use native HTML `<select>` and `<input type="date">` elements instead. This avoids compose-refs infinite loop errors.
+- **Radix deduplication**: `postinstall` script removes nested `@radix-ui/react-slot` duplicate from `react-primitive` to prevent compose-refs infinite loop (version 1.1.2 vs 1.2.3 mismatch).
+- **Firestore writes**: ALWAYS strip `undefined` values before writing. Use `removeUndefined()` with `_methodName` sentinel detection.
+
 ## Development
 
 - **Dev server**: `npm run dev` → runs on `0.0.0.0:5000`

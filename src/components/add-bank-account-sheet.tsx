@@ -10,12 +10,11 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormField, FormItem, FormLabel, FormMessage, FormControl } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import type { ParentGroup } from '@/components/add-petty-cash-sheet';
 
@@ -41,6 +40,8 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+const nativeSelectClass = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
 export function AddBankAccountSheet({
   open,
@@ -102,35 +103,31 @@ export function AddBankAccountSheet({
                 <FormField control={form.control} name="branchName" render={({ field }) => (<FormItem><FormLabel>Branch Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
                 <FormField control={form.control} name="accountType" render={({ field }) => (
                   <FormItem><FormLabel>Account Type *</FormLabel>
-                    <FormControl>
-                      <select
-                        value={field.value}
-                        onChange={e => field.onChange(e.target.value)}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      >
-                        <option value="Savings">Savings</option>
-                        <option value="Current">Current</option>
-                        <option value="OD">Overdraft (OD)</option>
-                        <option value="CC">Cash Credit (CC)</option>
-                      </select>
-                    </FormControl>
+                    <select
+                      value={field.value}
+                      onChange={e => field.onChange(e.target.value)}
+                      className={nativeSelectClass}
+                    >
+                      <option value="Savings">Savings</option>
+                      <option value="Current">Current</option>
+                      <option value="OD">Overdraft (OD)</option>
+                      <option value="CC">Cash Credit (CC)</option>
+                    </select>
                   </FormItem>)} />
               </div>
               <FormField control={form.control} name="parentGroup" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Parent Group *</FormLabel>
-                  <FormControl>
-                    <select
-                      value={field.value}
-                      onChange={e => field.onChange(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    >
-                      <option value="">Select parent group</option>
-                      {parentGroups.map(pg => (
-                        <option key={pg.id} value={pg.group_name}>{pg.group_name} ({pg.primary_nature})</option>
-                      ))}
-                    </select>
-                  </FormControl>
+                  <select
+                    value={field.value}
+                    onChange={e => field.onChange(e.target.value)}
+                    className={nativeSelectClass}
+                  >
+                    <option value="">Select parent group</option>
+                    {parentGroups.map(pg => (
+                      <option key={pg.id} value={pg.group_name}>{pg.group_name} ({pg.primary_nature})</option>
+                    ))}
+                  </select>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -140,27 +137,23 @@ export function AddBankAccountSheet({
                   <FormField control={form.control} name="balanceType" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Balance Type</FormLabel>
-                      <FormControl>
-                        <select
-                          value={field.value}
-                          onChange={e => field.onChange(e.target.value)}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        >
-                          <option value="Dr">Debit (Dr)</option>
-                          <option value="Cr">Credit (Cr)</option>
-                        </select>
-                      </FormControl>
+                      <select
+                        value={field.value}
+                        onChange={e => field.onChange(e.target.value)}
+                        className={nativeSelectClass}
+                      >
+                        <option value="Dr">Debit (Dr)</option>
+                        <option value="Cr">Credit (Cr)</option>
+                      </select>
                     </FormItem>
                   )} />
                   <FormField control={form.control} name="openingBalanceDate" render={({ field }) => (
                       <FormItem className="flex flex-col"><FormLabel>As of Date</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="date"
-                            value={field.value ? format(field.value, 'yyyy-MM-dd') : ''}
-                            onChange={e => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
-                          />
-                        </FormControl>
+                        <Input
+                          type="date"
+                          value={field.value ? format(field.value, 'yyyy-MM-dd') : ''}
+                          onChange={e => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                        />
                         <FormMessage />
                       </FormItem>)} />
                 </div>

@@ -53,7 +53,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -1015,27 +1014,31 @@ export default function VoucherViewPage() {
                 </div>
                 <div className="space-y-2">
                     <Label>Payment Mode</Label>
-                    <Select value={paymentMode} onValueChange={setPaymentMode}>
-                        <SelectTrigger><SelectValue placeholder="Select mode" /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Cash">Cash</SelectItem>
-                            <SelectItem value="NEFT/RTGS">NEFT / RTGS</SelectItem>
-                            <SelectItem value="UPI">UPI</SelectItem>
-                            <SelectItem value="Cheque">Cheque</SelectItem>
-                            <SelectItem value="Card">Card</SelectItem>
-                        </SelectContent>
-                    </Select>
+                    <select
+                        value={paymentMode}
+                        onChange={e => setPaymentMode(e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                        <option value="">Select mode</option>
+                        <option value="Cash">Cash</option>
+                        <option value="NEFT/RTGS">NEFT / RTGS</option>
+                        <option value="UPI">UPI</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Card">Card</option>
+                    </select>
                 </div>
                 <div className="space-y-2">
                     <Label>{isSaleType ? 'Received Into' : 'Paid From'} (Bank / Cash Ledger)</Label>
-                    <Select value={paymentLedgerId} onValueChange={setPaymentLedgerId}>
-                        <SelectTrigger><SelectValue placeholder="Select ledger" /></SelectTrigger>
-                        <SelectContent>
-                            {bankCashLedgers.map(l => (
-                                <SelectItem key={l.id} value={l.id}>{l.ledgerName}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <select
+                        value={paymentLedgerId}
+                        onChange={e => setPaymentLedgerId(e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                        <option value="">Select ledger</option>
+                        {bankCashLedgers.map(l => (
+                            <option key={l.id} value={l.id}>{l.ledgerName}</option>
+                        ))}
+                    </select>
                 </div>
                 <div className="space-y-2">
                     <Label>Reference / Transaction No.</Label>
