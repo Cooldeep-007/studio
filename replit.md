@@ -68,6 +68,7 @@ Enhanced invoice-style view page with:
 - **Payment status**: Badges for Paid/Partial/Unpaid with outstanding amount display
 - **Instant Payment/Receipt**: Dialog to record payments against invoices — creates linked Payment/Receipt vouchers in Firestore, updates outstanding amount and status, tracks bill allocations
 - **Payment history**: Shows all linked payments/receipts with amounts
+- **Configure Print/Export**: Dialog (Settings2 icon button) with 10 toggleable sections — Company & Party Info, Invoice Meta, Items Table, Tax Summary, Amount in Words, Outstanding Amount, Narration, Remarks, Accounting Entries, Payment History. Each section is conditionally hidden in print via `print:hidden` CSS class based on user selection. Accounting Entries default off; all others default on.
 - Non-invoice vouchers (Journal, Payment, Receipt, Contra) retain the original Dr/Cr entries table view
 
 ## Voucher Numbering

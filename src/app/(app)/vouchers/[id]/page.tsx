@@ -11,7 +11,6 @@ import {
   FileText,
   FileSpreadsheet,
   Loader2,
-  IndianRupee,
   CreditCard,
   Banknote,
   CheckCircle2,
@@ -20,6 +19,7 @@ import {
   Building2,
   MapPin,
   Hash,
+  Settings2,
 } from 'lucide-react';
 import {
   Card,
@@ -46,6 +46,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -147,6 +148,19 @@ export default function VoucherViewPage() {
   const [paymentNarration, setPaymentNarration] = React.useState('');
   const [isSubmittingPayment, setIsSubmittingPayment] = React.useState(false);
   const [linkedPayments, setLinkedPayments] = React.useState<Voucher[]>([]);
+  const [showConfigDialog, setShowConfigDialog] = React.useState(false);
+  const [printConfig, setPrintConfig] = React.useState({
+    companyPartyInfo: true,
+    invoiceMeta: true,
+    itemsTable: true,
+    taxSummary: true,
+    amountInWords: true,
+    outstanding: true,
+    narration: true,
+    remarks: true,
+    accountingEntries: false,
+    paymentHistory: true,
+  });
 
   const voucherId = params.id as string;
   const companyId = searchParams.get('companyId');
@@ -191,6 +205,10 @@ export default function VoucherViewPage() {
 
     return { subtotal, totalGst, grandTotal };
   }, [voucher]);
+
+  const toggleConfig = (key: keyof typeof printConfig) => {
+    setPrintConfig(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const partyLedger = voucher?.partyLedgerId ? ledgerMap.get(voucher.partyLedgerId) : null;
 
@@ -622,7 +640,10 @@ export default function VoucherViewPage() {
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Vouchers
         </Button>
         <div className="flex gap-2">
-            <Button variant="outline" onClick={() => window.print()}>
+            <Button variant="outline" size="sm" onClick={() => setShowConfigDialog(true)}>
+                <Settings2 className="mr-2 h-4 w-4" /> Configure
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
                 <Printer className="mr-2 h-4 w-4" /> Print
             </Button>
             <DropdownMenu>
@@ -684,7 +705,7 @@ export default function VoucherViewPage() {
 
         <CardContent className="p-6 pt-0 space-y-6">
             {isInvoiceType && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-muted/30 rounded-lg">
+                <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-muted/30 rounded-lg ${!printConfig.companyPartyInfo ? 'print:hidden' : ''}`} data-section="companyPartyInfo">
                     <div>
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{isSaleType ? 'From (Seller)' : 'To (Supplier)'}</p>
                         <div className="space-y-1">
@@ -712,14 +733,14 @@ export default function VoucherViewPage() {
             )}
 
             {!isInvoiceType && voucher.partyLedgerId && (
-                <div className="p-4 bg-muted/30 rounded-lg">
+                <div className={`p-4 bg-muted/30 rounded-lg ${!printConfig.companyPartyInfo ? 'print:hidden' : ''}`} data-section="companyPartyInfo">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Party</p>
                     <p className="font-semibold text-lg">{partyLedgerName}</p>
                 </div>
             )}
 
             {isInvoiceType && voucher.invoiceDetails && (
-                <div className="flex flex-wrap gap-4 text-sm">
+                <div className={`flex flex-wrap gap-4 text-sm ${!printConfig.invoiceMeta ? 'print:hidden' : ''}`} data-section="invoiceMeta">
                     {voucher.invoiceDetails.placeOfSupply && (
                         <div className="px-3 py-1.5 bg-secondary rounded-md"><span className="text-muted-foreground">Place of Supply: </span><span className="font-medium">{voucher.invoiceDetails.placeOfSupply}</span></div>
                     )}
@@ -737,6 +758,7 @@ export default function VoucherViewPage() {
 
             {isInvoiceType && voucher.invoiceDetails?.items && (
                 <>
+                <div className={!printConfig.itemsTable ? 'print:hidden' : ''} data-section="itemsTable">
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-muted/50">
@@ -770,6 +792,8 @@ export default function VoucherViewPage() {
                         </TableBody>
                     </Table>
 
+                </div>
+                <div className={!printConfig.taxSummary ? 'print:hidden' : ''} data-section="taxSummary">
                     <div className="flex justify-end">
                         <div className="w-full max-w-sm space-y-2 text-sm">
                             <div className="flex justify-between"><span>Subtotal</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.subtotal + (voucher.invoiceDetails.totalDiscount || 0))}</span></div>
@@ -798,9 +822,10 @@ export default function VoucherViewPage() {
                             )}
                             <Separator />
                             <div className="flex justify-between text-lg font-bold"><span>Grand Total</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.grandTotal)}</span></div>
-                            <p className="text-xs text-muted-foreground italic pt-1">{toWords(voucher.invoiceDetails.grandTotal)}</p>
+                            {printConfig.amountInWords && <p className="text-xs text-muted-foreground italic pt-1">{toWords(voucher.invoiceDetails.grandTotal)}</p>}
                         </div>
                     </div>
+                </div>
                 </>
             )}
 
@@ -839,7 +864,7 @@ export default function VoucherViewPage() {
             {isInvoiceType && voucher.partyLedgerId && voucher.status !== 'Paid' && (() => {
                 const outstanding = voucher.outstandingAmount ?? voucher.invoiceDetails?.grandTotal ?? voucher.totalDebit;
                 return outstanding > 0 ? (
-                    <div className="flex items-center justify-between p-4 rounded-lg border-2 border-amber-200 bg-amber-50">
+                    <div className={`flex items-center justify-between p-4 rounded-lg border-2 border-amber-200 bg-amber-50 ${!printConfig.outstanding ? 'print:hidden' : ''}`} data-section="outstanding">
                         <div>
                             <p className="text-sm font-medium text-amber-800">Outstanding Amount</p>
                             <p className="text-2xl font-bold text-amber-900">{formatCurrency(outstanding)}</p>
@@ -860,21 +885,21 @@ export default function VoucherViewPage() {
             )}
 
             {voucher.narration && (
-                <div>
+                <div className={!printConfig.narration ? 'print:hidden' : ''} data-section="narration">
                     <p className="text-sm font-medium text-muted-foreground">Narration</p>
                     <p className="mt-1 p-3 bg-secondary rounded-md text-sm">{voucher.narration}</p>
                 </div>
             )}
 
             {voucher.invoiceDetails?.remarks && voucher.invoiceDetails.remarks !== voucher.narration && (
-                <div>
+                <div className={!printConfig.remarks ? 'print:hidden' : ''} data-section="remarks">
                     <p className="text-sm font-medium text-muted-foreground">Remarks / Terms</p>
                     <p className="mt-1 p-3 bg-secondary rounded-md text-sm whitespace-pre-wrap">{voucher.invoiceDetails.remarks}</p>
                 </div>
             )}
 
             {isInvoiceType && (
-                <div className="grid gap-4">
+                <div className={`grid gap-4 ${!printConfig.accountingEntries ? 'print:hidden' : ''}`} data-section="accountingEntries">
                     <p className="text-sm font-medium text-muted-foreground">Accounting Entries</p>
                     <Table>
                         <TableHeader>
@@ -898,7 +923,7 @@ export default function VoucherViewPage() {
             )}
 
             {linkedPayments.length > 0 && (
-                <div className="space-y-3">
+                <div className={`space-y-3 ${!printConfig.paymentHistory ? 'print:hidden' : ''}`} data-section="paymentHistory">
                     <p className="text-sm font-medium text-muted-foreground">{isSaleType ? 'Receipt History' : 'Payment History'}</p>
                     <Table>
                         <TableHeader>
@@ -988,6 +1013,41 @@ export default function VoucherViewPage() {
                     {isSubmittingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {isSaleType ? 'Record Receipt' : 'Record Payment'}
                 </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showConfigDialog} onOpenChange={setShowConfigDialog}>
+        <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle>Configure Print / Export</DialogTitle>
+                <DialogDescription>Choose which sections appear when printing or exporting this voucher.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-4">
+                {[
+                    { key: 'companyPartyInfo' as const, label: 'Company & Party Info' },
+                    { key: 'invoiceMeta' as const, label: 'Invoice Meta (Place of Supply, e-Invoice, etc.)' },
+                    { key: 'itemsTable' as const, label: 'Items Table' },
+                    { key: 'taxSummary' as const, label: 'Tax Summary & Totals' },
+                    { key: 'amountInWords' as const, label: 'Amount in Words' },
+                    { key: 'outstanding' as const, label: 'Outstanding Amount' },
+                    { key: 'narration' as const, label: 'Narration' },
+                    { key: 'remarks' as const, label: 'Remarks / Terms' },
+                    { key: 'accountingEntries' as const, label: 'Accounting Entries' },
+                    { key: 'paymentHistory' as const, label: 'Payment History' },
+                ].map(({ key, label }) => (
+                    <div key={key} className="flex items-center space-x-3">
+                        <Checkbox
+                            id={`config-${key}`}
+                            checked={printConfig[key]}
+                            onCheckedChange={() => toggleConfig(key)}
+                        />
+                        <Label htmlFor={`config-${key}`} className="text-sm font-normal cursor-pointer">{label}</Label>
+                    </div>
+                ))}
+            </div>
+            <DialogFooter>
+                <DialogClose asChild><Button variant="outline">Done</Button></DialogClose>
             </DialogFooter>
         </DialogContent>
       </Dialog>
