@@ -269,6 +269,7 @@ export function AddCompanySheet({
     
     const newCompanyData = {
       id: newCompanyRef.id,
+      companyId: newCompanyRef.id,
       companyName: data.companyName,
       gstin: data.gstin || "",
       address: `${data.addressLine1 || ''}, ${data.city || ''}, ${data.state || ''}`,
