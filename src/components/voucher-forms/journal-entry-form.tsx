@@ -21,6 +21,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { AddLedgerSheet } from '../add-ledger-sheet';
 import { Combobox } from '../ui/combobox';
+import { VoucherNumberSettings } from '../voucher-number-settings';
+import { useVoucherNumbering } from '@/hooks/use-voucher-numbering';
 import { useFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -67,6 +69,7 @@ export function JournalEntryForm({ initialData, companyId, firmId }: JournalEntr
     const { firestore } = useFirebase();
     const [ledgers, setLedgers] = React.useState(() => mockLedgers);
     const isEditMode = !!initialData;
+    const numbering = useVoucherNumbering(firmId, companyId, 'Journal');
     const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
     const [addLedgerInitialValues, setAddLedgerInitialValues] = React.useState<Partial<Ledger> | undefined>();
     const [activeLedgerIndex, setActiveLedgerIndex] = React.useState(0);
@@ -126,7 +129,7 @@ export function JournalEntryForm({ initialData, companyId, firmId }: JournalEntr
         }
         
         const newVoucher: Omit<Voucher, 'id'> = {
-            voucherNumber: `FY24-AUTO-${Math.floor(Math.random() * 1000)}`, // Replace with real sequencing
+            voucherNumber: numbering.mode === 'auto' ? await numbering.claimNextNumber() : (numbering.manualNumber || `JRN-${Date.now().toString().slice(-6)}`),
             voucherType: 'Journal',
             date: data.date,
             createdAt: serverTimestamp(),
@@ -168,7 +171,9 @@ export function JournalEntryForm({ initialData, companyId, firmId }: JournalEntr
                 <Card>
                     <CardHeader>
                         <CardTitle>{isEditMode ? 'Edit Journal Entry' : 'Journal Entry'}</CardTitle>
-                        <CardDescription>For adjustments, provisions, and other non-cash/bank transactions.</CardDescription>
+                        <CardDescription>
+                            <VoucherNumberSettings {...numbering} isEditMode={isEditMode} editVoucherNumber={initialData?.voucherNumber} />
+                        </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

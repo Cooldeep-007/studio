@@ -70,6 +70,17 @@ Enhanced invoice-style view page with:
 - **Payment history**: Shows all linked payments/receipts with amounts
 - Non-invoice vouchers (Journal, Payment, Receipt, Contra) retain the original Dr/Cr entries table view
 
+## Voucher Numbering
+
+Configurable per company/voucher type with Auto or Manual mode:
+- **Auto mode**: Sequential numbers like `SLS/2526-0001`, `PUR/2526-0002`, etc. Format: `{PREFIX}/{FY}-{SEQ}`
+- **Manual mode**: User enters voucher number manually in an inline input field
+- Settings stored in Firestore at `firms/{firmId}/companies/{companyId}/settings/voucherNumbering`
+- Settings gear icon in the CardDescription of each voucher form opens a popover to toggle mode
+- Hook: `useVoucherNumbering(firmId, companyId, voucherType)` in `src/hooks/use-voucher-numbering.ts`
+- Component: `VoucherNumberSettings` in `src/components/voucher-number-settings.tsx`
+- Prefixes: SLS (Sales), PUR (Purchase), PAY (Payment), RCT (Receipt), JRN (Journal), CNT (Contra), DBN (Debit Note), CRN (Credit Note), PRF (Proforma), ADS (Adhoc Sale), ADP (Adhoc Purchase)
+
 ## Development
 
 - **Dev server**: `npm run dev` → runs on `0.0.0.0:5000`

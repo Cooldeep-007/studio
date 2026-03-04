@@ -284,7 +284,7 @@ export function AdhocVoucherForm({ initialData }: AdhocVoucherFormProps) {
                     <Card>
                         <CardHeader>
                             <CardTitle>{isEditMode ? 'Edit Adhoc Voucher' : 'New Adhoc Voucher'}</CardTitle>
-                            <CardDescription>Voucher No: <span className="font-mono text-primary">{isEditMode && initialData ? initialData.voucherNumber : 'FY24-AUTO-ADHOC'}</span></CardDescription>
+                            <CardDescription>Voucher No: <span className="font-mono text-primary">{isEditMode && initialData ? initialData.voucherNumber : 'Auto-generated on save'}</span></CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <FormField control={form.control} name="voucherType" render={({ field }) => (

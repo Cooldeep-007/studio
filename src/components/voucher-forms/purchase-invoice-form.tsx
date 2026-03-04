@@ -26,6 +26,8 @@ import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AddLedgerSheet } from '../add-ledger-sheet';
+import { VoucherNumberSettings } from '../voucher-number-settings';
+import { useVoucherNumbering } from '@/hooks/use-voucher-numbering';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { useFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -86,6 +88,7 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
     const [isAddItemSheetOpen, setIsAddItemSheetOpen] = React.useState(false);
     const [addItemInitialValues, setAddItemInitialValues] = React.useState<Partial<ItemFormValues> | undefined>();
     const [activeItemIndex, setActiveItemIndex] = React.useState(0);
+    const numbering = useVoucherNumbering(firmId, companyId, 'Purchase');
 
     const form = useForm<FormValues>({
         resolver: zodResolver(purchaseInvoiceSchema),
@@ -304,7 +307,7 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
         
 
         const newVoucher: Omit<Voucher, 'id'> = {
-            voucherNumber: `FY24-AUTO-${Math.floor(Math.random() * 1000)}`, // Replace with real sequencing
+            voucherNumber: numbering.mode === 'auto' ? await numbering.claimNextNumber() : (numbering.manualNumber || `PUR-${Date.now().toString().slice(-6)}`),
             voucherType: 'Purchase',
             date: data.invoiceDate,
             createdAt: serverTimestamp(),
@@ -376,7 +379,9 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
                     <Card>
                         <CardHeader>
                             <CardTitle>{isEditMode ? 'Edit Purchase Invoice' : 'New Purchase Invoice'}</CardTitle>
-                            <CardDescription>Voucher No: <span className="font-mono text-primary">{isEditMode ? initialData?.voucherNumber : 'FY24-AUTO-002'}</span></CardDescription>
+                            <CardDescription>
+                                <VoucherNumberSettings {...numbering} isEditMode={isEditMode} editVoucherNumber={initialData?.voucherNumber} />
+                            </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             {/* HEADER */}

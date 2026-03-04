@@ -5,7 +5,7 @@ import * as React from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { CalendarIcon, PlusCircle, Trash2, Sparkles, Building, Hash, FileText, Phone, Mail } from 'lucide-react';
+import { CalendarIcon, PlusCircle, Trash2, Sparkles, Building, FileText, Phone, Mail } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,8 @@ import { Switch } from '../ui/switch';
 import { Separator } from '../ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { AddLedgerSheet } from '../add-ledger-sheet';
+import { VoucherNumberSettings } from '../voucher-number-settings';
+import { useVoucherNumbering } from '@/hooks/use-voucher-numbering';
 import { useFirebase } from '@/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
@@ -91,6 +93,7 @@ export function SalesInvoiceForm({ initialData, companyId, firmId }: SalesInvoic
     const [isAddItemSheetOpen, setIsAddItemSheetOpen] = React.useState(false);
     const [addItemInitialValues, setAddItemInitialValues] = React.useState<Partial<ItemFormValues> | undefined>();
     const [activeItemIndex, setActiveItemIndex] = React.useState(0);
+    const numbering = useVoucherNumbering(firmId, companyId, 'Sales');
 
     const form = useForm<FormValues>({
         resolver: zodResolver(salesInvoiceSchema),
@@ -297,7 +300,7 @@ export function SalesInvoiceForm({ initialData, companyId, firmId }: SalesInvoic
         if (totalIgst > 0 && igstLedger) entries.push({ ledgerId: igstLedger.id, type: 'Cr', amount: totalIgst });
         
         const newVoucher: Omit<Voucher, 'id'> = {
-            voucherNumber: `FY24-AUTO-${Math.floor(Math.random() * 1000)}`, // Replace with real sequencing
+            voucherNumber: numbering.mode === 'auto' ? await numbering.claimNextNumber() : (numbering.manualNumber || `SLS-${Date.now().toString().slice(-6)}`),
             voucherType: 'Sales',
             date: data.invoiceDate,
             createdAt: serverTimestamp(),
@@ -373,7 +376,9 @@ export function SalesInvoiceForm({ initialData, companyId, firmId }: SalesInvoic
                     <Card>
                         <CardHeader>
                             <CardTitle>{isEditMode ? 'Edit Sales Invoice' : 'New Sales Invoice'}</CardTitle>
-                            <CardDescription>Voucher No: <span className="font-mono text-primary">{isEditMode ? initialData?.voucherNumber : 'FY24-AUTO-001'}</span></CardDescription>
+                            <CardDescription>
+                                <VoucherNumberSettings {...numbering} isEditMode={isEditMode} editVoucherNumber={initialData?.voucherNumber} />
+                            </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             {/* HEADER */}

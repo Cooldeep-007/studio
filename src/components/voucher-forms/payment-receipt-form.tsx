@@ -22,6 +22,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { BillAllocationDialog } from '../bill-allocation-dialog';
 import { AddLedgerSheet } from '../add-ledger-sheet';
+import { VoucherNumberSettings } from '../voucher-number-settings';
+import { useVoucherNumbering } from '@/hooks/use-voucher-numbering';
 import { useFirebase } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
@@ -68,6 +70,7 @@ export function PaymentReceiptForm({ type, initialData, companyId, firmId }: Pay
     const [outstandingVouchers, setOutstandingVouchers] = React.useState<Voucher[]>([]);
     const [isAllocationDialogOpen, setIsAllocationDialogOpen] = React.useState(false);
     const isEditMode = !!initialData;
+    const numbering = useVoucherNumbering(firmId, companyId, type);
     const [isAddLedgerSheetOpen, setIsAddLedgerSheetOpen] = React.useState(false);
     const [addLedgerInitialValues, setAddLedgerInitialValues] = React.useState<Partial<Ledger> | undefined>();
     const [activeField, setActiveField] = React.useState<'party' | 'bank' | null>(null);
@@ -183,7 +186,7 @@ export function PaymentReceiptForm({ type, initialData, companyId, firmId }: Pay
         }
 
         const newVoucher: Omit<Voucher, 'id'> = {
-            voucherNumber: `FY24-AUTO-${Math.floor(Math.random() * 1000)}`, // Replace with real sequencing
+            voucherNumber: numbering.mode === 'auto' ? await numbering.claimNextNumber() : (numbering.manualNumber || `${type.substring(0,3).toUpperCase()}-${Date.now().toString().slice(-6)}`),
             voucherType: type,
             date: data.date,
             createdAt: serverTimestamp(),
@@ -249,7 +252,9 @@ export function PaymentReceiptForm({ type, initialData, companyId, firmId }: Pay
                     <Card>
                         <CardHeader>
                             <CardTitle>{isEditMode ? `Edit ${type}` : type} Voucher</CardTitle>
-                            <CardDescription>Record a {type.toLowerCase()} transaction.</CardDescription>
+                            <CardDescription>
+                                <VoucherNumberSettings {...numbering} isEditMode={isEditMode} editVoucherNumber={initialData?.voucherNumber} />
+                            </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
