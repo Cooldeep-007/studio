@@ -4,9 +4,14 @@ import {
   GoogleAuthProvider,
   GithubAuthProvider,
   OAuthProvider,
+  PhoneAuthProvider,
+  RecaptchaVerifier,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithPhoneNumber,
+  signInWithCredential,
   signOut as firebaseSignOut,
+  type ConfirmationResult,
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { initializeFirebase } from '@/firebase';
@@ -244,6 +249,62 @@ export async function signInWithMicrosoft(): Promise<AuthError | null> {
     }
     const authError = handleAuthError(error);
     logAuthEventServer('login_failed', { metadata: { error: authError.code, provider: 'microsoft' } });
+    return authError;
+  }
+}
+
+let recaptchaVerifier: RecaptchaVerifier | null = null;
+let confirmationResultStore: ConfirmationResult | null = null;
+
+export function cleanupPhoneAuth() {
+  confirmationResultStore = null;
+  if (recaptchaVerifier) {
+    recaptchaVerifier.clear();
+    recaptchaVerifier = null;
+  }
+}
+
+export async function sendPhoneOtp(phoneNumber: string, recaptchaElementId: string): Promise<AuthError | null> {
+  try {
+    if (recaptchaVerifier) {
+      recaptchaVerifier.clear();
+    }
+    recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaElementId, {
+      size: 'invisible',
+      callback: () => {},
+      'expired-callback': () => {},
+    });
+
+    confirmationResultStore = null;
+    const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+    confirmationResultStore = confirmationResult;
+    logAuthEventServer('phone_otp_sent', { metadata: { phone: phoneNumber } });
+    return null;
+  } catch (error: any) {
+    const authError = handleAuthError(error);
+    logAuthEventServer('phone_otp_failed', { metadata: { error: authError.code, phone: phoneNumber } });
+    cleanupPhoneAuth();
+    return authError;
+  }
+}
+
+export async function verifyPhoneOtp(otp: string): Promise<AuthError | null> {
+  try {
+    if (!confirmationResultStore) {
+      return { code: 'auth/no-confirmation', message: 'No OTP was sent. Please request a new code.' };
+    }
+    const result = await confirmationResultStore.confirm(otp);
+    logAuthEventServer('login', {
+      firebaseUid: result.user.uid,
+      email: result.user.phoneNumber || '',
+      displayName: result.user.displayName || '',
+      metadata: { provider: 'phone' },
+    });
+    confirmationResultStore = null;
+    return null;
+  } catch (error: any) {
+    const authError = handleAuthError(error);
+    logAuthEventServer('login_failed', { metadata: { error: authError.code, provider: 'phone' } });
     return authError;
   }
 }

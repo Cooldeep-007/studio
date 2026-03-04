@@ -29,9 +29,12 @@ import {
   signInWithGithub,
   signInWithMicrosoft,
   signInWithEmail,
+  sendPhoneOtp,
+  verifyPhoneOtp,
+  cleanupPhoneAuth,
   AuthError,
 } from '@/lib/auth-actions';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, Phone, Mail, ArrowLeft } from 'lucide-react';
 import { useUser } from '@/firebase/auth/use-user';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -41,6 +44,8 @@ const loginSchema = z.object({
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
+
+type LoginMode = 'main' | 'email' | 'phone-number' | 'phone-otp';
 
 function GoogleIcon() {
   return (
@@ -77,6 +82,10 @@ export default function LoginPage() {
   const { user, isLoading } = useUser();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [authError, setAuthError] = React.useState<string | null>(null);
+  const [mode, setMode] = React.useState<LoginMode>('main');
+  const [phoneNumber, setPhoneNumber] = React.useState('');
+  const [otp, setOtp] = React.useState('');
+  const [countdown, setCountdown] = React.useState(0);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -88,6 +97,13 @@ export default function LoginPage() {
       window.location.href = '/dashboard';
     }
   }, [user, isLoading]);
+
+  React.useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
 
   const handleError = (error: AuthError) => {
     if (error.code === 'auth/operation-not-allowed') {
@@ -130,11 +146,249 @@ export default function LoginPage() {
     }
   };
 
+  const handleSendOtp = async () => {
+    const raw = phoneNumber.trim().replace(/\s+/g, '');
+    if (!raw) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please enter a phone number.' });
+      return;
+    }
+
+    let formattedPhone = raw;
+    if (formattedPhone.startsWith('00')) {
+      formattedPhone = '+' + formattedPhone.slice(2);
+    } else if (!formattedPhone.startsWith('+')) {
+      formattedPhone = '+91' + formattedPhone;
+    }
+
+    setIsSubmitting(true);
+    setAuthError(null);
+
+    const error = await sendPhoneOtp(formattedPhone, 'recaptcha-container');
+    if (error) {
+      handleError(error);
+      setIsSubmitting(false);
+    } else {
+      setMode('phone-otp');
+      setCountdown(60);
+      setIsSubmitting(false);
+      toast({ title: 'OTP Sent', description: `Verification code sent to ${formattedPhone}` });
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp.trim() || otp.trim().length < 6) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please enter the 6-digit verification code.' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setAuthError(null);
+    const error = await verifyPhoneOtp(otp.trim());
+    if (error) {
+      handleError(error);
+      setIsSubmitting(false);
+    } else {
+      window.location.href = '/dashboard';
+    }
+  };
+
+  const handleResendOtp = () => {
+    cleanupPhoneAuth();
+    setOtp('');
+    setMode('phone-number');
+  };
+
+  const goBack = () => {
+    setAuthError(null);
+    setOtp('');
+    if (mode === 'phone-otp' || mode === 'phone-number') {
+      cleanupPhoneAuth();
+    }
+    if (mode === 'phone-otp') {
+      setMode('phone-number');
+    } else {
+      setMode('main');
+    }
+  };
+
   if (isLoading) {
     return (
       <Card className="w-full">
         <CardContent className="flex h-[450px] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (mode === 'email') {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goBack}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <CardTitle className="text-2xl">Sign In with Email</CardTitle>
+              <CardDescription>Enter your email and password.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {authError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Configuration Required</AlertTitle>
+              <AlertDescription>{authError}</AlertDescription>
+            </Alert>
+          )}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleEmailSignIn)} className="grid gap-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <Label htmlFor="email">Email</Label>
+                    <FormControl>
+                      <Input id="email" type="email" placeholder="m@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center">
+                      <Label htmlFor="password">Password</Label>
+                      <Link href="#" className="ml-auto inline-block text-sm underline">
+                        Forgot your password?
+                      </Link>
+                    </div>
+                    <FormControl>
+                      <Input id="password" type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Sign In
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (mode === 'phone-number') {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goBack}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <CardTitle className="text-2xl">Sign In with Phone</CardTitle>
+              <CardDescription>We'll send a verification code to your number.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {authError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{authError}</AlertDescription>
+            </Alert>
+          )}
+          <div className="grid gap-4">
+            <div>
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+91 9876543210"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Include country code (e.g., +91 for India, +1 for US)
+              </p>
+            </div>
+            <Button className="w-full" onClick={handleSendOtp} disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Send Verification Code
+            </Button>
+          </div>
+          <div id="recaptcha-container"></div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (mode === 'phone-otp') {
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goBack}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <CardTitle className="text-2xl">Enter Verification Code</CardTitle>
+              <CardDescription>
+                Enter the 6-digit code sent to {phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`}
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {authError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{authError}</AlertDescription>
+            </Alert>
+          )}
+          <div className="grid gap-4">
+            <div>
+              <Label htmlFor="otp">Verification Code</Label>
+              <Input
+                id="otp"
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="123456"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                className="mt-1 text-center text-2xl tracking-[0.5em] font-mono"
+                autoFocus
+              />
+            </div>
+            <Button className="w-full" onClick={handleVerifyOtp} disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Verify & Sign In
+            </Button>
+            <div className="text-center text-sm text-muted-foreground">
+              {countdown > 0 ? (
+                <span>Resend code in {countdown}s</span>
+              ) : (
+                <Button variant="link" className="p-0 h-auto text-sm" onClick={handleResendOtp}>
+                  Resend verification code
+                </Button>
+              )}
+            </div>
+          </div>
+          <div id="recaptcha-container"></div>
         </CardContent>
       </Card>
     );
@@ -153,9 +407,7 @@ export default function LoginPage() {
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Configuration Required</AlertTitle>
-            <AlertDescription>
-              {authError}
-            </AlertDescription>
+            <AlertDescription>{authError}</AlertDescription>
           </Alert>
         )}
         <div className="grid gap-3 mb-6">
@@ -171,6 +423,10 @@ export default function LoginPage() {
             <MicrosoftIcon />
             <span className="ml-2">Continue with Microsoft</span>
           </Button>
+          <Button variant="outline" className="w-full" onClick={() => setMode('phone-number')} disabled={isSubmitting}>
+            <Phone className="h-[18px] w-[18px]" />
+            <span className="ml-2">Continue with Phone</span>
+          </Button>
         </div>
         <div className="relative mb-6">
           <div className="absolute inset-0 flex items-center">
@@ -180,45 +436,10 @@ export default function LoginPage() {
             <span className="bg-card px-2 text-muted-foreground">Or continue with email</span>
           </div>
         </div>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleEmailSignIn)} className="grid gap-4">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <Label htmlFor="email">Email</Label>
-                  <FormControl>
-                    <Input id="email" type="email" placeholder="m@example.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center">
-                    <Label htmlFor="password">Password</Label>
-                    <Link href="#" className="ml-auto inline-block text-sm underline">
-                      Forgot your password?
-                    </Link>
-                  </div>
-                  <FormControl>
-                    <Input id="password" type="password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Sign In
-            </Button>
-          </form>
-        </Form>
+        <Button variant="outline" className="w-full" onClick={() => setMode('email')} disabled={isSubmitting}>
+          <Mail className="h-[18px] w-[18px]" />
+          <span className="ml-2">Sign in with Email & Password</span>
+        </Button>
         <div className="mt-4 text-center text-sm">
           Don&apos;t have an account?{' '}
           <Link href="/signup" className="underline">

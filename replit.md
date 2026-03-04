@@ -72,6 +72,7 @@ Sign-in providers on the login page:
 - **Google** — OAuth via popup (GoogleAuthProvider)
 - **GitHub** — OAuth via popup (GithubAuthProvider) — requires enabling in Firebase Console
 - **Microsoft** — OAuth via popup (OAuthProvider 'microsoft.com') — requires enabling in Firebase Console
+- **Phone (OTP)** — SMS verification via Firebase PhoneAuthProvider with invisible reCAPTCHA — requires enabling in Firebase Console
 
 All cross-layout navigation (auth ↔ app route groups) uses `window.location.href` / `window.location.replace` to prevent Next.js "Segment mismatch" errors that cause page flickering.
 
