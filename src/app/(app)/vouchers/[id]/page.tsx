@@ -11,6 +11,15 @@ import {
   FileText,
   FileSpreadsheet,
   Loader2,
+  IndianRupee,
+  CreditCard,
+  Banknote,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Building2,
+  MapPin,
+  Hash,
 } from 'lucide-react';
 import {
   Card,
@@ -37,14 +46,19 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { useToast } from '@/hooks/use-toast';
 import { useFirebase, useDoc, useCollection, useMemoFirebase } from '@/firebase';
 import { useUser } from '@/firebase/auth/use-user';
-import { doc, collection } from 'firebase/firestore';
-import type { Voucher, Company, Ledger } from '@/lib/types';
+import { doc, collection, addDoc, updateDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import type { Voucher, Company, Ledger, InvoiceItem } from '@/lib/types';
 import { format } from 'date-fns';
 
 const formatCurrency = (amount: number) => {
@@ -124,6 +138,15 @@ export default function VoucherViewPage() {
   const { profile } = useUser();
   const { toast } = useToast();
   const [isExporting, setIsExporting] = React.useState(false);
+  const [showPaymentDialog, setShowPaymentDialog] = React.useState(false);
+  const [paymentAmount, setPaymentAmount] = React.useState(0);
+  const [paymentDate, setPaymentDate] = React.useState(format(new Date(), 'yyyy-MM-dd'));
+  const [paymentMode, setPaymentMode] = React.useState('');
+  const [paymentLedgerId, setPaymentLedgerId] = React.useState('');
+  const [paymentRef, setPaymentRef] = React.useState('');
+  const [paymentNarration, setPaymentNarration] = React.useState('');
+  const [isSubmittingPayment, setIsSubmittingPayment] = React.useState(false);
+  const [linkedPayments, setLinkedPayments] = React.useState<Voucher[]>([]);
 
   const voucherId = params.id as string;
   const companyId = searchParams.get('companyId');
@@ -169,6 +192,138 @@ export default function VoucherViewPage() {
     return { subtotal, totalGst, grandTotal };
   }, [voucher]);
 
+  const partyLedger = voucher?.partyLedgerId ? ledgerMap.get(voucher.partyLedgerId) : null;
+
+  const bankCashLedgers = React.useMemo(() => {
+    if (!ledgers) return [];
+    return ledgers.filter(l => l.group === 'Bank Accounts' || l.group === 'Cash-in-Hand');
+  }, [ledgers]);
+
+  const isInvoiceType = voucher?.voucherType === 'Sales' || voucher?.voucherType === 'Purchase' || voucher?.voucherType === 'Adhoc Sale' || voucher?.voucherType === 'Adhoc Purchase' || voucher?.voucherType === 'Credit Note' || voucher?.voucherType === 'Debit Note';
+  const isSaleType = voucher?.voucherType === 'Sales' || voucher?.voucherType === 'Adhoc Sale' || voucher?.voucherType === 'Debit Note';
+  const paymentLabel = isSaleType ? 'Record Receipt' : 'Record Payment';
+
+  React.useEffect(() => {
+    if (!firestore || !profile?.firmId || !companyId || !voucherId) return;
+    const fetchLinkedPayments = async () => {
+      const vouchersCol = collection(firestore, 'firms', profile.firmId, 'companies', companyId, 'vouchers');
+      const q = query(vouchersCol, where('billAllocations', '!=', null));
+      const snapshot = await getDocs(q);
+      const linked: Voucher[] = [];
+      snapshot.forEach(d => {
+        const v = { id: d.id, ...d.data() } as Voucher;
+        if (v.billAllocations?.some(b => b.voucherId === voucherId)) {
+          linked.push(v);
+        }
+      });
+      setLinkedPayments(linked);
+    };
+    fetchLinkedPayments();
+  }, [firestore, profile?.firmId, companyId, voucherId]);
+
+  const openPaymentDialog = () => {
+    const outstanding = voucher?.outstandingAmount ?? voucher?.totalDebit ?? 0;
+    setPaymentAmount(outstanding);
+    setPaymentDate(format(new Date(), 'yyyy-MM-dd'));
+    setPaymentMode('');
+    setPaymentLedgerId('');
+    setPaymentRef('');
+    setPaymentNarration(isSaleType ? `Receipt against ${voucher?.voucherNumber}` : `Payment against ${voucher?.voucherNumber}`);
+    setShowPaymentDialog(true);
+  };
+
+  const handlePaymentSubmit = async () => {
+    if (!firestore || !profile?.firmId || !companyId || !voucher) return;
+    if (!voucher.partyLedgerId) {
+      toast({ variant: 'destructive', title: 'Error', description: 'This voucher has no party ledger. Cannot record payment.' });
+      return;
+    }
+    if (!paymentLedgerId || paymentAmount <= 0) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please select a bank/cash ledger and enter a valid amount.' });
+      return;
+    }
+    const maxOutstanding = voucher.outstandingAmount ?? voucher.invoiceDetails?.grandTotal ?? voucher.totalDebit;
+    if (paymentAmount > maxOutstanding) {
+      toast({ variant: 'destructive', title: 'Error', description: `Amount cannot exceed outstanding balance of ${formatCurrency(maxOutstanding)}.` });
+      return;
+    }
+    setIsSubmittingPayment(true);
+    try {
+      const voucherType = isSaleType ? 'Receipt' : 'Payment';
+      const entries = isSaleType
+        ? [
+            { ledgerId: paymentLedgerId, type: 'Dr' as const, amount: paymentAmount },
+            { ledgerId: voucher.partyLedgerId!, type: 'Cr' as const, amount: paymentAmount },
+          ]
+        : [
+            { ledgerId: voucher.partyLedgerId!, type: 'Dr' as const, amount: paymentAmount },
+            { ledgerId: paymentLedgerId, type: 'Cr' as const, amount: paymentAmount },
+          ];
+
+      const newPaymentVoucher: any = {
+        voucherNumber: `${voucherType.substring(0, 3).toUpperCase()}-${Date.now().toString().slice(-6)}`,
+        voucherType,
+        date: new Date(paymentDate),
+        createdAt: serverTimestamp(),
+        narration: paymentNarration,
+        entries,
+        totalDebit: paymentAmount,
+        totalCredit: paymentAmount,
+        firmId: profile.firmId,
+        companyId,
+        createdByUserId: profile.uid || 'user',
+        isReconciled: false,
+        isCancelled: false,
+        partyLedgerId: voucher.partyLedgerId,
+        paymentMode,
+        referenceNumber: paymentRef || undefined,
+        billAllocations: [
+          { voucherId: voucher.id, voucherNumber: voucher.voucherNumber, amount: paymentAmount }
+        ],
+        status: 'Paid',
+      };
+
+      const removeUndefined = (obj: any): any => {
+        if (obj === null || obj === undefined) return null;
+        if (typeof obj !== 'object') return obj;
+        if (Array.isArray(obj)) return obj.map(removeUndefined);
+        if (obj instanceof Date) return obj;
+        if (typeof obj === 'object' && '_methodName' in obj) return obj;
+        const cleaned: any = {};
+        for (const [k, v] of Object.entries(obj)) {
+          if (v !== undefined) {
+            cleaned[k] = typeof v === 'object' && v !== null && !(v instanceof Date) && !('_methodName' in (v as any))
+              ? removeUndefined(v) : v;
+          }
+        }
+        return cleaned;
+      };
+
+      const vouchersCol = collection(firestore, 'firms', profile.firmId, 'companies', companyId, 'vouchers');
+      const newDocRef = await addDoc(vouchersCol, removeUndefined(newPaymentVoucher));
+
+      const currentOutstanding = voucher.outstandingAmount ?? voucher.invoiceDetails?.grandTotal ?? voucher.totalDebit;
+      const newOutstanding = Math.max(0, currentOutstanding - paymentAmount);
+      const newStatus = newOutstanding <= 0 ? 'Paid' : 'Partial';
+
+      const voucherDocRef = doc(firestore, 'firms', profile.firmId, 'companies', companyId, 'vouchers', voucher.id);
+      await updateDoc(voucherDocRef, {
+        outstandingAmount: newOutstanding,
+        status: newStatus,
+      });
+
+      toast({ title: `${voucherType} Recorded`, description: `${formatCurrency(paymentAmount)} ${voucherType.toLowerCase()} recorded against ${voucher.voucherNumber}.` });
+      setShowPaymentDialog(false);
+
+      setLinkedPayments(prev => [...prev, { ...removeUndefined(newPaymentVoucher), id: newDocRef.id, createdAt: new Date() } as any]);
+
+    } catch (error) {
+      console.error(error);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to record payment. Please try again.' });
+    } finally {
+      setIsSubmittingPayment(false);
+    }
+  };
 
   const handleExport = (formatType: 'pdf' | 'xlsx') => {
     if (!voucher || !company) {
@@ -496,66 +651,346 @@ export default function VoucherViewPage() {
         </div>
       </div>
       <Card className="w-full max-w-4xl mx-auto print:shadow-none print:border-none">
-        <CardHeader className="bg-muted/50 p-6 print:bg-transparent">
+        <CardHeader className="p-6 print:bg-transparent">
             <div className="flex justify-between items-start">
                 <div>
-                    <Badge className={badgeColors[voucher.voucherType]}>{voucher.voucherType}</Badge>
+                    <div className="flex items-center gap-2">
+                        <Badge className={badgeColors[voucher.voucherType]}>{voucher.voucherType}</Badge>
+                        {voucher.status && (
+                            <Badge variant={voucher.status === 'Paid' ? 'default' : voucher.status === 'Partial' ? 'secondary' : 'destructive'}
+                                className={voucher.status === 'Paid' ? 'bg-green-100 text-green-800' : voucher.status === 'Partial' ? 'bg-amber-100 text-amber-800' : ''}>
+                                {voucher.status === 'Paid' && <CheckCircle2 className="mr-1 h-3 w-3" />}
+                                {voucher.status === 'Partial' && <Clock className="mr-1 h-3 w-3" />}
+                                {voucher.status === 'Unpaid' && <AlertCircle className="mr-1 h-3 w-3" />}
+                                {voucher.status}
+                            </Badge>
+                        )}
+                    </div>
                     <h2 className="text-2xl font-bold mt-2">{voucher.voucherNumber}</h2>
+                    {isInvoiceType && <p className="text-sm text-muted-foreground mt-1">{voucher.voucherType === 'Sales' || voucher.voucherType === 'Adhoc Sale' ? 'Tax Invoice' : 'Purchase Invoice'}</p>}
                 </div>
-                <div className="text-right">
+                <div className="text-right space-y-1">
                     <p className="text-lg font-semibold">{format(voucherDate, 'dd MMM, yyyy')}</p>
                     <p className="text-sm text-muted-foreground">Voucher Date</p>
+                    {voucher.invoiceDetails?.dueDate && (
+                        <>
+                            <p className="text-sm font-medium">{format(voucher.invoiceDetails.dueDate instanceof Date ? voucher.invoiceDetails.dueDate : (voucher.invoiceDetails.dueDate as any).toDate(), 'dd MMM, yyyy')}</p>
+                            <p className="text-xs text-muted-foreground">Due Date</p>
+                        </>
+                    )}
                 </div>
             </div>
-            {voucher.partyLedgerId && (
-                <div className="pt-4">
-                    <p className="text-sm text-muted-foreground">Party</p>
-                    <p className="font-medium">{partyLedgerName}</p>
-                </div>
-            )}
         </CardHeader>
-        <CardContent className="p-6">
-            <div className="grid gap-4">
-                <p className="text-sm text-muted-foreground">Transaction Details</p>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Particulars</TableHead>
-                            <TableHead className="text-right">Debit</TableHead>
-                            <TableHead className="text-right">Credit</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {voucher.entries.map((entry, index) => (
-                            <TableRow key={index}>
-                                <TableCell className="font-medium">{ledgerMap.get(entry.ledgerId)?.ledgerName}</TableCell>
-                                <TableCell className="text-right font-mono">{entry.type === 'Dr' ? formatCurrency(entry.amount) : ''}</TableCell>
-                                <TableCell className="text-right font-mono">{entry.type === 'Cr' ? formatCurrency(entry.amount) : ''}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-                <Separator />
-                <div className="flex justify-end">
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-1 w-full max-w-xs">
-                        <span className="font-semibold">Total Debit</span>
-                        <span className="text-right font-semibold font-mono">{formatCurrency(voucher.totalDebit)}</span>
-                        <span className="font-semibold">Total Credit</span>
-                        <span className="text-right font-semibold font-mono">{formatCurrency(voucher.totalCredit)}</span>
+
+        <CardContent className="p-6 pt-0 space-y-6">
+            {isInvoiceType && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-muted/30 rounded-lg">
+                    <div>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{isSaleType ? 'From (Seller)' : 'To (Supplier)'}</p>
+                        <div className="space-y-1">
+                            <p className="font-semibold text-lg flex items-center gap-2"><Building2 className="h-4 w-4 text-primary" />{company.companyName}</p>
+                            {company.gstin && <p className="text-sm text-muted-foreground flex items-center gap-1"><Hash className="h-3 w-3" />GSTIN: {company.gstin}</p>}
+                            {company.address && <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />{company.address}</p>}
+                        </div>
+                    </div>
+                    <div>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{isSaleType ? 'To (Buyer)' : 'From (Vendor)'}</p>
+                        <div className="space-y-1">
+                            <p className="font-semibold text-lg">{partyLedgerName}</p>
+                            {partyLedger?.gstDetails?.gstin && <p className="text-sm text-muted-foreground flex items-center gap-1"><Hash className="h-3 w-3" />GSTIN: {partyLedger.gstDetails.gstin}</p>}
+                            {partyLedger?.contactDetails?.addressLine1 && (
+                                <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />
+                                    {[partyLedger.contactDetails.addressLine1, partyLedger.contactDetails.city, partyLedger.contactDetails.state, partyLedger.contactDetails.pincode].filter(Boolean).join(', ')}
+                                </p>
+                            )}
+                            {partyLedger?.contactDetails?.email && <p className="text-sm text-muted-foreground">{partyLedger.contactDetails.email}</p>}
+                            {partyLedger?.contactDetails?.mobileNumber && <p className="text-sm text-muted-foreground">{partyLedger.contactDetails.mobileNumber}</p>}
+                            {partyLedger?.contactDetails?.pan && <p className="text-sm text-muted-foreground">PAN: {partyLedger.contactDetails.pan}</p>}
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
+
+            {!isInvoiceType && voucher.partyLedgerId && (
+                <div className="p-4 bg-muted/30 rounded-lg">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Party</p>
+                    <p className="font-semibold text-lg">{partyLedgerName}</p>
+                </div>
+            )}
+
+            {isInvoiceType && voucher.invoiceDetails && (
+                <div className="flex flex-wrap gap-4 text-sm">
+                    {voucher.invoiceDetails.placeOfSupply && (
+                        <div className="px-3 py-1.5 bg-secondary rounded-md"><span className="text-muted-foreground">Place of Supply: </span><span className="font-medium">{voucher.invoiceDetails.placeOfSupply}</span></div>
+                    )}
+                    {voucher.invoiceDetails.isReverseCharge && (
+                        <div className="px-3 py-1.5 bg-amber-50 text-amber-800 rounded-md font-medium">Reverse Charge Applicable</div>
+                    )}
+                    {voucher.invoiceDetails.eInvoiceRef && (
+                        <div className="px-3 py-1.5 bg-secondary rounded-md"><span className="text-muted-foreground">e-Invoice: </span><span className="font-medium">{voucher.invoiceDetails.eInvoiceRef}</span></div>
+                    )}
+                    {voucher.invoiceDetails.eWayBillNo && (
+                        <div className="px-3 py-1.5 bg-secondary rounded-md"><span className="text-muted-foreground">e-Way Bill: </span><span className="font-medium">{voucher.invoiceDetails.eWayBillNo}</span></div>
+                    )}
+                </div>
+            )}
+
+            {isInvoiceType && voucher.invoiceDetails?.items && (
+                <>
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="bg-muted/50">
+                                <TableHead className="w-8">#</TableHead>
+                                <TableHead>Item / Service</TableHead>
+                                <TableHead>HSN/SAC</TableHead>
+                                <TableHead className="text-right">Qty</TableHead>
+                                <TableHead className="text-right">Rate</TableHead>
+                                <TableHead className="text-right">Disc%</TableHead>
+                                <TableHead className="text-right">Taxable</TableHead>
+                                <TableHead className="text-right">GST%</TableHead>
+                                <TableHead className="text-right">GST Amt</TableHead>
+                                <TableHead className="text-right">Total</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {voucher.invoiceDetails.items.map((item: InvoiceItem, index: number) => (
+                                <TableRow key={index}>
+                                    <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                                    <TableCell className="font-medium">{item.name}</TableCell>
+                                    <TableCell className="text-muted-foreground">{item.hsnCode || item.sacCode || '-'}</TableCell>
+                                    <TableCell className="text-right">{item.quantity} {item.uqc}</TableCell>
+                                    <TableCell className="text-right font-mono">{formatCurrency(item.rate)}</TableCell>
+                                    <TableCell className="text-right">{item.discount || 0}%</TableCell>
+                                    <TableCell className="text-right font-mono">{formatCurrency(item.amount)}</TableCell>
+                                    <TableCell className="text-right">{item.gstRate}%</TableCell>
+                                    <TableCell className="text-right font-mono">{formatCurrency(item.cgst + item.sgst + item.igst)}</TableCell>
+                                    <TableCell className="text-right font-mono font-medium">{formatCurrency(item.total)}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+
+                    <div className="flex justify-end">
+                        <div className="w-full max-w-sm space-y-2 text-sm">
+                            <div className="flex justify-between"><span>Subtotal</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.subtotal + (voucher.invoiceDetails.totalDiscount || 0))}</span></div>
+                            {(voucher.invoiceDetails.totalDiscount || 0) > 0 && (
+                                <div className="flex justify-between text-red-600"><span>Discount</span><span className="font-mono">-{formatCurrency(voucher.invoiceDetails.totalDiscount)}</span></div>
+                            )}
+                            <Separator />
+                            <div className="flex justify-between font-medium"><span>Taxable Value</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.subtotal)}</span></div>
+                            {voucher.invoiceDetails.items.some((i: InvoiceItem) => i.cgst > 0) && (
+                                <>
+                                    <div className="flex justify-between text-muted-foreground"><span>CGST</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.items.reduce((s: number, i: InvoiceItem) => s + i.cgst, 0))}</span></div>
+                                    <div className="flex justify-between text-muted-foreground"><span>SGST</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.items.reduce((s: number, i: InvoiceItem) => s + i.sgst, 0))}</span></div>
+                                </>
+                            )}
+                            {voucher.invoiceDetails.items.some((i: InvoiceItem) => i.igst > 0) && (
+                                <div className="flex justify-between text-muted-foreground"><span>IGST</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.items.reduce((s: number, i: InvoiceItem) => s + i.igst, 0))}</span></div>
+                            )}
+                            {(voucher.invoiceDetails.tcsAmount || 0) > 0 && (
+                                <div className="flex justify-between text-muted-foreground"><span>TCS</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.tcsAmount!)}</span></div>
+                            )}
+                            {(voucher.invoiceDetails.adjustment || 0) !== 0 && (
+                                <div className="flex justify-between text-muted-foreground"><span>Adjustment</span><span className="font-mono">{voucher.invoiceDetails.adjustment! > 0 ? '+' : ''}{formatCurrency(voucher.invoiceDetails.adjustment!)}</span></div>
+                            )}
+                            {(voucher.invoiceDetails.roundOff || 0) !== 0 && (
+                                <div className="flex justify-between text-muted-foreground"><span>Round Off</span><span className="font-mono">{(voucher.invoiceDetails.roundOff || 0).toFixed(2)}</span></div>
+                            )}
+                            <Separator />
+                            <div className="flex justify-between text-lg font-bold"><span>Grand Total</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.grandTotal)}</span></div>
+                            <p className="text-xs text-muted-foreground italic pt-1">{toWords(voucher.invoiceDetails.grandTotal)}</p>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {!isInvoiceType && (
+                <>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Particulars</TableHead>
+                                <TableHead className="text-right">Debit</TableHead>
+                                <TableHead className="text-right">Credit</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {voucher.entries.map((entry, index) => (
+                                <TableRow key={index}>
+                                    <TableCell className="font-medium">{ledgerMap.get(entry.ledgerId)?.ledgerName || entry.ledgerId}</TableCell>
+                                    <TableCell className="text-right font-mono">{entry.type === 'Dr' ? formatCurrency(entry.amount) : ''}</TableCell>
+                                    <TableCell className="text-right font-mono">{entry.type === 'Cr' ? formatCurrency(entry.amount) : ''}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                    <Separator />
+                    <div className="flex justify-end">
+                        <div className="grid grid-cols-2 gap-x-8 gap-y-1 w-full max-w-xs">
+                            <span className="font-semibold">Total Debit</span>
+                            <span className="text-right font-semibold font-mono">{formatCurrency(voucher.totalDebit)}</span>
+                            <span className="font-semibold">Total Credit</span>
+                            <span className="text-right font-semibold font-mono">{formatCurrency(voucher.totalCredit)}</span>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {isInvoiceType && voucher.partyLedgerId && voucher.status !== 'Paid' && (() => {
+                const outstanding = voucher.outstandingAmount ?? voucher.invoiceDetails?.grandTotal ?? voucher.totalDebit;
+                return outstanding > 0 ? (
+                    <div className="flex items-center justify-between p-4 rounded-lg border-2 border-amber-200 bg-amber-50">
+                        <div>
+                            <p className="text-sm font-medium text-amber-800">Outstanding Amount</p>
+                            <p className="text-2xl font-bold text-amber-900">{formatCurrency(outstanding)}</p>
+                        </div>
+                        <Button onClick={openPaymentDialog} className="print:hidden">
+                            {isSaleType ? <Banknote className="mr-2 h-4 w-4" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                            {paymentLabel}
+                        </Button>
+                    </div>
+                ) : null;
+            })()}
+
+            {voucher.outstandingAmount === 0 && voucher.status === 'Paid' && isInvoiceType && (
+                <div className="flex items-center gap-2 p-4 rounded-lg bg-green-50 border border-green-200">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    <p className="text-sm font-medium text-green-800">Fully Paid</p>
+                </div>
+            )}
+
             {voucher.narration && (
-                <div className="mt-6">
+                <div>
                     <p className="text-sm font-medium text-muted-foreground">Narration</p>
                     <p className="mt-1 p-3 bg-secondary rounded-md text-sm">{voucher.narration}</p>
                 </div>
             )}
+
+            {voucher.invoiceDetails?.remarks && voucher.invoiceDetails.remarks !== voucher.narration && (
+                <div>
+                    <p className="text-sm font-medium text-muted-foreground">Remarks / Terms</p>
+                    <p className="mt-1 p-3 bg-secondary rounded-md text-sm whitespace-pre-wrap">{voucher.invoiceDetails.remarks}</p>
+                </div>
+            )}
+
+            {isInvoiceType && (
+                <div className="grid gap-4">
+                    <p className="text-sm font-medium text-muted-foreground">Accounting Entries</p>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Particulars</TableHead>
+                                <TableHead className="text-right">Debit</TableHead>
+                                <TableHead className="text-right">Credit</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {voucher.entries.map((entry, index) => (
+                                <TableRow key={index}>
+                                    <TableCell className="font-medium">{ledgerMap.get(entry.ledgerId)?.ledgerName || entry.ledgerId}</TableCell>
+                                    <TableCell className="text-right font-mono">{entry.type === 'Dr' ? formatCurrency(entry.amount) : ''}</TableCell>
+                                    <TableCell className="text-right font-mono">{entry.type === 'Cr' ? formatCurrency(entry.amount) : ''}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
+
+            {linkedPayments.length > 0 && (
+                <div className="space-y-3">
+                    <p className="text-sm font-medium text-muted-foreground">{isSaleType ? 'Receipt History' : 'Payment History'}</p>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Voucher No</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Mode</TableHead>
+                                <TableHead>Reference</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {linkedPayments.map((pv, i) => {
+                                const pvDate = pv.date instanceof Date ? pv.date : (pv.date as any)?.toDate?.() || new Date();
+                                const allocation = pv.billAllocations?.find(b => b.voucherId === voucherId);
+                                return (
+                                    <TableRow key={i}>
+                                        <TableCell className="font-medium">{pv.voucherNumber}</TableCell>
+                                        <TableCell>{format(pvDate, 'dd MMM yyyy')}</TableCell>
+                                        <TableCell>{pv.paymentMode || '-'}</TableCell>
+                                        <TableCell>{pv.referenceNumber || '-'}</TableCell>
+                                        <TableCell className="text-right font-mono font-medium text-green-700">{formatCurrency(allocation?.amount || pv.totalDebit)}</TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
         </CardContent>
-         <CardFooter className="bg-muted/50 p-4 text-xs text-muted-foreground text-center justify-center print:hidden">
+        <CardFooter className="bg-muted/50 p-4 text-xs text-muted-foreground text-center justify-center print:hidden">
             <p>Created on {format(createdAtDate, 'PPpp')}</p>
         </CardFooter>
       </Card>
+
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle>{paymentLabel}</DialogTitle>
+                <DialogDescription>Record a {isSaleType ? 'receipt' : 'payment'} against voucher {voucher.voucherNumber}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                    <Label>Amount</Label>
+                    <Input type="number" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)} />
+                </div>
+                <div className="space-y-2">
+                    <Label>Date</Label>
+                    <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                    <Label>Payment Mode</Label>
+                    <Select value={paymentMode} onValueChange={setPaymentMode}>
+                        <SelectTrigger><SelectValue placeholder="Select mode" /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Cash">Cash</SelectItem>
+                            <SelectItem value="NEFT/RTGS">NEFT / RTGS</SelectItem>
+                            <SelectItem value="UPI">UPI</SelectItem>
+                            <SelectItem value="Cheque">Cheque</SelectItem>
+                            <SelectItem value="Card">Card</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label>{isSaleType ? 'Received Into' : 'Paid From'} (Bank / Cash Ledger)</Label>
+                    <Select value={paymentLedgerId} onValueChange={setPaymentLedgerId}>
+                        <SelectTrigger><SelectValue placeholder="Select ledger" /></SelectTrigger>
+                        <SelectContent>
+                            {bankCashLedgers.map(l => (
+                                <SelectItem key={l.id} value={l.id}>{l.ledgerName}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label>Reference / Transaction No.</Label>
+                    <Input placeholder="e.g., UTR, Cheque No." value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                    <Label>Narration</Label>
+                    <Textarea value={paymentNarration} onChange={(e) => setPaymentNarration(e.target.value)} />
+                </div>
+            </div>
+            <DialogFooter>
+                <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
+                <Button onClick={handlePaymentSubmit} disabled={isSubmittingPayment || !paymentLedgerId || paymentAmount <= 0}>
+                    {isSubmittingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isSaleType ? 'Record Receipt' : 'Record Payment'}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -179,6 +179,8 @@ export type InvoiceItem = {
     itemId: string;
     name: string;
     description?: string;
+    hsnCode?: string;
+    sacCode?: string;
     quantity: number;
     rate: number;
     uqc: string;

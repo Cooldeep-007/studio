@@ -59,6 +59,17 @@ Accessible at `/admin` (Owner/Admin roles only). Features:
 - Downloadable reports in CSV (Excel) and PDF format
 - Top users and login statistics
 
+## Voucher View (`/vouchers/[id]`)
+
+Enhanced invoice-style view page with:
+- **Company & Party sections**: Shows seller/buyer info with GSTIN, address, contact details
+- **Items table**: Full line-item breakdown with HSN/SAC, qty, rate, discount, taxable amount, GST breakdown (CGST/SGST/IGST), and totals
+- **Summary section**: Subtotal, discount, taxable value, GST components, TCS, adjustment, round off, grand total with amount in words
+- **Payment status**: Badges for Paid/Partial/Unpaid with outstanding amount display
+- **Instant Payment/Receipt**: Dialog to record payments against invoices — creates linked Payment/Receipt vouchers in Firestore, updates outstanding amount and status, tracks bill allocations
+- **Payment history**: Shows all linked payments/receipts with amounts
+- Non-invoice vouchers (Journal, Payment, Receipt, Contra) retain the original Dr/Cr entries table view
+
 ## Development
 
 - **Dev server**: `npm run dev` → runs on `0.0.0.0:5000`
