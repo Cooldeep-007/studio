@@ -151,6 +151,8 @@ export default function VoucherViewPage() {
     return new Map(ledgers.map(l => [l.id, l]));
   }, [ledgers]);
 
+  const partyLedgerName = voucher?.partyLedgerId ? ledgerMap.get(voucher.partyLedgerId)?.ledgerName || 'N/A' : 'N/A';
+
   const calculations = React.useMemo(() => {
     if (!voucher?.invoiceDetails) return null;
     const { items } = voucher.invoiceDetails;
