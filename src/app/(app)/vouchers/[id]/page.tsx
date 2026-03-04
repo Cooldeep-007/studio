@@ -935,12 +935,12 @@ export default function VoucherViewPage() {
       </Card>
 
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
             <DialogHeader>
                 <DialogTitle>{paymentLabel}</DialogTitle>
                 <DialogDescription>Record a {isSaleType ? 'receipt' : 'payment'} against voucher {voucher.voucherNumber}</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
+            <div className="space-y-4 py-4 overflow-y-auto flex-1">
                 <div className="space-y-2">
                     <Label>Amount</Label>
                     <Input type="number" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)} />
@@ -982,7 +982,7 @@ export default function VoucherViewPage() {
                     <Textarea value={paymentNarration} onChange={(e) => setPaymentNarration(e.target.value)} />
                 </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="border-t pt-4">
                 <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
                 <Button onClick={handlePaymentSubmit} disabled={isSubmittingPayment || !paymentLedgerId || paymentAmount <= 0}>
                     {isSubmittingPayment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
