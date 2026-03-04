@@ -96,7 +96,7 @@ Configurable per company/voucher type with Auto or Manual mode:
 - **Sidebar navigation**: ALWAYS use `router.push()` (not `asChild` + `Link`) for `SidebarMenuButton` items — multiple Radix Slot layers break Link clicks.
 - **Cross-layout navigation**: ALWAYS use `window.location.href` between `(auth)` and `(app)` route groups.
 - **Sheet/Dialog dropdowns**: NEVER use Radix Select/Popover inside a Sheet or Dialog — use native HTML `<select>` and `<input type="date">` elements instead. This avoids compose-refs infinite loop errors.
-- **Radix deduplication**: `postinstall` script removes nested `@radix-ui/react-slot` duplicate from `react-primitive` to prevent compose-refs infinite loop (version 1.1.2 vs 1.2.3 mismatch).
+- **Radix compose-refs patch**: `patch-package` patches `@radix-ui/react-compose-refs@1.1.1` to remove cleanup-return logic that causes infinite loops in React 18. Postinstall also deduplicates nested compose-refs copies so all Radix packages use the single patched version. Patch file: `patches/@radix-ui+react-compose-refs+1.1.1.patch`. Dedupe script: `scripts/dedupe-radix.js`.
 - **Firestore writes**: ALWAYS strip `undefined` values before writing. Use `removeUndefined()` with `_methodName` sentinel detection.
 
 ## Development
