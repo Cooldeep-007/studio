@@ -35,6 +35,7 @@ const creditNoteSchema = z.object({
   customerLedgerId: z.string().min(1, 'Customer is required.'),
   originalInvoiceNo: z.string().optional(),
   placeOfSupply: z.string().min(1, 'Place of supply is required.'),
+  adjustment: z.coerce.number().default(0),
   remarks: z.string().optional(),
   items: z.array(lineItemSchema).min(1, 'At least one item is required.'),
 });
@@ -44,6 +45,7 @@ type ItemFormValues = z.infer<typeof lineItemSchema>;
 
 const defaultValues: Partial<FormValues> = {
     noteDate: new Date(),
+    adjustment: 0,
     items: [{ itemId: '', quantity: 1, rate: 0 }],
 };
 
@@ -165,9 +167,10 @@ export function CreditNoteForm() {
         }).filter(Boolean) as (InvoiceItem & { itemId: string })[];
 
         const totalGst = totalCgst + totalSgst + totalIgst;
-        const grandTotal = subtotal + totalGst;
+        const adjustment = watchedForm.adjustment || 0;
+        const grandTotal = subtotal + totalGst + adjustment;
 
-        return { items: processedItems, subtotal, totalCgst, totalSgst, totalIgst, totalGst, grandTotal, isIntraState };
+        return { items: processedItems, subtotal, totalCgst, totalSgst, totalIgst, totalGst, adjustment, grandTotal, isIntraState };
     }, [watchedForm, items, company]);
 
 
@@ -252,6 +255,12 @@ export function CreditNoteForm() {
                                     ) : (
                                         <div className="flex justify-between text-muted-foreground"><span>IGST Reversed</span><span>{formatCurrency(calculations.totalIgst)}</span></div>
                                     )}
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Adjustment (+/-)</span>
+                                        <FormField control={form.control} name="adjustment" render={({ field }) => (
+                                            <Input type="number" step="0.01" placeholder="0.00" className="w-28 h-7 text-right text-sm" {...field} onChange={(e) => field.onChange(e.target.value === '' ? 0 : parseFloat(e.target.value))} />
+                                        )} />
+                                    </div>
                                     <Separator />
                                     <div className="flex justify-between text-lg font-bold"><span>Total Credit</span><span>{formatCurrency(calculations.grandTotal)}</span></div>
                                 </div>

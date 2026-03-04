@@ -227,6 +227,7 @@ export type Voucher = {
     totalDiscount: number;
     totalGst: number;
     tcsAmount?: number;
+    adjustment?: number;
     roundOff?: number;
     grandTotal: number;
     placeOfSupply: string;

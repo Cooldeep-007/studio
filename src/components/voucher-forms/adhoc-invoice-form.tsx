@@ -48,6 +48,7 @@ const adhocVoucherSchema = z.object({
   isReverseCharge: z.boolean().default(false),
   tdsApplicable: z.boolean().default(false),
   tcsApplicable: z.boolean().default(false),
+  adjustment: z.coerce.number().default(0),
   remarks: z.string().optional(),
   items: z.array(lineItemSchema).min(1, 'At least one item is required.'),
 });
@@ -62,6 +63,7 @@ const defaultValues: Partial<FormValues> = {
     isReverseCharge: false,
     tdsApplicable: false,
     tcsApplicable: false,
+    adjustment: 0,
     remarks: "",
     items: [{ itemId: '', quantity: 1, rate: 0, discount: 0 }],
 };
@@ -253,13 +255,14 @@ export function AdhocVoucherForm({ initialData }: AdhocVoucherFormProps) {
         const tcsAmount = voucherType === 'Adhoc Sale' && watchedForm.tcsApplicable ? (taxableValue * (tcsRate / 100)) : 0;
         const tdsAmount = voucherType === 'Adhoc Purchase' && watchedForm.tdsApplicable ? (taxableValue * (tdsRate / 100)) : 0;
         
-        const grandTotalRaw = subtotal + totalGst + tcsAmount;
+        const adjustment = watchedForm.adjustment || 0;
+        const grandTotalRaw = subtotal + totalGst + tcsAmount + adjustment;
         const roundedTotal = Math.round(grandTotalRaw);
         const roundOff = roundedTotal - grandTotalRaw;
         const netPayableReceivable = roundedTotal - tdsAmount;
         
 
-        return { items: processedItems, subtotal, totalDiscount, totalCgst, totalSgst, totalIgst, totalGst, tcsAmount, tdsAmount, grandTotal: roundedTotal, roundOff, isIntraState, taxableValue, netPayableReceivable };
+        return { items: processedItems, subtotal, totalDiscount, totalCgst, totalSgst, totalIgst, totalGst, tcsAmount, tdsAmount, adjustment, grandTotal: roundedTotal, roundOff, isIntraState, taxableValue, netPayableReceivable };
     }, [watchedForm, items, company, selectedParty, voucherType]);
 
 
@@ -352,6 +355,12 @@ export function AdhocVoucherForm({ initialData }: AdhocVoucherFormProps) {
                                     <div className="flex justify-between font-medium"><span>Taxable Value</span><span>{formatCurrency(calculations.subtotal)}</span></div>
                                     {calculations.isIntraState ? (<><div className="flex justify-between text-muted-foreground"><span>CGST</span><span>{formatCurrency(calculations.totalCgst)}</span></div><div className="flex justify-between text-muted-foreground"><span>SGST</span><span>{formatCurrency(calculations.totalSgst)}</span></div></>) : (<div className="flex justify-between text-muted-foreground"><span>IGST</span><span>{formatCurrency(calculations.totalIgst)}</span></div>)}
                                     {calculations.tcsAmount > 0 && (<div className="flex justify-between text-muted-foreground"><span>TCS</span><span>{formatCurrency(calculations.tcsAmount)}</span></div>)}
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Adjustment (+/-)</span>
+                                        <FormField control={form.control} name="adjustment" render={({ field }) => (
+                                            <Input type="number" step="0.01" placeholder="0.00" className="w-28 h-7 text-right text-sm" {...field} onChange={(e) => field.onChange(e.target.value === '' ? 0 : parseFloat(e.target.value))} />
+                                        )} />
+                                    </div>
                                     {calculations.roundOff !== 0 && (<div className="flex justify-between text-muted-foreground"><span>Round Off</span><span>{calculations.roundOff.toFixed(2)}</span></div>)}
                                     <Separator />
                                     <div className="flex justify-between text-lg font-bold"><span>Grand Total</span><span>{formatCurrency(calculations.grandTotal)}</span></div>

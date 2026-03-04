@@ -45,6 +45,7 @@ const purchaseInvoiceSchema = z.object({
   placeOfSupply: z.string().min(1, 'Place of supply is required.'),
   isGstApplicable: z.boolean().default(true),
   isReverseCharge: z.boolean().default(false),
+  adjustment: z.coerce.number().default(0),
   remarks: z.string().optional(),
   items: z.array(lineItemSchema).min(1, 'At least one item is required.'),
 });
@@ -57,6 +58,7 @@ const defaultValues: Partial<FormValues> = {
     supplierInvoiceNo: '',
     isGstApplicable: true,
     isReverseCharge: false,
+    adjustment: 0,
     remarks: "",
     items: [{ itemId: '', quantity: 1, rate: 0, discount: 0 }],
 };
@@ -214,7 +216,8 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
         }).filter(Boolean) as (InvoiceItem & { itemId: string })[];
 
         const totalGst = totalCgst + totalSgst + totalIgst;
-        const invoiceTotal = subtotal + totalGst;
+        const adjustment = watchedForm.adjustment || 0;
+        const invoiceTotal = subtotal + totalGst + adjustment;
         
         const isTdsApplicable = selectedSupplier?.tdsTcsConfig?.tdsEnabled ?? false;
         const tdsRate = selectedSupplier?.tdsTcsConfig?.tdsRate ?? 0;
@@ -232,6 +235,7 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
             totalSgst, 
             totalIgst, 
             totalGst, 
+            adjustment,
             grandTotal: roundedTotal, 
             roundOff, 
             isIntraState, 
@@ -264,6 +268,7 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
             totalIgst,
             subtotal,
             totalDiscount,
+            adjustment,
             roundOff
         } = calculations;
 
@@ -319,6 +324,7 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
                 subtotal: subtotal,
                 totalDiscount: totalDiscount,
                 totalGst: calculations.totalGst,
+                adjustment: adjustment,
                 roundOff: roundOff,
                 grandTotal: grandTotal,
                 placeOfSupply: data.placeOfSupply,
@@ -329,8 +335,25 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
         };
         
         try {
+            const isFirestoreSpecial = (v: any) => v instanceof Date || (typeof v === 'object' && v !== null && (typeof v.toDate === 'function' || '_methodName' in v));
+            const removeUndefined = (obj: any): any => {
+                if (obj === null || obj === undefined) return null;
+                if (typeof obj !== 'object') return obj;
+                if (Array.isArray(obj)) return obj.map(removeUndefined);
+                if (isFirestoreSpecial(obj)) return obj;
+                const cleaned: any = {};
+                for (const [key, value] of Object.entries(obj)) {
+                    if (value !== undefined) {
+                        cleaned[key] = typeof value === 'object' && value !== null && !isFirestoreSpecial(value)
+                            ? removeUndefined(value)
+                            : value;
+                    }
+                }
+                return cleaned;
+            };
+            const cleanedVoucher = removeUndefined(newVoucher);
             const vouchersColRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'vouchers');
-            await addDoc(vouchersColRef, newVoucher);
+            await addDoc(vouchersColRef, cleanedVoucher);
             toast({
                 title: `Purchase Invoice Created`,
                 description: 'The purchase voucher has been successfully saved.',
@@ -480,6 +503,12 @@ export function PurchaseInvoiceForm({ initialData, companyId, firmId }: Purchase
                                     ) : (
                                         <div className="flex justify-between text-muted-foreground"><span>Input IGST</span><span>{formatCurrency(calculations.totalIgst)}</span></div>
                                     )}
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Adjustment (+/-)</span>
+                                        <FormField control={form.control} name="adjustment" render={({ field }) => (
+                                            <Input type="number" step="0.01" placeholder="0.00" className="w-28 h-7 text-right text-sm" {...field} onChange={(e) => field.onChange(e.target.value === '' ? 0 : parseFloat(e.target.value))} />
+                                        )} />
+                                    </div>
                                     {calculations.roundOff !== 0 && (
                                         <div className="flex justify-between text-muted-foreground"><span>Round Off</span><span>{calculations.roundOff.toFixed(2)}</span></div>
                                     )}
