@@ -868,6 +868,53 @@ export function AddLedgerSheet({
                         )}
                     />
                 </div>
+
+                {derivedGroup === 'Bank Accounts' && (
+                <>
+                    <Separator />
+                    <h3 className="text-lg font-medium flex items-center gap-2"><Landmark className="h-5 w-5 text-primary" />Bank Account Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField control={form.control} name="bankDetails.bankName" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Bank Name</FormLabel>
+                                <FormControl><Input placeholder="e.g., HDFC Bank" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="bankDetails.accountNumber" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Account Number <span className="text-destructive">*</span></FormLabel>
+                                <FormControl><Input placeholder="e.g., 50100123456789" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="bankDetails.ifscCode" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>IFSC Code <span className="text-destructive">*</span></FormLabel>
+                                <FormControl><Input placeholder="e.g., HDFC0001234" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="bankDetails.defaultPaymentMode" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Default Payment Mode</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger><SelectValue placeholder="Select Mode" /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {['NEFT', 'RTGS', 'IMPS', 'UPI', 'Cheque'].map(m => (
+                                            <SelectItem key={m} value={m}>{m}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                    </div>
+                </>
+                )}
+
               </TabsContent>
 
               <TabsContent value="statutory" className="space-y-6 pt-4">
@@ -1191,19 +1238,6 @@ export function AddLedgerSheet({
                     </AccordionItem>
                     )}
 
-                    {derivedGroup === 'Bank Accounts' && (
-                    <AccordionItem value="banking">
-                      <AccordionTrigger className="text-base"><Landmark className="mr-2 h-5 w-5 text-primary" />Banking & Payments</AccordionTrigger>
-                      <AccordionContent className="pt-4 space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <FormField control={form.control} name="bankDetails.bankName" render={({ field }) => (<FormItem><FormLabel>Bank Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="bankDetails.accountNumber" render={({ field }) => (<FormItem><FormLabel>Account Number <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                            <FormField control={form.control} name="bankDetails.ifscCode" render={({ field }) => (<FormItem><FormLabel>IFSC Code <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
-                             <FormField control={form.control} name="bankDetails.defaultPaymentMode" render={({ field }) => (<FormItem><FormLabel>Default Payment Mode</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select Mode"/></SelectTrigger></FormControl><SelectContent>{['NEFT', 'RTGS', 'IMPS', 'UPI', 'Cheque'].map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>)} />
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                    )}
 
                     <AccordionItem value="cost-center">
                       <AccordionTrigger className="text-base"><FolderKanban className="mr-2 h-5 w-5 text-primary" />Cost & Profit Centers</AccordionTrigger>
