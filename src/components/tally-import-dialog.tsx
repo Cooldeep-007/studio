@@ -7,7 +7,7 @@ import { handleTallyImport, type TallyImportState, type TallyPreviewLedger } fro
 import type { Company, Ledger } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 
-import { Upload, Loader2, FileCheck2, ListChecks, Download } from "lucide-react";
+import { Upload, Loader2, FileCheck2, ListChecks, Download, FileSpreadsheet, FileCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -90,14 +90,14 @@ export function TallyImportDialog({ companies, ledgers }: { companies: Company[]
       <DialogTrigger asChild>
         <Button variant="outline">
           <Upload className="mr-2 h-4 w-4" />
-          Import from Tally
+          Import Ledgers
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Import Ledgers from Tally Prime</DialogTitle>
+          <DialogTitle>Import Ledgers</DialogTitle>
           <DialogDescription>
-            Upload your Tally Prime XML file to import ledger masters.
+            Upload a CSV/Excel file or Tally Prime XML file to import ledger masters.
           </DialogDescription>
         </DialogHeader>
         
@@ -122,8 +122,8 @@ function TallyImportFormContent({
 }) {
     const { pending } = useFormStatus();
 
-    // Form field states
     const [fileContent, setFileContent] = React.useState<string | null>(null);
+    const [fileType, setFileType] = React.useState<'csv' | 'xml'>('csv');
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     const [selectedCompanyId, setSelectedCompanyId] = React.useState<string>(companies.find(c => c.status === 'Active')?.id || '');
     const [selectedFirmId, setSelectedFirmId] = React.useState<string>(companies.find(c => c.status === 'Active')?.firmId || '');
@@ -138,7 +138,13 @@ function TallyImportFormContent({
             setFileContent(null);
         }
     };
-  
+
+    const handleFileTypeChange = (type: 'csv' | 'xml') => {
+        setFileType(type);
+        setFileContent(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
     const handleCompanyChange = (companyId: string) => {
         const company = companies.find(c => c.id === companyId);
         if (company) {
@@ -150,24 +156,78 @@ function TallyImportFormContent({
     if (pending) return <ImportProgress />;
     if (state.summary) return <ImportSummary summary={state.summary} setIsOpen={setIsOpen} />;
     if (state.preview) return <ImportPreview preview={state.preview} setIsOpen={setIsOpen} />;
-    
+
     return (
         <>
             <div className="grid gap-6 py-4">
+                <div className="flex gap-2">
+                    <button
+                        type="button"
+                        onClick={() => handleFileTypeChange('csv')}
+                        className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors flex-1 ${fileType === 'csv' ? 'border-primary bg-primary/5 text-primary' : 'border-muted hover:border-muted-foreground/30'}`}
+                    >
+                        <FileSpreadsheet className="h-5 w-5" />
+                        <div className="text-left">
+                            <div>CSV / Excel</div>
+                            <div className="text-xs font-normal text-muted-foreground">Import from spreadsheet</div>
+                        </div>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleFileTypeChange('xml')}
+                        className={`flex items-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-colors flex-1 ${fileType === 'xml' ? 'border-primary bg-primary/5 text-primary' : 'border-muted hover:border-muted-foreground/30'}`}
+                    >
+                        <FileCode className="h-5 w-5" />
+                        <div className="text-left">
+                            <div>Tally XML</div>
+                            <div className="text-xs font-normal text-muted-foreground">Import from Tally Prime</div>
+                        </div>
+                    </button>
+                </div>
+
+                <input type="hidden" name="fileType" value={fileType} />
+                <input type="hidden" name="fileContent" value={fileContent || ''} />
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="xml-file">Tally XML File</Label>
-                            <Input id="xml-file" name="xml-file" type="file" accept=".xml" required onChange={handleFileChange} ref={fileInputRef}/>
-                            <input type="hidden" name="xmlContent" value={fileContent || ''} />
-                             <a
-                                href="/Tally_Ledger_Masters_Sample.xml"
-                                download
-                                className="text-sm text-primary hover:underline flex items-center gap-1"
-                            >
-                                <Download className="h-3 w-3" />
-                                Download Sample File
-                            </a>
+                            <Label htmlFor="import-file">{fileType === 'csv' ? 'CSV File' : 'Tally XML File'}</Label>
+                            <Input
+                                id="import-file"
+                                name="import-file"
+                                type="file"
+                                accept={fileType === 'csv' ? '.csv,.txt' : '.xml'}
+                                required
+                                onChange={handleFileChange}
+                                ref={fileInputRef}
+                            />
+                            <div className="flex flex-col gap-1">
+                                {fileType === 'csv' && (
+                                    <a
+                                        href="/Ledger_Import_Template.csv"
+                                        download
+                                        className="text-sm text-primary hover:underline flex items-center gap-1"
+                                    >
+                                        <Download className="h-3 w-3" />
+                                        Download Sample CSV Template
+                                    </a>
+                                )}
+                                {fileType === 'xml' && (
+                                    <a
+                                        href="/Tally_Ledger_Masters_Sample.xml"
+                                        download
+                                        className="text-sm text-primary hover:underline flex items-center gap-1"
+                                    >
+                                        <Download className="h-3 w-3" />
+                                        Download Sample XML File
+                                    </a>
+                                )}
+                            </div>
+                            {fileType === 'csv' && (
+                                <p className="text-xs text-muted-foreground">
+                                    Download the template, fill in your ledger details in Excel/Google Sheets, save as CSV, then upload here.
+                                </p>
+                            )}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="companyId">Select Company</Label>

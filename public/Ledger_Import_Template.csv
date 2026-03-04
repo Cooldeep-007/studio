@@ -1,0 +1,11 @@
+Ledger Name,Parent Group,Opening Balance,Balance Type,GST Applicable,GSTIN,GST Registration Type,GST Classification,GST Rate,HSN/SAC Code,Contact Person,Mobile Number,Email,Address Line 1,Address Line 2,City,State,Pincode,Country,PAN,Bank Name,Account Number,IFSC Code,Account Type,Credit Limit,Credit Period (Days)
+HDFC Bank - Current A/c,Bank Accounts,150000,Dr,No,,,,,,Rajesh Kumar,9876543210,rajesh@example.com,MG Road,,Bengaluru,Karnataka,560001,India,,HDFC Bank,50100123456789,HDFC0001234,Current,,
+State Bank of India,Bank Accounts,250000,Dr,No,,,,,,,,,,,,,,,,State Bank of India,39876543210,SBIN0001234,Savings,,
+Reliance Industries Ltd,Sundry Debtors,75000,Dr,Yes,27AABCR1234A1Z5,Regular,Goods,18,,,9123456789,accounts@reliance.com,Navi Mumbai,,Mumbai,Maharashtra,400001,India,AABCR1234A,,,,,,500000,30
+Tata Motors Ltd,Sundry Creditors,120000,Cr,Yes,27AABCT1234B1Z8,Regular,Goods,18,8708,,8765432109,finance@tata.com,Pimpri,,Pune,Maharashtra,411018,India,AABCT1234B,,,,,,
+Rent Expense,Indirect Expenses,0,Dr,Yes,,Unregistered,Services,18,9972,,,,,,,,,,,,,,,
+Sales - Domestic,Sales Accounts,0,Cr,Yes,,Regular,Goods,18,,,,,,,,,,,,,,,,,
+Office Supplies,Direct Expenses,5000,Dr,No,,,,,,,,,,,,Bengaluru,Karnataka,,,,,,,,,
+Petty Cash,Cash-in-Hand,10000,Dr,No,,,,,,,,,,,,,,,,,,,,,,
+Electricity Charges,Indirect Expenses,0,Dr,Yes,,Regular,Services,18,9969,,,electricity@bescom.com,,,Bengaluru,Karnataka,560001,,,,,,,,
+Capital Account,Capital Account,500000,Cr,No,,,,,,Owner Name,9988776655,owner@company.com,,,,,,,ABCDE1234F,,,,,,
