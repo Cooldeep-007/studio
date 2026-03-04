@@ -264,6 +264,7 @@ export function SalesInvoiceForm({ initialData, companyId, firmId }: SalesInvoic
             totalCgst,
             totalSgst,
             totalIgst,
+            totalGst,
             subtotal,
             tcsAmount,
             roundOff,
