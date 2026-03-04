@@ -332,8 +332,25 @@ export function SalesInvoiceForm({ initialData, companyId, firmId }: SalesInvoic
         };
 
         try {
+            const isFirestoreSpecial = (v: any) => v instanceof Date || (typeof v === 'object' && v !== null && (typeof v.toDate === 'function' || '_methodName' in v));
+            const removeUndefined = (obj: any): any => {
+                if (obj === null || obj === undefined) return null;
+                if (typeof obj !== 'object') return obj;
+                if (Array.isArray(obj)) return obj.map(removeUndefined);
+                if (isFirestoreSpecial(obj)) return obj;
+                const cleaned: any = {};
+                for (const [key, value] of Object.entries(obj)) {
+                    if (value !== undefined) {
+                        cleaned[key] = typeof value === 'object' && value !== null && !isFirestoreSpecial(value)
+                            ? removeUndefined(value)
+                            : value;
+                    }
+                }
+                return cleaned;
+            };
+            const cleanedVoucher = removeUndefined(newVoucher);
             const vouchersColRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'vouchers');
-            await addDoc(vouchersColRef, newVoucher);
+            await addDoc(vouchersColRef, cleanedVoucher);
             toast({
                 title: `Sales Invoice Created`,
                 description: 'The sales voucher has been successfully saved.',
