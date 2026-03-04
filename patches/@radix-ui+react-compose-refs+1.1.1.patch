@@ -1,8 +1,8 @@
 diff --git a/node_modules/@radix-ui/react-compose-refs/dist/index.mjs b/node_modules/@radix-ui/react-compose-refs/dist/index.mjs
-index 46b15c2..b2d3cbe 100644
+index 46b15c2..e7520fd 100644
 --- a/node_modules/@radix-ui/react-compose-refs/dist/index.mjs
 +++ b/node_modules/@radix-ui/react-compose-refs/dist/index.mjs
-@@ -2,34 +2,13 @@
+@@ -2,40 +2,22 @@
  import * as React from "react";
  function setRef(ref, value) {
    if (typeof ref === "function") {
@@ -38,8 +38,14 @@ index 46b15c2..b2d3cbe 100644
 +  return (node) => refs.forEach((ref) => setRef(ref, node));
  }
  function useComposedRefs(...refs) {
-   return React.useCallback(composeRefs(...refs), refs);
-@@ -38,4 +17,3 @@ export {
+-  return React.useCallback(composeRefs(...refs), refs);
++  const refsRef = React.useRef(refs);
++  refsRef.current = refs;
++  return React.useCallback((node) => {
++    refsRef.current.forEach((ref) => setRef(ref, node));
++  }, []);
+ }
+ export {
    composeRefs,
    useComposedRefs
  };

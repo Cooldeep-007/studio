@@ -62,13 +62,11 @@ Slot.displayName = "Slot";
 var SlotClone = React.forwardRef((props, forwardedRef) => {
   const { children, ...slotProps } = props;
   const childrenRef = React.isValidElement(children) ? getElementRef(children) : null;
-  const composedRef = React.useCallback(
-    (node) => {
-      _setRef(forwardedRef, node);
-      _setRef(childrenRef, node);
-    },
-    [forwardedRef, childrenRef]
-  );
+  const refsRef = React.useRef([forwardedRef, childrenRef]);
+  refsRef.current = [forwardedRef, childrenRef];
+  const composedRef = React.useCallback((node) => {
+    refsRef.current.forEach((ref) => _setRef(ref, node));
+  }, []);
   if (React.isValidElement(children)) {
     const props2 = mergeProps(slotProps, children.props);
     if (children.type !== React.Fragment) {
@@ -136,7 +134,7 @@ for (const slotDir of nestedSlots) {
   const mjsFile = path.join(slotDir, 'dist', 'index.mjs');
   if (fs.existsSync(mjsFile)) {
     const content = fs.readFileSync(mjsFile, 'utf8');
-    if (content.includes('composeRefs(forwardedRef') || content.includes('useComposedRefs(forwardedRef') || content.includes('composeRefs')) {
+    if (content.includes('composeRefs') || content.includes('_setRef') || content.includes('useComposedRefs')) {
       fs.writeFileSync(mjsFile, PATCHED_SLOT_112);
       console.log(`  patched: ${path.relative(process.cwd(), mjsFile)}`);
       patchedCount++;
