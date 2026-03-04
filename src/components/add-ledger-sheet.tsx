@@ -706,9 +706,25 @@ export function AddLedgerSheet({
                 complianceConfig: data.complianceConfig,
             };
 
+            const removeUndefined = (obj: any): any => {
+                if (obj === null || obj === undefined) return null;
+                if (typeof obj !== 'object') return obj;
+                if (Array.isArray(obj)) return obj.map(removeUndefined);
+                const cleaned: any = {};
+                for (const [key, value] of Object.entries(obj)) {
+                    if (value !== undefined) {
+                        cleaned[key] = typeof value === 'object' && value !== null && !(value instanceof Date) && typeof (value as any).toDate !== 'function'
+                            ? removeUndefined(value)
+                            : value;
+                    }
+                }
+                return cleaned;
+            };
+
+            const cleanedLedgerData = removeUndefined(newLedgerData);
             const ledgersColRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'ledgers');
             const newDocRef = doc(ledgersColRef);
-            await addDoc(ledgersColRef, { ...newLedgerData, id: newDocRef.id, createdAt: serverTimestamp(), lastUpdatedAt: serverTimestamp()});
+            await addDoc(ledgersColRef, { ...cleanedLedgerData, id: newDocRef.id, createdAt: serverTimestamp(), lastUpdatedAt: serverTimestamp()});
 
             toast({
                 title: "Ledger Created Successfully",
