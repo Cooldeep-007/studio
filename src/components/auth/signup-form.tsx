@@ -157,13 +157,27 @@ export function SignupForm() {
   }
 
   if (!isAuthLoading && user && profile) {
-    window.location.href = '/dashboard';
-    return null;
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/dashboard')) {
+      window.location.href = '/dashboard';
+    }
+    return (
+      <Card className="w-full">
+        <CardContent className="flex items-center justify-center p-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (!isAuthLoading && user && !profile && !isGoogleSignupFlow) {
     window.location.replace('/signup?flow=g-register');
-    return null;
+    return (
+      <Card className="w-full">
+        <CardContent className="flex items-center justify-center p-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
   }
 
 

@@ -1,34 +1,53 @@
 'use client';
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useUser } from '@/firebase/auth/use-user';
 import { Loader2 } from 'lucide-react';
 
 export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, profile, isLoading } = useUser();
-  const hasRedirected = useRef(false);
+  const [profileWaitDone, setProfileWaitDone] = useState(false);
+  const profileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
 
     if (!user) {
-      if (!hasRedirected.current) {
-        hasRedirected.current = true;
-        window.location.replace('/login');
+      window.location.replace('/login');
+      return;
+    }
+
+    if (profile) {
+      setProfileWaitDone(false);
+      if (profileTimerRef.current) {
+        clearTimeout(profileTimerRef.current);
+        profileTimerRef.current = null;
       }
       return;
     }
 
-    if (!profile) {
-      if (!hasRedirected.current) {
-        hasRedirected.current = true;
-        window.location.replace('/signup?flow=g-register');
+    if (!profile && !profileWaitDone) {
+      if (!profileTimerRef.current) {
+        profileTimerRef.current = setTimeout(() => {
+          setProfileWaitDone(true);
+          profileTimerRef.current = null;
+        }, 3000);
       }
       return;
     }
 
-    hasRedirected.current = false;
-  }, [user, profile, isLoading]);
+    if (!profile && profileWaitDone) {
+      window.location.replace('/signup?flow=g-register');
+    }
+  }, [user, profile, isLoading, profileWaitDone]);
+
+  useEffect(() => {
+    return () => {
+      if (profileTimerRef.current) {
+        clearTimeout(profileTimerRef.current);
+      }
+    };
+  }, []);
 
   if (isLoading || !user || !profile) {
     return (
