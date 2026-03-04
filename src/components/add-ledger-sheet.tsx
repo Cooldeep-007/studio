@@ -56,13 +56,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
 import { useFirebase } from "@/firebase";
-import { addDoc, collection, doc, serverTimestamp } from "firebase/firestore";
+import { addDoc, setDoc, collection, doc, serverTimestamp } from "firebase/firestore";
 
 
 const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
@@ -405,11 +406,63 @@ export function AddLedgerSheet({
 }) {
     const { firestore } = useFirebase();
     const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const [localGroups, setLocalGroups] = React.useState<Array<{ id: string; ledgerName: string; group: LedgerGroup; nature: Ledger['nature'] }>>([]);
 
-    // Groups are simply ledgers with isGroup: true
-    const parentLedgerOptions = ledgers
-        .filter(l => l.isGroup)
-        .map(p => ({ value: p.id, label: p.ledgerName }));
+    const parentLedgerOptions = React.useMemo(() => {
+        const fromLedgers = ledgers
+            .filter(l => l.isGroup)
+            .map(p => ({ value: p.id, label: p.ledgerName }));
+        const fromLocal = localGroups
+            .filter(lg => !ledgers.some(l => l.id === lg.id))
+            .map(lg => ({ value: lg.id, label: lg.ledgerName }));
+        return [...fromLedgers, ...fromLocal];
+    }, [ledgers, localGroups]);
+
+    const handleCreateGroup = async (groupName: string) => {
+        if (!firmId || !companyId || !firestore) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Cannot create group: Firm or Company not identified.' });
+            return;
+        }
+        const trimmed = groupName.trim();
+        if (!trimmed) return;
+
+        const exists = parentLedgerOptions.some(
+            o => o.label.toLowerCase() === trimmed.toLowerCase()
+        );
+        if (exists) {
+            toast({ variant: 'destructive', title: 'Group already exists', description: `"${trimmed}" already exists.` });
+            return;
+        }
+
+        try {
+            const ledgersColRef = collection(firestore, 'firms', firmId, 'companies', companyId, 'ledgers');
+            const newDocRef = doc(ledgersColRef);
+            const newGroup = {
+                id: newDocRef.id,
+                ledgerName: trimmed,
+                parentLedgerId: '',
+                group: 'Assets' as LedgerGroup,
+                nature: 'Asset' as const,
+                isGroup: true,
+                openingBalance: 0,
+                currentBalance: 0,
+                balanceType: 'Dr' as const,
+                gstApplicable: false,
+                status: 'Active',
+                firmId,
+                companyId,
+                createdAt: serverTimestamp(),
+                lastUpdatedAt: serverTimestamp(),
+            };
+            await setDoc(newDocRef, newGroup);
+            setLocalGroups(prev => [...prev, { id: newDocRef.id, ledgerName: trimmed, group: 'Assets', nature: 'Asset' }]);
+            form.setValue('parentLedgerId', newDocRef.id, { shouldValidate: true });
+            toast({ title: 'Group Created', description: `"${trimmed}" has been added as a new parent group.` });
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Failed to create group', description: 'An unexpected error occurred.' });
+        }
+    };
 
     const form = useForm<LedgerFormValues>({
         resolver: zodResolver(ledgerFormSchema),
@@ -442,8 +495,12 @@ export function AddLedgerSheet({
     const isPanMissing = tdsEnabled && !pan;
 
     const selectedParent = React.useMemo(() => {
-        return ledgers.find(l => l.id === parentLedgerId);
-    }, [parentLedgerId, ledgers]);
+        const fromLedgers = ledgers.find(l => l.id === parentLedgerId);
+        if (fromLedgers) return fromLedgers;
+        const fromLocal = localGroups.find(lg => lg.id === parentLedgerId);
+        if (fromLocal) return { ...fromLocal, isGroup: true, openingBalance: 0, currentBalance: 0, balanceType: 'Dr' as const, gstApplicable: false, status: 'Active' as const } as Ledger;
+        return undefined;
+    }, [parentLedgerId, ledgers, localGroups]);
 
     const derivedGroup = selectedParent?.group;
     const isPartyLedger = derivedGroup === 'Sundry Debtor' || derivedGroup === 'Sundry Creditor';
@@ -631,20 +688,17 @@ export function AddLedgerSheet({
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Parent Group <span className="text-destructive">*</span></FormLabel>
-                                 <Select onValueChange={field.onChange} value={field.value}>
-                                    <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select a group" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {parentLedgerOptions.map(option => (
-                                            <SelectItem key={option.value} value={option.value}>
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <FormControl>
+                                    <Combobox
+                                        options={parentLedgerOptions}
+                                        value={field.value}
+                                        onChange={field.onChange}
+                                        onCreate={handleCreateGroup}
+                                        placeholder="Select a group"
+                                        searchPlaceholder="Search or type to create..."
+                                        emptyText="No groups found. Type a name to create one."
+                                    />
+                                </FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
