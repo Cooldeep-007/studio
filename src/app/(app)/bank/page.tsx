@@ -124,6 +124,23 @@ export default function BankPage() {
     const altSnapshot = await getDocs(altQuery);
     if (!altSnapshot.empty) return altSnapshot.docs[0].id;
 
+    const pg = parentGroups.find(g => g.group_name === groupName);
+    if (pg) {
+      const nature = natureMap[pg.primary_nature] || 'Asset';
+      const newGroupDoc = await addDoc(ledgersColRef, {
+        ledgerName: groupName,
+        group: groupName,
+        isGroup: true,
+        nature,
+        openingBalance: 0,
+        currentBalance: 0,
+        status: 'Active',
+        createdAt: serverTimestamp(),
+        lastUpdatedAt: serverTimestamp(),
+      });
+      return newGroupDoc.id;
+    }
+
     return null;
   };
 
@@ -143,7 +160,16 @@ export default function BankPage() {
       const pg = parentGroups.find(g => g.group_name === selectedGroup);
       const nature = pg ? (natureMap[pg.primary_nature] || 'Asset') : 'Asset';
 
-      const newLedgerData = {
+      const bankDetails: Record<string, string> = {};
+      if (data.bankName) bankDetails.bankName = data.bankName;
+      if (data.accountNumber) bankDetails.accountNumber = data.accountNumber;
+      if (data.ifscCode) bankDetails.ifscCode = data.ifscCode;
+      if (data.branchName) bankDetails.branchName = data.branchName;
+      if (data.accountType) bankDetails.accountType = data.accountType;
+      if (data.upiId) bankDetails.upiId = data.upiId;
+      if (data.swiftCode) bankDetails.swiftCode = data.swiftCode;
+
+      const newLedgerData: Record<string, any> = {
         ledgerName: data.accountName,
         parentLedgerId: parentId,
         group: selectedGroup,
@@ -152,15 +178,7 @@ export default function BankPage() {
         openingBalance: data.openingBalance || 0,
         balanceType: data.balanceType || 'Dr',
         currentBalance: data.openingBalance || 0,
-        bankDetails: {
-          bankName: data.bankName,
-          accountNumber: data.accountNumber,
-          ifscCode: data.ifscCode,
-          branchName: data.branchName,
-          accountType: data.accountType,
-          upiId: data.upiId,
-          swiftCode: data.swiftCode,
-        },
+        bankDetails,
         firmId: profile.firmId,
         companyId: selectedCompanyId,
         status: 'Active',
@@ -193,13 +211,12 @@ export default function BankPage() {
       const pg = parentGroups.find(g => g.group_name === selectedGroup);
       const nature = pg ? (natureMap[pg.primary_nature] || 'Asset') : 'Asset';
 
-      const newLedgerData = {
+      const newLedgerData: Record<string, any> = {
         ledgerName: data.cashName,
         parentLedgerId: parentId,
         group: selectedGroup,
         isGroup: false,
         isCashAccount: true,
-        responsiblePerson: data.responsiblePerson,
         openingBalance: data.openingBalance || 0,
         balanceType: data.balanceType || 'Dr',
         currentBalance: data.openingBalance || 0,
@@ -211,6 +228,8 @@ export default function BankPage() {
         nature,
         gstApplicable: false,
       };
+      if (data.responsiblePerson) newLedgerData.responsiblePerson = data.responsiblePerson;
+      if (data.remarks) newLedgerData.remarks = data.remarks;
 
       await addDoc(ledgersColRef, newLedgerData);
     } catch (e) {
