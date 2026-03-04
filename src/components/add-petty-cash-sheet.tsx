@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon, Loader2 } from 'lucide-react';
@@ -89,14 +88,18 @@ export function AddPettyCashSheet({
               <FormField control={form.control} name="parentGroup" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Parent Group *</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Select parent group" /></SelectTrigger></FormControl>
-                    <SelectContent>
+                  <FormControl>
+                    <select
+                      value={field.value}
+                      onChange={e => field.onChange(e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <option value="">Select parent group</option>
                       {parentGroups.map(pg => (
-                        <SelectItem key={pg.id} value={pg.group_name}>{pg.group_name} ({pg.primary_nature})</SelectItem>
+                        <option key={pg.id} value={pg.group_name}>{pg.group_name} ({pg.primary_nature})</option>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </select>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -107,21 +110,29 @@ export function AddPettyCashSheet({
                   <FormField control={form.control} name="balanceType" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Balance Type</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="Dr">Debit (Dr)</SelectItem>
-                          <SelectItem value="Cr">Credit (Cr)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <select
+                          value={field.value}
+                          onChange={e => field.onChange(e.target.value)}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          <option value="Dr">Debit (Dr)</option>
+                          <option value="Cr">Credit (Cr)</option>
+                        </select>
+                      </FormControl>
                     </FormItem>
                   )} />
                 </div>
                 <FormField control={form.control} name="openingDate" render={({ field }) => (
                     <FormItem className="flex flex-col"><FormLabel>As of Date</FormLabel>
-                      <Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent>
-                      </Popover><FormMessage />
+                      <FormControl>
+                        <Input
+                          type="date"
+                          value={field.value ? format(field.value, 'yyyy-MM-dd') : ''}
+                          onChange={e => field.onChange(e.target.value ? new Date(e.target.value) : undefined)}
+                        />
+                      </FormControl>
+                      <FormMessage />
                     </FormItem>)} />
               </div>
               <FormField control={form.control} name="remarks" render={({ field }) => (<FormItem><FormLabel>Remarks</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>)} />
