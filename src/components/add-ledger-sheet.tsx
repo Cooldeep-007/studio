@@ -56,7 +56,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Combobox } from "@/components/ui/combobox";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -450,24 +449,11 @@ export function AddLedgerSheet({
         }
     }, [open, fetchParentGroups]);
 
-    const parentGroupOptions = React.useMemo(() => {
-        return parentGroups.map(g => ({
-            value: String(g.id),
-            label: g.group_name,
-        }));
-    }, [parentGroups]);
-
     const natureMap: Record<string, 'Asset' | 'Liability' | 'Income' | 'Expense'> = {
         'Assets': 'Asset',
         'Liabilities': 'Liability',
         'Income': 'Income',
         'Expense': 'Expense',
-    };
-
-    const handleCreateGroupPrompt = (groupName: string) => {
-        setNewGroupName(groupName);
-        setNewGroupNature('Assets');
-        setShowCreateGroupDialog(true);
     };
 
     const handleCreateGroupConfirm = async () => {
@@ -788,16 +774,22 @@ export function AddLedgerSheet({
                             <FormItem>
                                 <FormLabel>Parent Group <span className="text-destructive">*</span></FormLabel>
                                 <FormControl>
-                                    <Combobox
-                                        options={parentGroupOptions}
+                                    <select
                                         value={field.value}
-                                        onChange={field.onChange}
-                                        onCreate={handleCreateGroupPrompt}
-                                        placeholder={isLoadingGroups ? "Loading groups..." : "Select a group"}
-                                        searchPlaceholder="Search or type to create..."
-                                        emptyText="No groups found. Type a name to create one."
-                                    />
+                                        onChange={e => field.onChange(e.target.value)}
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                    >
+                                        <option value="">{isLoadingGroups ? "Loading groups..." : "Select parent group"}</option>
+                                        {parentGroups.map(pg => (
+                                            <option key={pg.id} value={String(pg.id)}>{pg.group_name} ({pg.primary_nature})</option>
+                                        ))}
+                                    </select>
                                 </FormControl>
+                                {!showCreateGroupDialog && (
+                                    <button type="button" onClick={() => { setNewGroupName(''); setShowCreateGroupDialog(true); }} className="text-xs text-primary hover:underline mt-1">
+                                        + Create new group
+                                    </button>
+                                )}
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -822,17 +814,16 @@ export function AddLedgerSheet({
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-sm text-muted-foreground">Primary Nature</label>
-                                <Select value={newGroupNature} onValueChange={(v) => setNewGroupNature(v as typeof newGroupNature)}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="Assets">Assets</SelectItem>
-                                        <SelectItem value="Liabilities">Liabilities</SelectItem>
-                                        <SelectItem value="Income">Income</SelectItem>
-                                        <SelectItem value="Expense">Expense</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <select
+                                    value={newGroupNature}
+                                    onChange={e => setNewGroupNature(e.target.value as typeof newGroupNature)}
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                >
+                                    <option value="Assets">Assets</option>
+                                    <option value="Liabilities">Liabilities</option>
+                                    <option value="Income">Income</option>
+                                    <option value="Expense">Expense</option>
+                                </select>
                             </div>
                         </div>
                         <div className="flex gap-2 justify-end">
