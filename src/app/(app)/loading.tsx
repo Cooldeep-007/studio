@@ -1,7 +1,9 @@
-import { ModuleLoader } from '@/components/module-loader';
+import { Loader2 } from 'lucide-react';
 
 export default function Loading() {
-  // This file is used by Next.js to show a loading state
-  // while the content of a page is loading.
-  return <ModuleLoader />;
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
 }
