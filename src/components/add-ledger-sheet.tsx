@@ -514,13 +514,60 @@ export function AddLedgerSheet({
         }
     }, [open, initialValues, form]);
 
+    const fieldLabelMap: Record<string, string> = {
+      ledgerName: 'Ledger Name',
+      parentLedgerId: 'Parent Group',
+      openingBalance: 'Opening Balance',
+      balanceType: 'Balance Type',
+      'gstDetails.gstType': 'Registration Type',
+      'gstDetails.gstin': 'GSTIN',
+      'gstDetails.gstRate': 'GST Rate',
+      'gstDetails.hsnCode': 'HSN/SAC Code',
+      'gstDetails.uqc': 'Unit of Measurement (UQC)',
+      'gstDetails.gstClassification': 'Type of Supply',
+      'contactDetails.contactPerson': 'Contact Person',
+      'contactDetails.mobileNumber': 'Mobile Number',
+      'contactDetails.email': 'Email',
+      'contactDetails.state': 'State',
+      'contactDetails.pan': 'PAN',
+      'contactDetails.addressLine1': 'Address',
+      'contactDetails.city': 'City',
+      'contactDetails.pincode': 'Pincode',
+      'bankDetails.accountNumber': 'Account Number',
+      'bankDetails.ifscCode': 'IFSC Code',
+      'bankDetails.bankName': 'Bank Name',
+      'tdsTcsConfig.tdsNatureOfPayment': 'TDS Nature of Payment',
+      'tdsTcsConfig.tdsRate': 'TDS Rate',
+    };
+
+    const extractErrors = (errors: FieldErrors<LedgerFormValues>, prefix = ''): string[] => {
+      const messages: string[] = [];
+      for (const [key, value] of Object.entries(errors)) {
+        const fullKey = prefix ? `${prefix}.${key}` : key;
+        if (value && typeof value === 'object' && 'message' in value && value.message) {
+          const label = fieldLabelMap[fullKey] || key;
+          messages.push(`${label}: ${value.message}`);
+        } else if (value && typeof value === 'object') {
+          messages.push(...extractErrors(value as FieldErrors<any>, fullKey));
+        }
+      }
+      return messages;
+    };
+
     const onValidationFailure = (errors: FieldErrors<LedgerFormValues>) => {
+      const missingFields = extractErrors(errors);
       toast({
         variant: "destructive",
-        title: "Incomplete Ledger Details",
-        description: "Please fill in all required fields. The first invalid field has been focused for you.",
+        title: `${missingFields.length} field${missingFields.length > 1 ? 's' : ''} need${missingFields.length === 1 ? 's' : ''} attention`,
+        description: (
+          <ul className="mt-1 list-disc pl-4 space-y-0.5 text-sm">
+            {missingFields.map((msg, i) => (
+              <li key={i}>{msg}</li>
+            ))}
+          </ul>
+        ),
+        duration: 8000,
       });
-      // react-hook-form automatically focuses the first field with an error.
     };
 
     const parentLedgerId = form.watch("parentLedgerId");
