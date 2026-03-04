@@ -15,6 +15,23 @@ export type AuthError = {
   message: string;
 };
 
+function logAuthEventServer(
+  eventType: string,
+  data: { firebaseUid?: string; email?: string; displayName?: string; metadata?: Record<string, any> }
+) {
+  fetch('/api/auth/events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      firebaseUid: data.firebaseUid || null,
+      email: data.email || null,
+      displayName: data.displayName || null,
+      eventType,
+      metadata: data.metadata || {},
+    }),
+  }).catch(() => {});
+}
+
 // Initialize Firebase services
 const { auth, firestore } = initializeFirebase();
 
@@ -104,25 +121,25 @@ export async function signUpWithEmail(formData: {
     const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
     const user = userCredential.user;
 
-    // This user is the first one, so they are the Owner.
-    // Their company becomes the firm.
     const firmId = `firm-${user.uid}`;
     
-    // Create the Firm document
     await createFirm(firmId, user.uid, formData.companyName);
 
-    // Create user profile and link it to the new firm
     await createUserProfile(user.uid, {
       name: formData.name,
       email: user.email!,
       companyName: formData.companyName,
       mobile: formData.mobile,
-      role: 'Owner', // First user is the Owner
+      role: 'Owner',
     }, firmId);
+
+    logAuthEventServer('signup', { firebaseUid: user.uid, email: user.email!, displayName: formData.name });
 
     return null;
   } catch (error) {
-    return handleAuthError(error);
+    const authError = handleAuthError(error);
+    logAuthEventServer('signup_failed', { email: formData.email, metadata: { error: authError.code } });
+    return authError;
   }
 }
 
@@ -157,19 +174,26 @@ export async function completeGoogleSignup(formData: {
       role: 'Owner',
     }, firmId);
 
+    logAuthEventServer('signup', { firebaseUid: user.uid, email: formData.email, displayName: formData.name });
+
     return null;
   } catch (error) {
-    return handleAuthError(error);
+    const authError = handleAuthError(error);
+    logAuthEventServer('signup_failed', { email: formData.email, metadata: { error: authError.code } });
+    return authError;
   }
 }
 
 // Sign in with Email and Password
 export async function signInWithEmail(email: string, password: string): Promise<AuthError | null> {
   try {
-    await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    logAuthEventServer('login', { firebaseUid: userCredential.user.uid, email: userCredential.user.email!, displayName: userCredential.user.displayName || '' });
     return null;
   } catch (error) {
-    return handleAuthError(error);
+    const authError = handleAuthError(error);
+    logAuthEventServer('login_failed', { email, metadata: { error: authError.code } });
+    return authError;
   }
 }
 
@@ -177,23 +201,26 @@ export async function signInWithEmail(email: string, password: string): Promise<
 export async function signInWithGoogle(): Promise<AuthError | null> {
   const provider = new GoogleAuthProvider();
   try {
-    await signInWithPopup(auth, provider);
-    // After popup, the onAuthStateChanged listener will trigger.
-    // Our AuthGuard will then detect if it's a new user (auth object exists, but no firestore profile)
-    // and redirect them to the completion step.
+    const result = await signInWithPopup(auth, provider);
+    logAuthEventServer('login', { firebaseUid: result.user.uid, email: result.user.email!, displayName: result.user.displayName || '' });
     return null;
   } catch (error: any) {
-    // If the user closes the popup, it's not a true "error" we need to display.
     if (error.code === 'auth/popup-closed-by-user') {
       return null;
     }
-    return handleAuthError(error);
+    const authError = handleAuthError(error);
+    logAuthEventServer('login_failed', { metadata: { error: authError.code } });
+    return authError;
   }
 }
 
 // Sign out
 export async function signOut(): Promise<AuthError | null> {
   try {
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      logAuthEventServer('logout', { firebaseUid: currentUser.uid, email: currentUser.email! });
+    }
     await firebaseSignOut(auth);
     return null;
   } catch (error) {

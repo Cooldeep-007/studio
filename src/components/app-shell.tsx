@@ -17,6 +17,7 @@ import {
   Percent,
   ChevronRight,
   LogOut,
+  ShieldCheck,
 } from 'lucide-react';
 import { doc, serverTimestamp } from 'firebase/firestore';
 
@@ -65,6 +66,7 @@ const menuItems = [
   { href: '/bank', label: 'Cash & Bank', icon: Landmark, roles: ['Owner', 'Admin', 'Accountant'] },
   { href: '/notepad', label: 'Notepad', icon: Notebook, roles: ['Owner', 'Admin', 'Accountant', 'Staff'] },
   { href: '/reports', label: 'Reports', icon: BarChart3, roles: ['Owner', 'Admin', 'Accountant'] },
+  { href: '/admin', label: 'Admin Panel', icon: ShieldCheck, roles: ['Owner', 'Admin'] },
 ];
 
 const settingsMenuItem = {

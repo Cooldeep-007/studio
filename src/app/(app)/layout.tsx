@@ -2,6 +2,12 @@
 
 import { AppShell } from '@/components/app-shell';
 import { AuthGuard } from '@/components/auth-guard';
+import { useSessionTracking } from '@/hooks/use-tracking';
+
+function TrackedApp({ children }: { children: React.ReactNode }) {
+  useSessionTracking();
+  return <AppShell>{children}</AppShell>;
+}
 
 export default function AppLayout({
   children,
@@ -10,7 +16,7 @@ export default function AppLayout({
 }) {
   return (
     <AuthGuard>
-      <AppShell>{children}</AppShell>
+      <TrackedApp>{children}</TrackedApp>
     </AuthGuard>
   );
 }
