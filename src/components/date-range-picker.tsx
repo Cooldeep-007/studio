@@ -12,11 +12,9 @@ import { Input } from "./ui/input"
 import { Label } from "./ui/label"
 import { Alert, AlertDescription } from "./ui/alert"
 
-// --- Helper Functions ---
 const getFinancialYearInfo = (refDate: Date): { start: Date; end: Date; label: string } => {
   const year = refDate.getFullYear();
   const month = refDate.getMonth();
-  // Financial year in India starts in April (month index 3)
   if (month >= 3) {
     return { start: new Date(year, 3, 1), end: new Date(year + 1, 2, 31), label: `FY ${year}-${(year + 1).toString().slice(-2)}` };
   } else {
@@ -46,7 +44,6 @@ const tryParseDate = (value: string): { date: Date, type: 'day' | 'month' } | nu
   return null;
 };
 
-// --- Component Interface ---
 interface ProDateRangePickerProps {
   date: DateRange | undefined;
   setDate: (date: DateRange | undefined) => void;
@@ -126,11 +123,11 @@ export function DateRangePicker({ date, setDate, className, company }: ProDateRa
   };
   
   return (
-    <div className={cn("flex flex-wrap items-end gap-4 rounded-lg border p-4 shadow-sm bg-card", className)}>
-        <div className="flex-grow sm:flex-shrink-0 sm:flex-grow-0 sm:w-48">
-            <Label>Quick Presets</Label>
+    <div className={cn("flex flex-wrap items-end gap-2 rounded-md border px-3 py-2 shadow-sm bg-card", className)}>
+        <div className="sm:w-36">
+            <Label className="text-xs text-muted-foreground">Preset</Label>
             <Select onValueChange={handlePresetChange}>
-                <SelectTrigger>
+                <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Select period" />
                 </SelectTrigger>
                 <SelectContent>
@@ -141,20 +138,22 @@ export function DateRangePicker({ date, setDate, className, company }: ProDateRa
                 </SelectContent>
             </Select>
         </div>
-        <div className="flex-grow space-y-1">
-            <Label htmlFor="from-date">From Date</Label>
+        <div className="space-y-0.5">
+            <Label htmlFor="from-date" className="text-xs text-muted-foreground">From</Label>
             <Input
                 id="from-date"
+                className="h-8 text-xs w-28"
                 value={fromString}
                 onChange={(e) => setFromString(e.target.value)}
                 onBlur={handleApply}
                 placeholder="dd-mm-yyyy"
             />
         </div>
-        <div className="flex-grow space-y-1">
-            <Label htmlFor="to-date">To Date</Label>
+        <div className="space-y-0.5">
+            <Label htmlFor="to-date" className="text-xs text-muted-foreground">To</Label>
             <Input
                 id="to-date"
+                className="h-8 text-xs w-28"
                 value={toString}
                 onChange={(e) => setToString(e.target.value)}
                 onBlur={handleApply}
@@ -163,9 +162,9 @@ export function DateRangePicker({ date, setDate, className, company }: ProDateRa
         </div>
          {error && (
             <div className="w-full">
-              <Alert variant="destructive" className="p-2 text-xs">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
+              <Alert variant="destructive" className="p-1.5 text-xs">
+                  <AlertTriangle className="h-3 w-3" />
+                  <AlertDescription className="text-xs">{error}</AlertDescription>
               </Alert>
             </div>
         )}
