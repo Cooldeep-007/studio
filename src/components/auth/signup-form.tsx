@@ -110,8 +110,8 @@ export function SignupForm() {
                 title: 'Profile Complete',
                 description: 'Welcome! Your account is now fully set up.',
             });
-            // After successful completion, redirect to dashboard.
-            router.push('/dashboard');
+            window.location.href = '/dashboard';
+            return;
         }
     } else {
         error = await signUpWithEmail(values as z.infer<typeof emailSignupSchema>);
@@ -120,8 +120,8 @@ export function SignupForm() {
                 title: 'Account Created',
                 description: 'You have been successfully signed up.',
             });
-            // After successful signup, redirect to dashboard.
-            router.push('/dashboard');
+            window.location.href = '/dashboard';
+            return;
         }
     }
     
@@ -133,7 +133,7 @@ export function SignupForm() {
           title: 'Profile Found',
           description: 'Your profile already exists. Redirecting you to the dashboard.',
         });
-        router.push('/dashboard');
+        window.location.href = '/dashboard';
       }
       else {
         toast({
@@ -156,17 +156,13 @@ export function SignupForm() {
     );
   }
 
-  // --- NEW REDIRECTION LOGIC ---
   if (!isAuthLoading && user && profile) {
-    // A fully signed-in user with a profile should not be on this page.
-    router.push('/dashboard');
+    window.location.href = '/dashboard';
     return null;
   }
 
-  // A logged-in Google user without a profile should be on the g-register flow.
-  // If they somehow land on the regular signup, redirect them.
   if (!isAuthLoading && user && !profile && !isGoogleSignupFlow) {
-    router.push('/signup?flow=g-register');
+    window.location.replace('/signup?flow=g-register');
     return null;
   }
 

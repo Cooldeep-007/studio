@@ -1,29 +1,30 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { useUser } from '@/firebase/auth/use-user';
-import { useAuth } from '@/firebase/provider';
 
-export function useSessionTracking() {
-  const { user } = useUser();
-  const auth = useAuth();
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let lastUid: string | null = null;
+
+export function useSessionTracking(uid: string | undefined, getIdToken: (() => Promise<string>) | undefined) {
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const hasSentRef = useRef(false);
-
   pathnameRef.current = pathname;
 
   useEffect(() => {
-    if (!user || !auth.currentUser) {
-      hasSentRef.current = false;
-      return;
+    if (!uid || !getIdToken) return;
+
+    if (lastUid === uid && heartbeatTimer) return;
+
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
     }
+    lastUid = uid;
 
     const sendHeartbeat = async () => {
       try {
-        const token = await auth.currentUser?.getIdToken();
+        const token = await getIdToken();
         if (!token) return;
         await fetch('/api/sessions/heartbeat', {
           method: 'POST',
@@ -36,35 +37,17 @@ export function useSessionTracking() {
       } catch {}
     };
 
-    if (!hasSentRef.current) {
-      hasSentRef.current = true;
-      sendHeartbeat();
-    }
-
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(sendHeartbeat, 60000);
+    sendHeartbeat();
+    heartbeatTimer = setInterval(sendHeartbeat, 60000);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+        lastUid = null;
       }
     };
-  }, [user?.uid]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const handleUnload = () => {
-      navigator.sendBeacon(
-        '/api/sessions/cleanup',
-        new Blob([JSON.stringify({})], { type: 'application/json' })
-      );
-    };
-
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [user?.uid]);
+  }, [uid]);
 }
 
 export async function logAuditEvent(data: {

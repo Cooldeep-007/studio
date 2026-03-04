@@ -65,6 +65,18 @@ Accessible at `/admin` (Owner/Admin roles only). Features:
 - **Build command**: `npm run build`
 - **Run command**: `npm run start`
 
+## Authentication
+
+Sign-in providers on the login page:
+- **Email/Password** — standard email + password authentication
+- **Google** — OAuth via popup (GoogleAuthProvider)
+- **GitHub** — OAuth via popup (GithubAuthProvider) — requires enabling in Firebase Console
+- **Microsoft** — OAuth via popup (OAuthProvider 'microsoft.com') — requires enabling in Firebase Console
+
+All cross-layout navigation (auth ↔ app route groups) uses `window.location.href` / `window.location.replace` to prevent Next.js "Segment mismatch" errors that cause page flickering.
+
+Session heartbeat tracking uses a module-level singleton interval (60s) to avoid spam during auth state transitions.
+
 ## Firebase Configuration
 
 Firebase credentials are stored in `src/firebase/config.ts`. The project uses Firebase production backends (no emulators).

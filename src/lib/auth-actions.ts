@@ -2,6 +2,8 @@
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
+  GithubAuthProvider,
+  OAuthProvider,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut as firebaseSignOut,
@@ -210,6 +212,38 @@ export async function signInWithGoogle(): Promise<AuthError | null> {
     }
     const authError = handleAuthError(error);
     logAuthEventServer('login_failed', { metadata: { error: authError.code } });
+    return authError;
+  }
+}
+
+export async function signInWithGithub(): Promise<AuthError | null> {
+  const provider = new GithubAuthProvider();
+  try {
+    const result = await signInWithPopup(auth, provider);
+    logAuthEventServer('login', { firebaseUid: result.user.uid, email: result.user.email!, displayName: result.user.displayName || '' });
+    return null;
+  } catch (error: any) {
+    if (error.code === 'auth/popup-closed-by-user') {
+      return null;
+    }
+    const authError = handleAuthError(error);
+    logAuthEventServer('login_failed', { metadata: { error: authError.code, provider: 'github' } });
+    return authError;
+  }
+}
+
+export async function signInWithMicrosoft(): Promise<AuthError | null> {
+  const provider = new OAuthProvider('microsoft.com');
+  try {
+    const result = await signInWithPopup(auth, provider);
+    logAuthEventServer('login', { firebaseUid: result.user.uid, email: result.user.email!, displayName: result.user.displayName || '' });
+    return null;
+  } catch (error: any) {
+    if (error.code === 'auth/popup-closed-by-user') {
+      return null;
+    }
+    const authError = handleAuthError(error);
+    logAuthEventServer('login_failed', { metadata: { error: authError.code, provider: 'microsoft' } });
     return authError;
   }
 }

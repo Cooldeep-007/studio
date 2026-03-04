@@ -9,8 +9,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { currentPage } = body;
+    let currentPage = '/';
+    try {
+      const body = await req.json();
+      currentPage = body.currentPage || '/';
+    } catch {}
 
     await pool.query(
       `INSERT INTO active_sessions (firebase_uid, email, display_name, current_page, last_heartbeat, metadata)

@@ -30,9 +30,9 @@ const nextConfig = {
     ],
   },
   allowedDevOrigins: [
-    'https://33f089d2-85cc-4dd7-b870-24775789e266-00-2ha0kcb9d8wse.pike.replit.dev',
-    'http://127.0.0.1',
-    'http://0.0.0.0',
+    '33f089d2-85cc-4dd7-b870-24775789e266-00-2ha0kcb9d8wse.pike.replit.dev',
+    '127.0.0.1',
+    '0.0.0.0',
   ],
 };
 
