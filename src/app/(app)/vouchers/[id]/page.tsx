@@ -20,6 +20,9 @@ import {
   MapPin,
   Hash,
   Settings2,
+  Phone,
+  Mail,
+  IndianRupee,
 } from 'lucide-react';
 import {
   Card,
@@ -190,20 +193,31 @@ export default function VoucherViewPage() {
 
   const partyLedgerName = voucher?.partyLedgerId ? ledgerMap.get(voucher.partyLedgerId)?.ledgerName || 'N/A' : 'N/A';
 
+  const composeAddress = (obj: { addressLine1?: string; addressLine2?: string; city?: string; district?: string; state?: string; country?: string; pincode?: string; address?: string } | undefined | null): string => {
+    if (!obj) return '';
+    const parts = [obj.addressLine1, obj.addressLine2, obj.city, obj.district, obj.state, obj.pincode, obj.country].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : (obj as any)?.address || '';
+  };
+
   const calculations = React.useMemo(() => {
     if (!voucher?.invoiceDetails) return null;
     const { items } = voucher.invoiceDetails;
     let subtotal = 0;
-    let totalGst = 0;
+    let totalCgst = 0;
+    let totalSgst = 0;
+    let totalIgst = 0;
     
     items.forEach(item => {
         subtotal += item.amount;
-        totalGst += item.cgst + item.sgst + item.igst;
+        totalCgst += item.cgst;
+        totalSgst += item.sgst;
+        totalIgst += item.igst;
     });
 
+    const totalGst = totalCgst + totalSgst + totalIgst;
     const grandTotal = voucher.invoiceDetails.grandTotal || subtotal + totalGst + (voucher.invoiceDetails.roundOff || 0);
 
-    return { subtotal, totalGst, grandTotal };
+    return { subtotal, totalCgst, totalSgst, totalIgst, totalGst, grandTotal };
   }, [voucher]);
 
   const toggleConfig = (key: keyof typeof printConfig) => {
@@ -384,7 +398,7 @@ export default function VoucherViewPage() {
     y += 7;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(company.address || '', margin, y);
+    doc.text(composeAddress(company) || '', margin, y);
     y += 5;
     doc.text(`GSTIN: ${company.gstin || 'N/A'}`, margin, y);
 
@@ -402,7 +416,7 @@ export default function VoucherViewPage() {
 
     // 3. Voucher & Party Details
     const partyLedger = ledgerMap.get(voucher.partyLedgerId || '');
-    const partyAddress = partyLedger?.contactDetails?.addressLine1 || '';
+    const partyAddress = composeAddress(partyLedger?.contactDetails) || '';
     const partyGstin = partyLedger?.gstDetails?.gstin || 'N/A';
 
     doc.setFontSize(10);
@@ -711,7 +725,11 @@ export default function VoucherViewPage() {
                         <div className="space-y-1">
                             <p className="font-semibold text-lg flex items-center gap-2"><Building2 className="h-4 w-4 text-primary" />{company.companyName}</p>
                             {company.gstin && <p className="text-sm text-muted-foreground flex items-center gap-1"><Hash className="h-3 w-3" />GSTIN: {company.gstin}</p>}
-                            {company.address && <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />{company.address}</p>}
+                            {company.pan && <p className="text-sm text-muted-foreground">PAN: {company.pan}</p>}
+                            {composeAddress(company) && <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />{composeAddress(company)}</p>}
+                            {company.state && <p className="text-sm text-muted-foreground">State: {company.state}</p>}
+                            {company.email && <p className="text-sm text-muted-foreground">{company.email}</p>}
+                            {(company.mobileNumber || company.telephone) && <p className="text-sm text-muted-foreground">{company.mobileNumber || company.telephone}</p>}
                         </div>
                     </div>
                     <div>
@@ -719,14 +737,15 @@ export default function VoucherViewPage() {
                         <div className="space-y-1">
                             <p className="font-semibold text-lg">{partyLedgerName}</p>
                             {partyLedger?.gstDetails?.gstin && <p className="text-sm text-muted-foreground flex items-center gap-1"><Hash className="h-3 w-3" />GSTIN: {partyLedger.gstDetails.gstin}</p>}
-                            {partyLedger?.contactDetails?.addressLine1 && (
-                                <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />
-                                    {[partyLedger.contactDetails.addressLine1, partyLedger.contactDetails.city, partyLedger.contactDetails.state, partyLedger.contactDetails.pincode].filter(Boolean).join(', ')}
-                                </p>
+                            {partyLedger?.gstDetails?.gstType && <p className="text-sm text-muted-foreground">GST Type: {partyLedger.gstDetails.gstType}</p>}
+                            {partyLedger?.contactDetails?.pan && <p className="text-sm text-muted-foreground">PAN: {partyLedger.contactDetails.pan}</p>}
+                            {composeAddress(partyLedger?.contactDetails) && (
+                                <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />{composeAddress(partyLedger?.contactDetails)}</p>
                             )}
+                            {partyLedger?.contactDetails?.state && <p className="text-sm text-muted-foreground">State: {partyLedger.contactDetails.state}</p>}
+                            {partyLedger?.contactDetails?.contactPerson && <p className="text-sm text-muted-foreground">Contact: {partyLedger.contactDetails.contactPerson}</p>}
                             {partyLedger?.contactDetails?.email && <p className="text-sm text-muted-foreground">{partyLedger.contactDetails.email}</p>}
                             {partyLedger?.contactDetails?.mobileNumber && <p className="text-sm text-muted-foreground">{partyLedger.contactDetails.mobileNumber}</p>}
-                            {partyLedger?.contactDetails?.pan && <p className="text-sm text-muted-foreground">PAN: {partyLedger.contactDetails.pan}</p>}
                         </div>
                     </div>
                 </div>
@@ -758,7 +777,7 @@ export default function VoucherViewPage() {
 
             {isInvoiceType && voucher.invoiceDetails?.items && (
                 <>
-                <div className={!printConfig.itemsTable ? 'print:hidden' : ''} data-section="itemsTable">
+                <div className={`overflow-x-auto ${!printConfig.itemsTable ? 'print:hidden' : ''}`} data-section="itemsTable">
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-muted/50">
@@ -770,7 +789,9 @@ export default function VoucherViewPage() {
                                 <TableHead className="text-right">Disc%</TableHead>
                                 <TableHead className="text-right">Taxable</TableHead>
                                 <TableHead className="text-right">GST%</TableHead>
-                                <TableHead className="text-right">GST Amt</TableHead>
+                                {calculations && calculations.totalCgst > 0 && <TableHead className="text-right">CGST</TableHead>}
+                                {calculations && calculations.totalSgst > 0 && <TableHead className="text-right">SGST</TableHead>}
+                                {calculations && calculations.totalIgst > 0 && <TableHead className="text-right">IGST</TableHead>}
                                 <TableHead className="text-right">Total</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -778,14 +799,19 @@ export default function VoucherViewPage() {
                             {voucher.invoiceDetails.items.map((item: InvoiceItem, index: number) => (
                                 <TableRow key={index}>
                                     <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-                                    <TableCell className="font-medium">{item.name}</TableCell>
+                                    <TableCell>
+                                        <p className="font-medium">{item.name}</p>
+                                        {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                                    </TableCell>
                                     <TableCell className="text-muted-foreground">{item.hsnCode || item.sacCode || '-'}</TableCell>
-                                    <TableCell className="text-right">{item.quantity} {item.uqc}</TableCell>
+                                    <TableCell className="text-right whitespace-nowrap">{item.quantity} {item.uqc}</TableCell>
                                     <TableCell className="text-right font-mono">{formatCurrency(item.rate)}</TableCell>
                                     <TableCell className="text-right">{item.discount || 0}%</TableCell>
                                     <TableCell className="text-right font-mono">{formatCurrency(item.amount)}</TableCell>
                                     <TableCell className="text-right">{item.gstRate}%</TableCell>
-                                    <TableCell className="text-right font-mono">{formatCurrency(item.cgst + item.sgst + item.igst)}</TableCell>
+                                    {calculations && calculations.totalCgst > 0 && <TableCell className="text-right font-mono">{formatCurrency(item.cgst)}</TableCell>}
+                                    {calculations && calculations.totalSgst > 0 && <TableCell className="text-right font-mono">{formatCurrency(item.sgst)}</TableCell>}
+                                    {calculations && calculations.totalIgst > 0 && <TableCell className="text-right font-mono">{formatCurrency(item.igst)}</TableCell>}
                                     <TableCell className="text-right font-mono font-medium">{formatCurrency(item.total)}</TableCell>
                                 </TableRow>
                             ))}
@@ -802,14 +828,14 @@ export default function VoucherViewPage() {
                             )}
                             <Separator />
                             <div className="flex justify-between font-medium"><span>Taxable Value</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.subtotal)}</span></div>
-                            {voucher.invoiceDetails.items.some((i: InvoiceItem) => i.cgst > 0) && (
-                                <>
-                                    <div className="flex justify-between text-muted-foreground"><span>CGST</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.items.reduce((s: number, i: InvoiceItem) => s + i.cgst, 0))}</span></div>
-                                    <div className="flex justify-between text-muted-foreground"><span>SGST</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.items.reduce((s: number, i: InvoiceItem) => s + i.sgst, 0))}</span></div>
-                                </>
+                            {calculations && calculations.totalCgst > 0 && (
+                                <div className="flex justify-between text-muted-foreground"><span>CGST</span><span className="font-mono">{formatCurrency(calculations.totalCgst)}</span></div>
                             )}
-                            {voucher.invoiceDetails.items.some((i: InvoiceItem) => i.igst > 0) && (
-                                <div className="flex justify-between text-muted-foreground"><span>IGST</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.items.reduce((s: number, i: InvoiceItem) => s + i.igst, 0))}</span></div>
+                            {calculations && calculations.totalSgst > 0 && (
+                                <div className="flex justify-between text-muted-foreground"><span>SGST</span><span className="font-mono">{formatCurrency(calculations.totalSgst)}</span></div>
+                            )}
+                            {calculations && calculations.totalIgst > 0 && (
+                                <div className="flex justify-between text-muted-foreground"><span>IGST</span><span className="font-mono">{formatCurrency(calculations.totalIgst)}</span></div>
                             )}
                             {(voucher.invoiceDetails.tcsAmount || 0) > 0 && (
                                 <div className="flex justify-between text-muted-foreground"><span>TCS</span><span className="font-mono">{formatCurrency(voucher.invoiceDetails.tcsAmount!)}</span></div>
@@ -895,6 +921,19 @@ export default function VoucherViewPage() {
                 <div className={!printConfig.remarks ? 'print:hidden' : ''} data-section="remarks">
                     <p className="text-sm font-medium text-muted-foreground">Remarks / Terms</p>
                     <p className="mt-1 p-3 bg-secondary rounded-md text-sm whitespace-pre-wrap">{voucher.invoiceDetails.remarks}</p>
+                </div>
+            )}
+
+            {isInvoiceType && company.bankDetails && (company.bankDetails.accountNumber || company.bankDetails.ifscCode) && (
+                <div className="p-4 bg-muted/30 rounded-lg" data-section="bankDetails">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Bank Details for Payment</p>
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+                        {company.bankDetails.bankName && <><span className="text-muted-foreground">Bank</span><span className="font-medium">{company.bankDetails.bankName}</span></>}
+                        {company.bankDetails.branchName && <><span className="text-muted-foreground">Branch</span><span className="font-medium">{company.bankDetails.branchName}</span></>}
+                        {company.bankDetails.accountHolderName && <><span className="text-muted-foreground">A/C Holder</span><span className="font-medium">{company.bankDetails.accountHolderName}</span></>}
+                        {company.bankDetails.accountNumber && <><span className="text-muted-foreground">A/C Number</span><span className="font-medium font-mono">{company.bankDetails.accountNumber}</span></>}
+                        {company.bankDetails.ifscCode && <><span className="text-muted-foreground">IFSC</span><span className="font-medium font-mono">{company.bankDetails.ifscCode}</span></>}
+                    </div>
                 </div>
             )}
 

@@ -69,14 +69,16 @@ Accessible at `/admin` (Owner/Admin roles only). Features:
 ## Voucher View (`/vouchers/[id]`)
 
 Enhanced invoice-style view page with:
-- **Company & Party sections**: Shows seller/buyer info with GSTIN, address, contact details
-- **Items table**: Full line-item breakdown with HSN/SAC, qty, rate, discount, taxable amount, GST breakdown (CGST/SGST/IGST), and totals
-- **Summary section**: Subtotal, discount, taxable value, GST components, TCS, adjustment, round off, grand total with amount in words
+- **Company & Party sections**: Shows seller/buyer info with GSTIN, PAN, composed address (from individual fields: addressLine1, city, state, pincode, etc.), state, contact person, email, phone, GST type
+- **Items table**: Full line-item breakdown with HSN/SAC, qty, rate, discount, taxable amount, GST%, separate CGST/SGST/IGST columns (conditionally shown based on tax type), and totals. Item descriptions shown below names.
+- **Summary section**: Subtotal, discount, taxable value, CGST/SGST/IGST breakdown (using memoized calculations), TCS, adjustment, round off, grand total with amount in words
+- **Bank Details**: Company bank details section for payment info (bank name, branch, A/C holder, A/C number, IFSC)
 - **Payment status**: Badges for Paid/Partial/Unpaid with outstanding amount display
 - **Instant Payment/Receipt**: Dialog to record payments against invoices — creates linked Payment/Receipt vouchers in Firestore, updates outstanding amount and status, tracks bill allocations
 - **Payment history**: Shows all linked payments/receipts with amounts
 - **Configure Print/Export**: Dialog (Settings2 icon button) with 10 toggleable sections — Company & Party Info, Invoice Meta, Items Table, Tax Summary, Amount in Words, Outstanding Amount, Narration, Remarks, Accounting Entries, Payment History. Each section is conditionally hidden in print via `print:hidden` CSS class based on user selection. Accounting Entries default off; all others default on.
 - Non-invoice vouchers (Journal, Payment, Receipt, Contra) retain the original Dr/Cr entries table view
+- PDF/Excel export uses composed addresses (same `composeAddress` helper) for consistency
 
 ## Voucher Numbering
 

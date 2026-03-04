@@ -164,15 +164,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               userRole && item.roles.includes(userRole) && (
                 <SidebarMenuItem key={item.label}>
                   <SidebarMenuButton
-                    asChild
                     isActive={isActive(item.href)}
                     tooltip={{ children: item.label }}
-                    className="justify-start"
+                    className="justify-start cursor-pointer"
+                    onClick={() => router.push(item.href)}
                   >
-                    <Link href={item.href}>
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </Link>
+                    <item.icon />
+                    <span>{item.label}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )
@@ -193,26 +191,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton
-                          asChild
                           isActive={pathname === '/gst/gstr-1'}
+                          className="cursor-pointer"
+                          onClick={() => router.push('/gst/gstr-1')}
                         >
-                          <Link href="/gst/gstr-1">GSTR-1</Link>
+                          GSTR-1
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton
-                          asChild
                           isActive={pathname === '/gst/gstr-2b'}
+                          className="cursor-pointer"
+                          onClick={() => router.push('/gst/gstr-2b')}
                         >
-                          <Link href="/gst/gstr-2b">GSTR-2B</Link>
+                          GSTR-2B
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton
-                          asChild
                           isActive={pathname === '/gst/gstr-3b'}
+                          className="cursor-pointer"
+                          onClick={() => router.push('/gst/gstr-3b')}
                         >
-                          <Link href="/gst/gstr-3b">GSTR-3B</Link>
+                          GSTR-3B
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                     </SidebarMenuSub>
@@ -227,15 +228,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {userRole && settingsMenuItem.roles.includes(userRole) && (
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  asChild
                   isActive={isActive(settingsMenuItem.href)}
                   tooltip={{ children: settingsMenuItem.label }}
-                  className="justify-start"
+                  className="justify-start cursor-pointer"
+                  onClick={() => router.push(settingsMenuItem.href)}
                 >
-                  <Link href={settingsMenuItem.href}>
-                    <settingsMenuItem.icon />
-                    <span>{settingsMenuItem.label}</span>
-                  </Link>
+                  <settingsMenuItem.icon />
+                  <span>{settingsMenuItem.label}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )}
