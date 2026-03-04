@@ -49,6 +49,13 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
+const natureMap: Record<string, string> = {
+  'Assets': 'Asset',
+  'Liabilities': 'Liability',
+  'Income': 'Income',
+  'Expense': 'Expense',
+};
+
 export default function BankPage() {
   const { profile } = useUser();
   const { firestore } = useFirebase();
@@ -57,6 +64,17 @@ export default function BankPage() {
   const [selectedCompanyId, setSelectedCompanyId] = React.useState<string | undefined>();
   const [isAddBankAccountSheetOpen, setIsAddBankAccountSheetOpen] = React.useState(false);
   const [isAddPettyCashSheetOpen, setIsAddPettyCashSheetOpen] = React.useState(false);
+  const [parentGroups, setParentGroups] = React.useState<{ id: number; group_name: string; primary_nature: string }[]>([]);
+
+  React.useEffect(() => {
+    fetch('/api/parent-groups')
+      .then(res => res.json())
+      .then(data => {
+        const groups = Array.isArray(data) ? data : data?.groups;
+        if (Array.isArray(groups)) setParentGroups(groups);
+      })
+      .catch(() => {});
+  }, []);
 
   const companiesQuery = useMemoFirebase(() => {
     if (!firestore || !profile?.firmId) return null;
@@ -80,7 +98,14 @@ export default function BankPage() {
 
   const accounts = React.useMemo(() => {
     if (!allLedgers) return [];
-    return allLedgers.filter(l => (l.parentLedgerId === 'group-bank-accounts' || l.parentLedgerId === 'group-cash-in-hand') && !l.isGroup);
+    return allLedgers.filter(l =>
+      !l.isGroup && (
+        l.isBankAccount ||
+        l.isCashAccount ||
+        l.group === 'Bank Accounts' ||
+        l.group === 'Cash-in-Hand'
+      )
+    );
   }, [allLedgers]);
 
   const totalBalance = React.useMemo(
@@ -90,28 +115,42 @@ export default function BankPage() {
   
   const isLoading = isLoadingCompanies || isLoadingLedgers;
 
+  const resolveParentGroup = async (ledgersColRef: any, groupName: string) => {
+    const groupQuery = query(ledgersColRef, where('isGroup', '==', true), where('ledgerName', '==', groupName));
+    const groupSnapshot = await getDocs(groupQuery);
+    if (!groupSnapshot.empty) return groupSnapshot.docs[0].id;
+
+    const altQuery = query(ledgersColRef, where('isGroup', '==', true), where('group', '==', groupName));
+    const altSnapshot = await getDocs(altQuery);
+    if (!altSnapshot.empty) return altSnapshot.docs[0].id;
+
+    return null;
+  };
+
   const handleAddBankAccount = async (data: any) => {
     if (!firestore || !profile?.firmId || !selectedCompanyId) return;
 
     try {
       const ledgersColRef = collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'ledgers');
-      const groupQuery = query(ledgersColRef, where('isGroup', '==', true), where('ledgerName', '==', 'Bank Accounts'));
-      const groupSnapshot = await getDocs(groupQuery);
+      const selectedGroup = data.parentGroup || 'Bank Accounts';
+      const parentId = await resolveParentGroup(ledgersColRef, selectedGroup);
 
-      if (groupSnapshot.empty) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not find "Bank Accounts" group.' });
+      if (!parentId) {
+        toast({ variant: 'destructive', title: 'Error', description: `Could not find "${selectedGroup}" group.` });
         return;
       }
-      const bankAccountsGroup = groupSnapshot.docs[0];
+
+      const pg = parentGroups.find(g => g.group_name === selectedGroup);
+      const nature = pg ? (natureMap[pg.primary_nature] || 'Asset') : 'Asset';
 
       const newLedgerData = {
         ledgerName: data.accountName,
-        parentLedgerId: bankAccountsGroup.id,
-        group: 'Bank Accounts',
+        parentLedgerId: parentId,
+        group: selectedGroup,
         isGroup: false,
         isBankAccount: true,
         openingBalance: data.openingBalance || 0,
-        balanceType: 'Dr',
+        balanceType: data.balanceType || 'Dr',
         currentBalance: data.openingBalance || 0,
         bankDetails: {
           bankName: data.bankName,
@@ -127,7 +166,7 @@ export default function BankPage() {
         status: 'Active',
         createdAt: serverTimestamp(),
         lastUpdatedAt: serverTimestamp(),
-        nature: 'Asset',
+        nature,
         gstApplicable: false,
       };
 
@@ -143,30 +182,33 @@ export default function BankPage() {
     
     try {
       const ledgersColRef = collection(firestore, 'firms', profile.firmId, 'companies', selectedCompanyId, 'ledgers');
-      const groupQuery = query(ledgersColRef, where('isGroup', '==', true), where('ledgerName', '==', 'Cash-in-Hand'));
-      const groupSnapshot = await getDocs(groupQuery);
-      if (groupSnapshot.empty) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Could not find "Cash-in-Hand" group.' });
+      const selectedGroup = data.parentGroup || 'Cash-in-Hand';
+      const parentId = await resolveParentGroup(ledgersColRef, selectedGroup);
+
+      if (!parentId) {
+        toast({ variant: 'destructive', title: 'Error', description: `Could not find "${selectedGroup}" group.` });
         return;
       }
-      const cashGroup = groupSnapshot.docs[0];
+
+      const pg = parentGroups.find(g => g.group_name === selectedGroup);
+      const nature = pg ? (natureMap[pg.primary_nature] || 'Asset') : 'Asset';
 
       const newLedgerData = {
         ledgerName: data.cashName,
-        parentLedgerId: cashGroup.id,
-        group: 'Cash-in-Hand',
+        parentLedgerId: parentId,
+        group: selectedGroup,
         isGroup: false,
         isCashAccount: true,
         responsiblePerson: data.responsiblePerson,
         openingBalance: data.openingBalance || 0,
-        balanceType: 'Dr',
+        balanceType: data.balanceType || 'Dr',
         currentBalance: data.openingBalance || 0,
         firmId: profile.firmId,
         companyId: selectedCompanyId,
         status: 'Active',
         createdAt: serverTimestamp(),
         lastUpdatedAt: serverTimestamp(),
-        nature: 'Asset',
+        nature,
         gstApplicable: false,
       };
 
@@ -317,8 +359,8 @@ export default function BankPage() {
         </CardContent>
       </Card>
     </div>
-    <AddBankAccountSheet open={isAddBankAccountSheetOpen} onOpenChange={setIsAddBankAccountSheetOpen} onSave={handleAddBankAccount} />
-    <AddPettyCashSheet open={isAddPettyCashSheetOpen} onOpenChange={setIsAddPettyCashSheetOpen} onSave={handleAddPettyCash} />
+    <AddBankAccountSheet open={isAddBankAccountSheetOpen} onOpenChange={setIsAddBankAccountSheetOpen} onSave={handleAddBankAccount} parentGroups={parentGroups} />
+    <AddPettyCashSheet open={isAddPettyCashSheetOpen} onOpenChange={setIsAddPettyCashSheetOpen} onSave={handleAddPettyCash} parentGroups={parentGroups} />
     </>
   );
 }

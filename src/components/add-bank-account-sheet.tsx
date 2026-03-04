@@ -20,8 +20,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { CalendarIcon, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import type { Ledger } from '@/lib/types';
-
+import type { ParentGroup } from '@/components/add-petty-cash-sheet';
 
 const formSchema = z.object({
   bankName: z.string().min(1, "Bank name is required."),
@@ -30,7 +29,9 @@ const formSchema = z.object({
   ifscCode: z.string().min(1, "IFSC code is required."),
   branchName: z.string().optional(),
   accountType: z.enum(['Savings', 'Current', 'OD', 'CC']),
+  parentGroup: z.string().min(1, "Parent group is required."),
   openingBalance: z.coerce.number().optional(),
+  balanceType: z.enum(['Dr', 'Cr']).default('Dr'),
   openingBalanceDate: z.date().optional(),
   currency: z.string().default('INR'),
   upiId: z.string().optional(),
@@ -48,10 +49,12 @@ export function AddBankAccountSheet({
   open,
   onOpenChange,
   onSave,
+  parentGroups,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (data: FormValues) => void;
+  parentGroups: ParentGroup[];
 }) {
   const { toast } = useToast();
   const form = useForm<FormValues>({
@@ -63,7 +66,9 @@ export function AddBankAccountSheet({
         ifscCode: '',
         branchName: '',
         accountType: 'Current',
+        parentGroup: 'Bank Accounts',
         openingBalance: 0,
+        balanceType: 'Dr',
         openingBalanceDate: new Date(),
         currency: 'INR',
         upiId: '',
@@ -111,14 +116,42 @@ export function AddBankAccountSheet({
                     </Select>
                   </FormItem>)} />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                 <FormField control={form.control} name="openingBalance" render={({ field }) => (<FormItem><FormLabel>Opening Balance</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
-                 <FormField control={form.control} name="openingBalanceDate" render={({ field }) => (
-                     <FormItem className="flex flex-col"><FormLabel>As of Date</FormLabel>
-                       <Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
-                         <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent>
-                       </Popover><FormMessage />
-                     </FormItem>)} />
+              <FormField control={form.control} name="parentGroup" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Parent Group *</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select parent group" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      {parentGroups.map(pg => (
+                        <SelectItem key={pg.id} value={pg.group_name}>{pg.group_name} ({pg.primary_nature})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <div className="pt-4 border-t space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField control={form.control} name="openingBalance" render={({ field }) => (<FormItem><FormLabel>Opening Balance</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>)} />
+                  <FormField control={form.control} name="balanceType" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Balance Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="Dr">Debit (Dr)</SelectItem>
+                          <SelectItem value="Cr">Credit (Cr)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="openingBalanceDate" render={({ field }) => (
+                      <FormItem className="flex flex-col"><FormLabel>As of Date</FormLabel>
+                        <Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("pl-3 font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent>
+                        </Popover><FormMessage />
+                      </FormItem>)} />
+                </div>
               </div>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
                   <FormField control={form.control} name="upiId" render={({ field }) => (<FormItem><FormLabel>UPI ID</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>)} />
