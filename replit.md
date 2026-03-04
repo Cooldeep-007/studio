@@ -96,7 +96,8 @@ Configurable per company/voucher type with Auto or Manual mode:
 - **Sidebar navigation**: ALWAYS use `router.push()` (not `asChild` + `Link`) for `SidebarMenuButton` items — multiple Radix Slot layers break Link clicks.
 - **Cross-layout navigation**: ALWAYS use `window.location.href` between `(auth)` and `(app)` route groups.
 - **Sheet/Dialog dropdowns**: NEVER use Radix Select/Popover inside a Sheet or Dialog — use native HTML `<select>` and `<input type="date">` elements instead. This avoids compose-refs infinite loop errors.
-- **Radix compose-refs patch**: `patch-package` patches `@radix-ui/react-compose-refs@1.1.1` to remove cleanup-return logic that causes infinite loops in React 18. Postinstall also deduplicates nested compose-refs copies so all Radix packages use the single patched version. Patch file: `patches/@radix-ui+react-compose-refs+1.1.1.patch`. Dedupe script: `scripts/dedupe-radix.js`.
+- **Radix compose-refs patch**: `patch-package` patches `@radix-ui/react-compose-refs@1.1.1` to remove cleanup-return logic. Patch file: `patches/@radix-ui+react-compose-refs+1.1.1.patch`.
+- **Radix react-slot patch**: `patch-package` patches `@radix-ui/react-slot@1.2.3` to use `React.useCallback` for stable composed refs in `SlotClone` (instead of raw `composeRefs()` which creates a new function every render, causing infinite re-render loops). Patch file: `patches/@radix-ui+react-slot+1.2.3.patch`. The dedupe script (`scripts/dedupe-radix.js`) also patches all 7 nested `react-slot@1.1.2` copies (in react-alert-dialog, react-collection, react-menu, react-popover, react-primitive, react-select, react-tooltip) with the same inline `useCallback` fix and deduplicates nested compose-refs copies. Postinstall runs: `patch-package && node scripts/dedupe-radix.js`.
 - **Firestore writes**: ALWAYS strip `undefined` values before writing. Use `removeUndefined()` with `_methodName` sentinel detection.
 
 ## Development

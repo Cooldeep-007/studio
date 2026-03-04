@@ -1,0 +1,47 @@
+diff --git a/node_modules/@radix-ui/react-slot/dist/index.mjs b/node_modules/@radix-ui/react-slot/dist/index.mjs
+index 510e77f..eff7059 100644
+--- a/node_modules/@radix-ui/react-slot/dist/index.mjs
++++ b/node_modules/@radix-ui/react-slot/dist/index.mjs
+@@ -1,7 +1,15 @@
+ // src/slot.tsx
+ import * as React from "react";
+-import { composeRefs } from "@radix-ui/react-compose-refs";
+ import { Fragment as Fragment2, jsx } from "react/jsx-runtime";
++
++function _setRef(ref, value) {
++  if (typeof ref === "function") {
++    ref(value);
++  } else if (ref !== null && ref !== void 0) {
++    ref.current = value;
++  }
++}
++
+ // @__NO_SIDE_EFFECTS__
+ function createSlot(ownerName) {
+   const SlotClone = /* @__PURE__ */ createSlotClone(ownerName);
+@@ -31,11 +39,18 @@ var Slot = /* @__PURE__ */ createSlot("Slot");
+ function createSlotClone(ownerName) {
+   const SlotClone = React.forwardRef((props, forwardedRef) => {
+     const { children, ...slotProps } = props;
++    const childrenRef = React.isValidElement(children) ? getElementRef(children) : null;
++    const composedRef = React.useCallback(
++      (node) => {
++        _setRef(forwardedRef, node);
++        _setRef(childrenRef, node);
++      },
++      [forwardedRef, childrenRef]
++    );
+     if (React.isValidElement(children)) {
+-      const childrenRef = getElementRef(children);
+       const props2 = mergeProps(slotProps, children.props);
+       if (children.type !== React.Fragment) {
+-        props2.ref = forwardedRef ? composeRefs(forwardedRef, childrenRef) : childrenRef;
++        props2.ref = composedRef;
+       }
+       return React.cloneElement(children, props2);
+     }
+@@ -102,4 +117,3 @@ export {
+   createSlot,
+   createSlottable
+ };
+-//# sourceMappingURL=index.mjs.map
