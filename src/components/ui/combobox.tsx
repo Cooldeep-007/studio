@@ -73,19 +73,23 @@ export function Combobox({
     <Popover open={open} onOpenChange={(isOpen) => {
       setOpen(isOpen);
       if (!isOpen) setSearchQuery("");
-    }}>
+    }} modal={false}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           role="combobox"
           aria-expanded={open}
           className={cn("w-full justify-between font-normal", !value && "text-muted-foreground", className)}
+          type="button"
         >
           {selectedOption ? selectedOption.label : placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <Command shouldFilter={false}>
           <CommandInput 
             placeholder={searchPlaceholder} 
